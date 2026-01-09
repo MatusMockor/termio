@@ -11,7 +11,19 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** @property StaffProfile|null $staff */
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property int|null $staff_id
+ * @property Carbon $date
+ * @property string|null $start_time
+ * @property string|null $end_time
+ * @property string|null $reason
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property-read Tenant $tenant
+ * @property-read StaffProfile|null $staff
+ */
 final class TimeOff extends Model
 {
     use BelongsToTenant;

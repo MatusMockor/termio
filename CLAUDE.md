@@ -145,7 +145,34 @@ final class OrderCreateAction
 * Handles calculations, validations, API calls, formatting
 * Limit dependencies to 5
 
-## 7. Testing
+## 7. Models
+
+* All models must have **PHPDoc `@property` annotations** for all database columns
+* Include proper types: `int`, `string`, `bool`, `float`, `Carbon`, `array`, etc.
+* Mark nullable properties with `|null`
+* Include relationships as `@property-read`
+
+```php
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $name
+ * @property string|null $email
+ * @property string $status
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
+ *
+ * @property-read Tenant $tenant
+ * @property-read Collection<int, Appointment> $appointments
+ */
+final class Client extends Model
+{
+    use BelongsToTenant, HasFactory, SoftDeletes;
+}
+```
+
+## 8. Testing
 
 * Run tests: `./vendor/bin/sail test`
 * Each model has a **Factory**
@@ -160,7 +187,7 @@ $this->assertDatabaseHas(Order::class, ['status' => 'pending']);
 * Test names must clearly describe what they verify
 * Tests should follow real application flow - make requests to endpoints
 
-## 8. Design Patterns
+## 9. Design Patterns
 
 Apply patterns where appropriate:
 * **Repository** - data access abstraction
@@ -171,7 +198,7 @@ Apply patterns where appropriate:
 
 Don't force patterns - use them when they genuinely solve a problem.
 
-## 9. Task Completion Checklist
+## 10. Task Completion Checklist
 
 - [ ] Pint ran successfully
 - [ ] Tests passed (`sail test`)

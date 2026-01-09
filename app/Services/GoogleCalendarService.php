@@ -172,20 +172,16 @@ class GoogleCalendarService
     {
         $lines = [];
 
-        if ($appointment->client) {
-            $lines[] = "Klient: {$appointment->client->name}";
-            if ($appointment->client->phone) {
-                $lines[] = "Telefón: {$appointment->client->phone}";
-            }
-            if ($appointment->client->email) {
-                $lines[] = "Email: {$appointment->client->email}";
-            }
+        $lines[] = "Klient: {$appointment->client->name}";
+        if ($appointment->client->phone) {
+            $lines[] = "Telefón: {$appointment->client->phone}";
+        }
+        if ($appointment->client->email) {
+            $lines[] = "Email: {$appointment->client->email}";
         }
 
-        if ($appointment->service) {
-            $lines[] = "Služba: {$appointment->service->name}";
-            $lines[] = "Trvanie: {$appointment->service->duration_minutes} min";
-        }
+        $lines[] = "Služba: {$appointment->service->name}";
+        $lines[] = "Trvanie: {$appointment->service->duration_minutes} min";
 
         if ($appointment->notes) {
             $lines[] = "Poznámky: {$appointment->notes}";
