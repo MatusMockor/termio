@@ -10,13 +10,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin Client
+ *
+ * @SuppressWarnings(PHPMD.UnusedFormalParameter)
  */
 final class ClientResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $_request): array
     {
         /** @var \Carbon\Carbon|null $lastVisitAt */
         $lastVisitAt = $this->last_visit_at;
