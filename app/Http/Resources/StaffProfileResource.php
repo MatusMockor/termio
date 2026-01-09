@@ -10,13 +10,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin StaffProfile
+ *
+ * @SuppressWarnings(PHPMD.UnusedFormalParameter)
  */
 final class StaffProfileResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $_request): array
     {
         return [
             'id' => $this->id,

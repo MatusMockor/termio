@@ -10,13 +10,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin TimeOff
+ *
+ * @SuppressWarnings(PHPMD.UnusedFormalParameter)
  */
 final class TimeOffResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $_request): array
     {
         /** @var \Carbon\Carbon|null $date */
         $date = $this->date;

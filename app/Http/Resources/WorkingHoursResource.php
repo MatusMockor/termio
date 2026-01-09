@@ -10,13 +10,15 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * @mixin WorkingHours
+ *
+ * @SuppressWarnings(PHPMD.UnusedFormalParameter)
  */
 final class WorkingHoursResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+    public function toArray(Request $_request): array
     {
         return [
             'id' => $this->id,
