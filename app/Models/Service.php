@@ -6,11 +6,30 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property string $name
+ * @property string|null $description
+ * @property int $duration_minutes
+ * @property string $price
+ * @property string|null $category
+ * @property int $sort_order
+ * @property bool $is_active
+ * @property bool $is_bookable_online
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read Tenant $tenant
+ * @property-read Collection<int, Appointment> $appointments
+ */
 final class Service extends Model
 {
     use BelongsToTenant;

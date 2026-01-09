@@ -4,14 +4,37 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * @property int $id
+ * @property int|null $tenant_id
+ * @property string $name
+ * @property string $email
+ * @property Carbon|null $email_verified_at
+ * @property string $password
+ * @property string $role
+ * @property string|null $remember_token
+ * @property string|null $google_id
+ * @property string|null $google_access_token
+ * @property string|null $google_refresh_token
+ * @property Carbon|null $google_token_expires_at
+ * @property bool $is_active
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read Tenant|null $tenant
+ * @property-read Collection<int, Appointment> $appointments
+ * @property-read Collection<int, WorkingHours> $workingHours
+ */
 final class User extends Authenticatable
 {
     use HasApiTokens;

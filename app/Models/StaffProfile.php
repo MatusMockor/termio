@@ -6,12 +6,32 @@ namespace App\Models;
 
 use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property int|null $user_id
+ * @property string $display_name
+ * @property string|null $bio
+ * @property string|null $photo_url
+ * @property array<int, string>|null $specializations
+ * @property bool $is_bookable
+ * @property int $sort_order
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property-read Tenant $tenant
+ * @property-read User|null $user
+ * @property-read Collection<int, Service> $services
+ * @property-read Collection<int, Appointment> $appointments
+ * @property-read Collection<int, WorkingHours> $workingHours
+ */
 final class StaffProfile extends Model
 {
     use BelongsToTenant;

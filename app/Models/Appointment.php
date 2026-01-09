@@ -12,6 +12,27 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property int $id
+ * @property int $tenant_id
+ * @property int $client_id
+ * @property int $service_id
+ * @property int|null $staff_id
+ * @property Carbon $starts_at
+ * @property Carbon $ends_at
+ * @property string|null $notes
+ * @property string|null $google_event_id
+ * @property string $status
+ * @property string $source
+ * @property Carbon $created_at
+ * @property Carbon $updated_at
+ * @property Carbon|null $deleted_at
+ * @property-read int $duration_minutes
+ * @property-read Tenant $tenant
+ * @property-read Client $client
+ * @property-read Service $service
+ * @property-read User|null $staff
+ */
 final class Appointment extends Model
 {
     use BelongsToTenant;
