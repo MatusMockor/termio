@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\DTOs\Auth\LoginDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class LoginRequest extends FormRequest
@@ -32,5 +33,13 @@ final class LoginRequest extends FormRequest
     public function getPassword(): string
     {
         return $this->validated('password');
+    }
+
+    public function toDTO(): LoginDTO
+    {
+        return new LoginDTO(
+            email: $this->getEmail(),
+            password: $this->getPassword(),
+        );
     }
 }

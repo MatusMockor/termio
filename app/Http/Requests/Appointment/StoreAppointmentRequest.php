@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\DTOs\Appointment\CreateAppointmentDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class StoreAppointmentRequest extends FormRequest
@@ -64,5 +65,18 @@ final class StoreAppointmentRequest extends FormRequest
     public function getSource(): string
     {
         return $this->validated('source') ?? 'manual';
+    }
+
+    public function toDTO(): CreateAppointmentDTO
+    {
+        return new CreateAppointmentDTO(
+            clientId: $this->getClientId(),
+            serviceId: $this->getServiceId(),
+            staffId: $this->getStaffId(),
+            startsAt: $this->getStartsAt(),
+            notes: $this->getNotes(),
+            status: $this->getStatus(),
+            source: $this->getSource(),
+        );
     }
 }

@@ -4,23 +4,26 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Settings\SettingsUpdateAction;
+use App\Actions\Settings\SettingsWorkingHoursUpdateAction;
+use App\Contracts\Repositories\WorkingHoursRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
 use App\Http\Requests\Settings\UpdateWorkingHoursRequest;
-use App\Models\WorkingHours;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
 
 final class SettingsController extends Controller
 {
     public function __construct(
-        private readonly TenantContextService $tenantContext
+        private readonly TenantContextService $tenantContext,
+        private readonly WorkingHoursRepository $workingHoursRepository,
     ) {}
 
     public function index(): JsonResponse
     {
         $tenant = $this->tenantContext->getTenant();
-        $workingHours = WorkingHours::where('staff_id', null)->get();
+        $workingHours = $this->workingHoursRepository->getByTenantAndStaff($tenant->id, null);
 
         return response()->json([
             'tenant' => $tenant,
@@ -28,45 +31,22 @@ final class SettingsController extends Controller
         ]);
     }
 
-    public function update(UpdateSettingsRequest $request): JsonResponse
-    {
-        $data = array_filter([
-            'name' => $request->getName(),
-            'business_type' => $request->getBusinessType(),
-            'address' => $request->getAddress(),
-            'phone' => $request->getPhone(),
-            'timezone' => $request->getTimezone(),
-            'settings' => $request->getSettings(),
-        ], static fn (mixed $value): bool => $value !== null);
-
+    public function update(
+        UpdateSettingsRequest $request,
+        SettingsUpdateAction $action
+    ): JsonResponse {
         $tenant = $this->tenantContext->getTenant();
-        $tenant->update($data);
+        $updatedTenant = $action->handle($tenant, $request->toDTO());
 
-        return response()->json(['tenant' => $tenant]);
+        return response()->json(['tenant' => $updatedTenant]);
     }
 
-    public function updateWorkingHours(UpdateWorkingHoursRequest $request): JsonResponse
-    {
+    public function updateWorkingHours(
+        UpdateWorkingHoursRequest $request,
+        SettingsWorkingHoursUpdateAction $action
+    ): JsonResponse {
         $tenant = $this->tenantContext->getTenant();
-
-        WorkingHours::where('tenant_id', $tenant->id)
-            ->where('staff_id', null)
-            ->delete();
-
-        foreach ($request->getWorkingHours() as $hours) {
-            WorkingHours::create([
-                'tenant_id' => $tenant->id,
-                'staff_id' => null,
-                'day_of_week' => $hours['day_of_week'],
-                'start_time' => $hours['start_time'],
-                'end_time' => $hours['end_time'],
-                'is_active' => $hours['is_active'] ?? true,
-            ]);
-        }
-
-        $workingHours = WorkingHours::where('tenant_id', $tenant->id)
-            ->where('staff_id', null)
-            ->get();
+        $workingHours = $action->handle($tenant, $request->getWorkingHours());
 
         return response()->json(['working_hours' => $workingHours]);
     }

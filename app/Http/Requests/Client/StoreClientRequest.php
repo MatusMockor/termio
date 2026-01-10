@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Client;
 
+use App\DTOs\Client\CreateClientDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class StoreClientRequest extends FormRequest
@@ -50,5 +51,16 @@ final class StoreClientRequest extends FormRequest
     public function getStatus(): string
     {
         return $this->validated('status') ?? 'active';
+    }
+
+    public function toDTO(): CreateClientDTO
+    {
+        return new CreateClientDTO(
+            name: $this->getName(),
+            phone: $this->getPhone(),
+            email: $this->getEmail(),
+            notes: $this->getNotes(),
+            status: $this->getStatus(),
+        );
     }
 }

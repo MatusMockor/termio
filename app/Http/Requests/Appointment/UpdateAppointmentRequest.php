@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\DTOs\Appointment\UpdateAppointmentDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateAppointmentRequest extends FormRequest
@@ -72,5 +73,19 @@ final class UpdateAppointmentRequest extends FormRequest
     public function hasServiceId(): bool
     {
         return $this->has('service_id');
+    }
+
+    public function toDTO(): UpdateAppointmentDTO
+    {
+        return new UpdateAppointmentDTO(
+            clientId: $this->getClientId(),
+            serviceId: $this->getServiceId(),
+            staffId: $this->getStaffId(),
+            startsAt: $this->getStartsAt(),
+            notes: $this->getNotes(),
+            status: $this->getStatus(),
+            hasStartsAt: $this->hasStartsAt(),
+            hasServiceId: $this->hasServiceId(),
+        );
     }
 }

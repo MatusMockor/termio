@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Settings;
 
+use App\DTOs\Settings\UpdateSettingsDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateSettingsRequest extends FormRequest
@@ -59,5 +60,17 @@ final class UpdateSettingsRequest extends FormRequest
     public function getSettings(): ?array
     {
         return $this->validated('settings');
+    }
+
+    public function toDTO(): UpdateSettingsDTO
+    {
+        return new UpdateSettingsDTO(
+            name: $this->getName(),
+            businessType: $this->getBusinessType(),
+            address: $this->getAddress(),
+            phone: $this->getPhone(),
+            timezone: $this->getTimezone(),
+            settings: $this->getSettings(),
+        );
     }
 }

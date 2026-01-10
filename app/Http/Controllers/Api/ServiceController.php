@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Service\ServiceCreateAction;
+use App\Actions\Service\ServiceReorderAction;
+use App\Actions\Service\ServiceUpdateAction;
+use App\Contracts\Repositories\ServiceRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Service\ReorderServicesRequest;
 use App\Http\Requests\Service\StoreServiceRequest;
@@ -13,27 +17,20 @@ use Illuminate\Http\JsonResponse;
 
 final class ServiceController extends Controller
 {
+    public function __construct(
+        private readonly ServiceRepository $serviceRepository,
+    ) {}
+
     public function index(): JsonResponse
     {
-        $services = Service::ordered()->get();
+        $services = $this->serviceRepository->getAllOrdered();
 
         return response()->json(['data' => $services]);
     }
 
-    public function store(StoreServiceRequest $request): JsonResponse
+    public function store(StoreServiceRequest $request, ServiceCreateAction $action): JsonResponse
     {
-        $maxOrder = Service::max('sort_order') ?? 0;
-
-        $service = Service::create([
-            'name' => $request->getName(),
-            'description' => $request->getDescription(),
-            'duration_minutes' => $request->getDurationMinutes(),
-            'price' => $request->getPrice(),
-            'category' => $request->getCategory(),
-            'is_active' => $request->isActive(),
-            'is_bookable_online' => $request->isBookableOnline(),
-            'sort_order' => $maxOrder + 1,
-        ]);
+        $service = $action->handle($request->toDTO());
 
         return response()->json(['data' => $service], 201);
     }
@@ -43,35 +40,26 @@ final class ServiceController extends Controller
         return response()->json(['data' => $service]);
     }
 
-    public function update(UpdateServiceRequest $request, Service $service): JsonResponse
-    {
-        $data = array_filter([
-            'name' => $request->getName(),
-            'description' => $request->getDescription(),
-            'duration_minutes' => $request->getDurationMinutes(),
-            'price' => $request->getPrice(),
-            'category' => $request->getCategory(),
-            'is_active' => $request->isActive(),
-            'is_bookable_online' => $request->isBookableOnline(),
-        ], static fn (mixed $value): bool => $value !== null);
-
-        $service->update($data);
+    public function update(
+        UpdateServiceRequest $request,
+        Service $service,
+        ServiceUpdateAction $action
+    ): JsonResponse {
+        $service = $action->handle($service, $request->toDTO());
 
         return response()->json(['data' => $service]);
     }
 
     public function destroy(Service $service): JsonResponse
     {
-        $service->delete();
+        $this->serviceRepository->delete($service);
 
         return response()->json(null, 204);
     }
 
-    public function reorder(ReorderServicesRequest $request): JsonResponse
+    public function reorder(ReorderServicesRequest $request, ServiceReorderAction $action): JsonResponse
     {
-        foreach ($request->getOrder() as $position => $serviceId) {
-            Service::where('id', $serviceId)->update(['sort_order' => $position]);
-        }
+        $action->handle($request->getOrder());
 
         return response()->json(['message' => 'Services reordered successfully.']);
     }
