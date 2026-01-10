@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Auth;
 
+use App\DTOs\Auth\RegisterUserDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class RegisterRequest extends FormRequest
@@ -50,5 +51,16 @@ final class RegisterRequest extends FormRequest
     public function getBusinessType(): ?string
     {
         return $this->validated('business_type');
+    }
+
+    public function toDTO(): RegisterUserDTO
+    {
+        return new RegisterUserDTO(
+            name: $this->getName(),
+            email: $this->getEmail(),
+            password: $this->getPassword(),
+            businessName: $this->getBusinessName(),
+            businessType: $this->getBusinessType(),
+        );
     }
 }

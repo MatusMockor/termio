@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Client\ClientCreateAction;
+use App\Actions\Client\ClientUpdateAction;
+use App\Contracts\Repositories\ClientRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
@@ -14,28 +17,21 @@ use Illuminate\Http\Request;
 
 final class ClientController extends Controller
 {
+    public function __construct(
+        private readonly ClientRepository $clientRepository,
+    ) {}
+
     public function index(Request $request): JsonResponse
     {
-        $query = Client::query();
-
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        $clients = $query->orderBy('name')->paginate(25);
+        $status = $request->has('status') ? $request->input('status') : null;
+        $clients = $this->clientRepository->paginate($status);
 
         return response()->json($clients);
     }
 
-    public function store(StoreClientRequest $request): JsonResponse
+    public function store(StoreClientRequest $request, ClientCreateAction $action): JsonResponse
     {
-        $client = Client::create([
-            'name' => $request->getName(),
-            'phone' => $request->getPhone(),
-            'email' => $request->getEmail(),
-            'notes' => $request->getNotes(),
-            'status' => $request->getStatus(),
-        ]);
+        $client = $action->handle($request->toDTO());
 
         return response()->json(['data' => $client], 201);
     }
@@ -49,24 +45,16 @@ final class ClientController extends Controller
         return response()->json(['data' => $client]);
     }
 
-    public function update(UpdateClientRequest $request, Client $client): JsonResponse
+    public function update(UpdateClientRequest $request, Client $client, ClientUpdateAction $action): JsonResponse
     {
-        $data = array_filter([
-            'name' => $request->getName(),
-            'phone' => $request->getPhone(),
-            'email' => $request->getEmail(),
-            'notes' => $request->getNotes(),
-            'status' => $request->getStatus(),
-        ], static fn (mixed $value): bool => $value !== null);
-
-        $client->update($data);
+        $client = $action->handle($client, $request->toDTO());
 
         return response()->json(['data' => $client]);
     }
 
     public function destroy(Client $client): JsonResponse
     {
-        $client->delete();
+        $this->clientRepository->delete($client);
 
         return response()->json(null, 204);
     }
@@ -79,7 +67,7 @@ final class ClientController extends Controller
             return response()->json(['data' => []]);
         }
 
-        $clients = Client::search($term)->limit(20)->get();
+        $clients = $this->clientRepository->search($term);
 
         return response()->json(['data' => $clients]);
     }

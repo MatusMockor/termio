@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Service;
 
+use App\DTOs\Service\CreateServiceDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class StoreServiceRequest extends FormRequest
@@ -62,5 +63,18 @@ final class StoreServiceRequest extends FormRequest
     public function isBookableOnline(): bool
     {
         return (bool) ($this->validated('is_bookable_online') ?? true);
+    }
+
+    public function toDTO(): CreateServiceDTO
+    {
+        return new CreateServiceDTO(
+            name: $this->getName(),
+            description: $this->getDescription(),
+            durationMinutes: $this->getDurationMinutes(),
+            price: $this->getPrice(),
+            category: $this->getCategory(),
+            isActive: $this->isActive(),
+            isBookableOnline: $this->isBookableOnline(),
+        );
     }
 }

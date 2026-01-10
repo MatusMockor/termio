@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\TimeOff;
 
+use App\DTOs\TimeOff\CreateTimeOffDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class StoreTimeOffRequest extends FormRequest
@@ -52,5 +53,16 @@ final class StoreTimeOffRequest extends FormRequest
     public function getReason(): ?string
     {
         return $this->validated('reason');
+    }
+
+    public function toDTO(): CreateTimeOffDTO
+    {
+        return new CreateTimeOffDTO(
+            staffId: $this->getStaffId(),
+            date: $this->getDate(),
+            startTime: $this->getStartTime(),
+            endTime: $this->getEndTime(),
+            reason: $this->getReason(),
+        );
     }
 }

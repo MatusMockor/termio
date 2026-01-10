@@ -3,6 +3,10 @@
 ## Project Overview
 Laravel 12 + React SaaS application for booking management.
 
+**Repository locations:**
+- **Backend (Laravel):** `/Users/matusmockor/Developer/bookio`
+- **Frontend (React):** `/Users/matusmockor/Developer/bookioFe`
+
 ## Available Agents
 Custom agents in `.claude/agents/`:
 - `orchestrator` - Master coordinator for all tasks

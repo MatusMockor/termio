@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Service;
 
+use App\DTOs\Service\UpdateServiceDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateServiceRequest extends FormRequest
@@ -70,5 +71,18 @@ final class UpdateServiceRequest extends FormRequest
         $value = $this->validated('is_bookable_online');
 
         return $value !== null ? (bool) $value : null;
+    }
+
+    public function toDTO(): UpdateServiceDTO
+    {
+        return new UpdateServiceDTO(
+            name: $this->getName(),
+            description: $this->getDescription(),
+            durationMinutes: $this->getDurationMinutes(),
+            price: $this->getPrice(),
+            category: $this->getCategory(),
+            isActive: $this->isActive(),
+            isBookableOnline: $this->isBookableOnline(),
+        );
     }
 }

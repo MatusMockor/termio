@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Client;
 
+use App\DTOs\Client\UpdateClientDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateClientRequest extends FormRequest
@@ -50,5 +51,16 @@ final class UpdateClientRequest extends FormRequest
     public function getStatus(): ?string
     {
         return $this->validated('status');
+    }
+
+    public function toDTO(): UpdateClientDTO
+    {
+        return new UpdateClientDTO(
+            name: $this->getName(),
+            phone: $this->getPhone(),
+            email: $this->getEmail(),
+            notes: $this->getNotes(),
+            status: $this->getStatus(),
+        );
     }
 }

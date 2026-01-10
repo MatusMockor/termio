@@ -4,69 +4,32 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Auth\AuthGoogleCallbackAction;
+use App\Actions\Auth\AuthUserLoginAction;
+use App\Actions\Auth\AuthUserRegisterAction;
+use App\DTOs\Auth\GoogleUserDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
-use App\Models\Tenant;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GoogleProvider;
 
 final class AuthController extends Controller
 {
-    public function register(RegisterRequest $request): JsonResponse
+    public function register(RegisterRequest $request, AuthUserRegisterAction $action): JsonResponse
     {
-        $tenant = Tenant::create([
-            'name' => $request->getBusinessName(),
-            'slug' => Str::slug($request->getBusinessName()).'-'.Str::random(6),
-            'business_type' => $request->getBusinessType(),
-        ]);
+        $result = $action->handle($request->toDTO());
 
-        $user = User::create([
-            'tenant_id' => $tenant->id,
-            'name' => $request->getName(),
-            'email' => $request->getEmail(),
-            'password' => $request->getPassword(),
-            'role' => 'owner',
-        ]);
-
-        $token = $user->createToken('auth-token')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'tenant' => $tenant,
-            'token' => $token,
-        ], 201);
+        return response()->json($result, 201);
     }
 
-    public function login(LoginRequest $request): JsonResponse
+    public function login(LoginRequest $request, AuthUserLoginAction $action): JsonResponse
     {
-        $user = User::where('email', $request->getEmail())->first();
+        $result = $action->handle($request->toDTO());
 
-        if (! $user || ! Hash::check($request->getPassword(), $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
-            ]);
-        }
-
-        if (! $user->is_active) {
-            throw ValidationException::withMessages([
-                'email' => ['This account has been deactivated.'],
-            ]);
-        }
-
-        $token = $user->createToken('auth-token')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'tenant' => $user->tenant,
-            'token' => $token,
-        ]);
+        return response()->json($result);
     }
 
     public function logout(Request $request): JsonResponse
@@ -100,7 +63,7 @@ final class AuthController extends Controller
         return response()->json(['url' => $url]);
     }
 
-    public function googleCallback(): JsonResponse
+    public function googleCallback(AuthGoogleCallbackAction $action): JsonResponse
     {
         /** @var GoogleProvider $driver */
         $driver = Socialite::driver('google');
@@ -108,41 +71,16 @@ final class AuthController extends Controller
         /** @var \Laravel\Socialite\Two\User $googleUser */
         $googleUser = $driver->stateless()->user();
 
-        $user = User::where('google_id', $googleUser->getId())
-            ->orWhere('email', $googleUser->getEmail())
-            ->first();
+        $dto = new GoogleUserDTO(
+            id: $googleUser->getId(),
+            name: $googleUser->getName(),
+            email: $googleUser->getEmail(),
+            token: $googleUser->token,
+            refreshToken: $googleUser->refreshToken,
+        );
 
-        if (! $user) {
-            $tenant = Tenant::create([
-                'name' => $googleUser->getName()."'s Business",
-                'slug' => Str::slug($googleUser->getName()).'-'.Str::random(6),
-            ]);
+        $result = $action->handle($dto);
 
-            $user = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $googleUser->getName(),
-                'email' => $googleUser->getEmail(),
-                'google_id' => $googleUser->getId(),
-                'google_access_token' => $googleUser->token,
-                'google_refresh_token' => $googleUser->refreshToken,
-                'role' => 'owner',
-            ]);
-        }
-
-        if ($user->wasRecentlyCreated === false) {
-            $user->update([
-                'google_id' => $googleUser->getId(),
-                'google_access_token' => $googleUser->token,
-                'google_refresh_token' => $googleUser->refreshToken,
-            ]);
-        }
-
-        $token = $user->createToken('auth-token')->plainTextToken;
-
-        return response()->json([
-            'user' => $user,
-            'tenant' => $user->tenant,
-            'token' => $token,
-        ]);
+        return response()->json($result);
     }
 }
