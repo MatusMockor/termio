@@ -99,7 +99,7 @@ final class Appointment extends Model
      */
     public function scopeForDateRange(Builder $query, Carbon $start, Carbon $end): Builder
     {
-        return $query->whereBetween('starts_at', [$start, $end]);
+        return $query->whereBetween('starts_at', [$start->startOfDay(), $end->endOfDay()]);
     }
 
     /**
