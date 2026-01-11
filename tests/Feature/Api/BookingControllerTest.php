@@ -236,6 +236,7 @@ final class BookingControllerTest extends TestCase
             'starts_at' => $startsAt->toIso8601String(),
             'client_name' => fake()->name(),
             'client_phone' => $existingClient->phone,
+            'client_email' => fake()->safeEmail(),
         ]);
 
         $response->assertCreated();
@@ -248,7 +249,7 @@ final class BookingControllerTest extends TestCase
         $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), []);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['service_id', 'starts_at', 'client_name', 'client_phone']);
+            ->assertJsonValidationErrors(['service_id', 'starts_at', 'client_name', 'client_phone', 'client_email']);
     }
 
     public function test_create_booking_validates_future_date(): void
@@ -260,6 +261,7 @@ final class BookingControllerTest extends TestCase
             'starts_at' => Carbon::yesterday()->toIso8601String(),
             'client_name' => fake()->name(),
             'client_phone' => fake()->phoneNumber(),
+            'client_email' => fake()->safeEmail(),
         ]);
 
         $response->assertUnprocessable()

@@ -12,7 +12,7 @@ final readonly class CreatePublicBookingDTO
         public string $startsAt,
         public string $clientName,
         public string $clientPhone,
-        public ?string $clientEmail,
+        public string $clientEmail,
         public ?string $notes,
     ) {}
 }

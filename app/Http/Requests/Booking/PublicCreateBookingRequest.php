@@ -25,7 +25,7 @@ final class PublicCreateBookingRequest extends FormRequest
             'starts_at' => ['required', 'date', 'after:now'],
             'client_name' => ['required', 'string', 'max:255'],
             'client_phone' => ['required', 'string', 'max:20'],
-            'client_email' => ['nullable', 'string', 'email', 'max:255'],
+            'client_email' => ['required', 'string', 'email', 'max:255'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -57,7 +57,7 @@ final class PublicCreateBookingRequest extends FormRequest
         return $this->validated('client_phone');
     }
 
-    public function getClientEmail(): ?string
+    public function getClientEmail(): string
     {
         return $this->validated('client_email');
     }
