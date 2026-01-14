@@ -94,12 +94,14 @@ final class BookingControllerTest extends TestCase
     public function test_availability_returns_time_slots(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
 
         $targetDate = Carbon::tomorrow();
         $dayOfWeek = $targetDate->dayOfWeek;
 
         WorkingHours::factory()->forTenant($this->tenant)->create([
-            'staff_id' => null,
+            'staff_id' => $staff->id,
             'day_of_week' => $dayOfWeek,
             'start_time' => '09:00',
             'end_time' => '17:00',
@@ -115,7 +117,7 @@ final class BookingControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'slots' => [
-                    '*' => ['time', 'available'],
+                    '*' => ['time', 'available', 'staff_id'],
                 ],
             ]);
 
@@ -126,13 +128,15 @@ final class BookingControllerTest extends TestCase
     public function test_availability_excludes_booked_slots(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
         $client = Client::factory()->forTenant($this->tenant)->create();
 
         $targetDate = Carbon::tomorrow();
         $dayOfWeek = $targetDate->dayOfWeek;
 
         WorkingHours::factory()->forTenant($this->tenant)->create([
-            'staff_id' => null,
+            'staff_id' => $staff->id,
             'day_of_week' => $dayOfWeek,
             'start_time' => '09:00',
             'end_time' => '12:00',
@@ -143,6 +147,7 @@ final class BookingControllerTest extends TestCase
             ->forTenant($this->tenant)
             ->forClient($client)
             ->forService($service)
+            ->forStaff($staff)
             ->at($targetDate->copy()->setHour(10)->setMinute(0))
             ->confirmed()
             ->create();
@@ -158,7 +163,44 @@ final class BookingControllerTest extends TestCase
         $slots = collect($response->json('slots'));
         $slot1000 = $slots->firstWhere('time', '10:00');
 
-        $this->assertFalse($slot1000['available']);
+        $this->assertNull($slot1000, 'Booked slot should not appear in available slots');
+    }
+
+    public function test_availability_for_specific_staff_returns_slots(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        $targetDate = Carbon::tomorrow();
+        $dayOfWeek = $targetDate->dayOfWeek;
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.availability', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'staff_id' => $staff->id,
+            'date' => $targetDate->toDateString(),
+        ]));
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'slots' => [
+                    '*' => ['time', 'available'],
+                ],
+            ]);
+
+        $slots = $response->json('slots');
+        $this->assertNotEmpty($slots);
+        // 30-min intervals: 09:00, 09:30, 10:00, 10:30, 11:00 (5 slots for 60min service in 3hr window)
+        $this->assertCount(5, $slots);
     }
 
     public function test_availability_returns_empty_for_non_working_day(): void
@@ -207,8 +249,11 @@ final class BookingControllerTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonStructure([
-                'message',
-                'appointment' => ['id', 'service', 'starts_at', 'ends_at'],
+                'appointment_id',
+                'starts_at',
+                'ends_at',
+                'service' => ['id', 'name', 'duration_minutes', 'price'],
+                'client_name',
             ]);
 
         $this->assertDatabaseHas(Client::class, [

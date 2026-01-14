@@ -1,11 +1,11 @@
-# Bookio - Claude Instructions
+# Termio - Claude Instructions
 
 ## Project Overview
 Laravel 12 + React SaaS application for booking management.
 
 **Repository locations:**
-- **Backend (Laravel):** `/Users/matusmockor/Developer/bookio`
-- **Frontend (React):** `/Users/matusmockor/Developer/bookioFe`
+- **Backend (Laravel):** `/Users/matusmockor/Developer/termio`
+- **Frontend (React):** `/Users/matusmockor/Developer/termio-fe`
 
 ## Available Agents
 Custom agents in `.claude/agents/`:
@@ -202,7 +202,13 @@ Apply patterns where appropriate:
 
 Don't force patterns - use them when they genuinely solve a problem.
 
-## 10. Task Completion Checklist
+## 10. Git Commits
+
+* **NEVER add `Co-Authored-By` lines** to commit messages
+* Write concise, descriptive commit messages
+* Use conventional commit format when appropriate (feat:, fix:, refactor:, etc.)
+
+## 11. Task Completion Checklist
 
 - [ ] Pint ran successfully
 - [ ] Tests passed (`sail test`)

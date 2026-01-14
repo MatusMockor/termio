@@ -15,7 +15,7 @@ return new class extends Migration
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
             $table->foreignId('service_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('staff_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->foreignId('staff_id')->nullable()->constrained('staff_profiles')->nullOnDelete();
             $table->timestamp('starts_at');
             $table->timestamp('ends_at');
             $table->text('notes')->nullable();

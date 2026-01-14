@@ -31,6 +31,7 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Service> $services
  * @property-read Collection<int, Appointment> $appointments
  * @property-read Collection<int, WorkingHours> $workingHours
+ * @property-read Collection<int, PortfolioImage> $portfolioImages
  */
 final class StaffProfile extends Model
 {
@@ -94,6 +95,14 @@ final class StaffProfile extends Model
     }
 
     /**
+     * @return HasMany<PortfolioImage, $this>
+     */
+    public function portfolioImages(): HasMany
+    {
+        return $this->hasMany(PortfolioImage::class, 'staff_id');
+    }
+
+    /**
      * @param  Builder<static>  $query
      * @return Builder<static>
      */
@@ -117,6 +126,6 @@ final class StaffProfile extends Model
      */
     public function scopeForService(Builder $query, int $serviceId): Builder
     {
-        return $query->whereHas('services', fn ($q) => $q->where('services.id', $serviceId));
+        return $query->whereHas('services', static fn (Builder $q): Builder => $q->where('services.id', $serviceId));
     }
 }

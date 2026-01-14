@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Portfolio Images Disk
+    |--------------------------------------------------------------------------
+    |
+    | The disk used for storing portfolio images. Set to 'public' for local
+    | development or 's3' for production cloud storage.
+    |
+    */
+
+    'portfolio_disk' => env('PORTFOLIO_DISK', 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |

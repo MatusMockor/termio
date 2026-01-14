@@ -6,6 +6,7 @@ namespace App\Actions\Appointment;
 
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Models\Appointment;
+use App\Notifications\AppointmentCancelled;
 
 final class AppointmentCancelAction
 {
@@ -23,6 +24,21 @@ final class AppointmentCancelAction
             'notes' => $notes,
         ]);
 
-        return $appointment->fresh(['client', 'service', 'staff']);
+        $appointment = $appointment->fresh(['client', 'service', 'staff', 'tenant']);
+
+        $this->sendCancellationEmail($appointment);
+
+        return $appointment;
+    }
+
+    private function sendCancellationEmail(Appointment $appointment): void
+    {
+        $client = $appointment->client;
+
+        if (! $client->email) {
+            return;
+        }
+
+        $client->notify(new AppointmentCancelled($appointment));
     }
 }

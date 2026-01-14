@@ -1,11 +1,11 @@
 services:
-    bookio:
+    termio:
         build:
             dockerfile: Dockerfile
             args:
                 WWWGROUP: '${WWWGROUP}'
-        image: 'bookio-sail-8.4/app'
-        container_name: bookio-app
+        image: 'termio-sail-8.4/app'
+        container_name: termio-app
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
@@ -20,12 +20,21 @@ services:
         volumes:
             - '.:/var/www/html'
         networks:
-            - bookio-sail
+            - termio-sail
         depends_on:
-            - bookio-pgsql
-    bookio-pgsql:
+            - termio-pgsql
+            - termio-mailpit
+    termio-mailpit:
+        image: 'axllent/mailpit:latest'
+        container_name: termio-mailpit
+        ports:
+            - '${FORWARD_MAILPIT_PORT:-1025}:1025'
+            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
+        networks:
+            - termio-sail
+    termio-pgsql:
         image: 'postgres:17'
-        container_name: bookio-pgsql
+        container_name: termio-pgsql
         ports:
             - '${FORWARD_DB_PORT:-5433}:5432'
         environment:
@@ -34,17 +43,17 @@ services:
             POSTGRES_USER: '${DB_USERNAME}'
             POSTGRES_PASSWORD: '${DB_PASSWORD:-secret}'
         volumes:
-            - 'bookio-pgsql:/var/lib/postgresql/data'
+            - 'termio-pgsql:/var/lib/postgresql/data'
             - './vendor/laravel/sail/database/pgsql/create-testing-database.sql:/docker-entrypoint-initdb.d/10-create-testing-database.sql'
         networks:
-            - bookio-sail
+            - termio-sail
         healthcheck:
             test: [ "CMD", "pg_isready", "-q", "-d", "${DB_DATABASE}", "-U", "${DB_USERNAME}" ]
             retries: 3
             timeout: 5s
 networks:
-    bookio-sail:
+    termio-sail:
         driver: bridge
 volumes:
-    bookio-pgsql:
+    termio-pgsql:
         driver: local

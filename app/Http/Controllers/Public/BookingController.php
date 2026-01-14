@@ -99,12 +99,39 @@ final class BookingController extends Controller
             ->where('tenant_id', $tenant->id)
             ->findOrFail($request->getServiceId());
 
-        if ($this->hasAllDayTimeOff($tenant->id, $date, $staffId)) {
+        // If specific staff selected, use single staff flow
+        if ($staffId) {
+            return $this->getAvailabilityForStaff(
+                $tenant->id,
+                $staffId,
+                $service,
+                $date,
+                $dayOfWeek
+            );
+        }
+
+        // No staff selected - aggregate slots from all available staff
+        return $this->getAvailabilityForAnyStaff(
+            $tenant->id,
+            $service,
+            $date,
+            $dayOfWeek
+        );
+    }
+
+    private function getAvailabilityForStaff(
+        int $tenantId,
+        int $staffId,
+        Service $service,
+        Carbon $date,
+        int $dayOfWeek
+    ): JsonResponse {
+        if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return response()->json(['slots' => []]);
         }
 
         $workingHours = WorkingHours::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
+            ->where('tenant_id', $tenantId)
             ->where('staff_id', $staffId)
             ->where('day_of_week', $dayOfWeek)
             ->where('is_active', true)
@@ -115,13 +142,13 @@ final class BookingController extends Controller
         }
 
         $existingAppointments = Appointment::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
+            ->where('tenant_id', $tenantId)
             ->forDate($date)
+            ->where('staff_id', $staffId)
             ->whereNotIn('status', ['cancelled', 'no_show'])
-            ->when($staffId, static fn (Builder $q, int $id): Builder => $q->where('staff_id', $id))
             ->get();
 
-        $timeOffPeriods = $this->getPartialTimeOffPeriods($tenant->id, $date, $staffId);
+        $timeOffPeriods = $this->getPartialTimeOffPeriods($tenantId, $date, $staffId);
 
         $slots = $this->availabilitySlotService->generateAvailableSlots(
             $workingHours,
@@ -134,20 +161,107 @@ final class BookingController extends Controller
         return response()->json(['slots' => $slots]);
     }
 
+    private function getAvailabilityForAnyStaff(
+        int $tenantId,
+        Service $service,
+        Carbon $date,
+        int $dayOfWeek
+    ): JsonResponse {
+        // Get all staff who can perform this service
+        $staffIds = StaffProfile::withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->bookable()
+            ->forService($service->id)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($staffIds)) {
+            return response()->json(['slots' => []]);
+        }
+
+        $allSlots = [];
+
+        foreach ($staffIds as $staffId) {
+            if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
+                continue;
+            }
+
+            $workingHours = WorkingHours::withoutTenantScope()
+                ->where('tenant_id', $tenantId)
+                ->where('staff_id', $staffId)
+                ->where('day_of_week', $dayOfWeek)
+                ->where('is_active', true)
+                ->first();
+
+            if (! $workingHours) {
+                continue;
+            }
+
+            $existingAppointments = Appointment::withoutTenantScope()
+                ->where('tenant_id', $tenantId)
+                ->forDate($date)
+                ->where('staff_id', $staffId)
+                ->whereNotIn('status', ['cancelled', 'no_show'])
+                ->get();
+
+            $timeOffPeriods = $this->getPartialTimeOffPeriods($tenantId, $date, $staffId);
+
+            $staffSlots = $this->availabilitySlotService->generateAvailableSlots(
+                $workingHours,
+                $existingAppointments,
+                $timeOffPeriods,
+                $service->duration_minutes,
+                $date,
+            );
+
+            // Add staff_id to each available slot and merge
+            foreach ($staffSlots as $slot) {
+                if (! $slot['available']) {
+                    continue;
+                }
+
+                $slotTime = $slot['time'];
+                if (! isset($allSlots[$slotTime])) {
+                    $allSlots[$slotTime] = [
+                        'time' => $slotTime,
+                        'available' => true,
+                        'staff_id' => $staffId,
+                    ];
+                }
+            }
+        }
+
+        // Sort by time and return as indexed array
+        ksort($allSlots);
+
+        return response()->json(['slots' => array_values($allSlots)]);
+    }
+
     public function create(PublicCreateBookingRequest $request, string $tenantSlug): JsonResponse
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
 
         $appointment = $this->bookingCreateAction->handle($request->toDTO(), $tenant);
 
+        $staffProfile = $appointment->staff_id
+            ? StaffProfile::withoutTenantScope()->find($appointment->staff_id)
+            : null;
+
         return response()->json([
-            'message' => 'Booking created successfully.',
-            'appointment' => [
-                'id' => $appointment->id,
-                'service' => $appointment->service->name,
-                'starts_at' => $appointment->starts_at,
-                'ends_at' => $appointment->ends_at,
+            'appointment_id' => $appointment->id,
+            'starts_at' => $appointment->starts_at->toIso8601String(),
+            'ends_at' => $appointment->ends_at->toIso8601String(),
+            'service' => [
+                'id' => $appointment->service->id,
+                'name' => $appointment->service->name,
+                'duration_minutes' => $appointment->service->duration_minutes,
+                'price' => $appointment->service->price,
             ],
+            'staff' => $staffProfile ? [
+                'id' => $staffProfile->id,
+                'display_name' => $staffProfile->display_name,
+            ] : null,
+            'client_name' => $request->getClientName(),
         ], 201);
     }
 

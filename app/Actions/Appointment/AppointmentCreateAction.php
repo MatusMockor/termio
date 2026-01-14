@@ -8,6 +8,7 @@ use App\Contracts\Repositories\AppointmentRepository;
 use App\Contracts\Repositories\ServiceRepository;
 use App\DTOs\Appointment\CreateAppointmentDTO;
 use App\Models\Appointment;
+use App\Notifications\BookingConfirmed;
 use App\Services\Appointment\AppointmentDurationService;
 
 final class AppointmentCreateAction
@@ -34,6 +35,21 @@ final class AppointmentCreateAction
             'source' => $dto->source,
         ]);
 
-        return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff']);
+        $appointment = $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
+
+        $this->sendConfirmationEmail($appointment);
+
+        return $appointment;
+    }
+
+    private function sendConfirmationEmail(Appointment $appointment): void
+    {
+        $client = $appointment->client;
+
+        if (! $client->email) {
+            return;
+        }
+
+        $client->notify(new BookingConfirmed($appointment));
     }
 }
