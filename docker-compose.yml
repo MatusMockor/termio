@@ -9,8 +9,8 @@ services:
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
-            - '${APP_PORT:-82}:80'
-            - '${VITE_PORT:-5174}:${VITE_PORT:-5174}'
+            - '${APP_PORT:-8082}:80'
+            - '${VITE_PORT:-5184}:${VITE_PORT:-5184}'
         environment:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
@@ -28,15 +28,15 @@ services:
         image: 'axllent/mailpit:latest'
         container_name: termio-mailpit
         ports:
-            - '${FORWARD_MAILPIT_PORT:-1025}:1025'
-            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
+            - '${FORWARD_MAILPIT_PORT:-1035}:1025'
+            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8035}:8025'
         networks:
             - termio-sail
     termio-pgsql:
         image: 'postgres:17'
         container_name: termio-pgsql
         ports:
-            - '${FORWARD_DB_PORT:-5433}:5432'
+            - '${FORWARD_DB_PORT:-5443}:5432'
         environment:
             PGPASSWORD: '${DB_PASSWORD:-secret}'
             POSTGRES_DB: '${DB_DATABASE}'

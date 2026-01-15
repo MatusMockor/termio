@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Public;
 use App\Actions\Booking\BookingPublicCreateAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\PublicAvailabilityRequest;
+use App\Http\Requests\Booking\PublicAvailableDatesRequest;
 use App\Http\Requests\Booking\PublicCreateBookingRequest;
 use App\Models\Appointment;
 use App\Models\Service;
@@ -235,6 +236,104 @@ final class BookingController extends Controller
         ksort($allSlots);
 
         return response()->json(['slots' => array_values($allSlots)]);
+    }
+
+    public function availableDates(PublicAvailableDatesRequest $request, string $tenantSlug): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
+        $month = $request->getMonth();
+        $year = $request->getYear();
+        $staffId = $request->getStaffId();
+
+        $service = Service::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->findOrFail($request->getServiceId());
+
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+        $today = Carbon::today();
+
+        $availableDates = [];
+
+        // Get staff IDs to check
+        if ($staffId) {
+            $staffIds = [$staffId];
+        } else {
+            $staffIds = StaffProfile::withoutTenantScope()
+                ->where('tenant_id', $tenant->id)
+                ->bookable()
+                ->forService($service->id)
+                ->pluck('id')
+                ->toArray();
+        }
+
+        if (empty($staffIds)) {
+            return response()->json(['available_dates' => []]);
+        }
+
+        // Pre-fetch all working hours for the staff
+        $workingHoursMap = WorkingHours::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('staff_id', $staffIds)
+            ->where('is_active', true)
+            ->get()
+            ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id . '_' . $wh->day_of_week);
+
+        // Pre-fetch all time offs for the month
+        $timeOffs = TimeOff::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->where(static function (Builder $query) use ($staffIds): void {
+                $query->whereNull('staff_id')
+                    ->orWhereIn('staff_id', $staffIds);
+            })
+            ->where('date', '>=', $startDate->toDateString())
+            ->where('date', '<=', $endDate->toDateString())
+            ->whereNull('start_time')
+            ->whereNull('end_time')
+            ->get()
+            ->groupBy('date');
+
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            // Skip past dates
+            if ($currentDate < $today) {
+                $currentDate->addDay();
+
+                continue;
+            }
+
+            $dateStr = $currentDate->toDateString();
+            $dayOfWeek = $currentDate->dayOfWeek;
+            $hasAvailability = false;
+
+            foreach ($staffIds as $checkStaffId) {
+                // Check for all-day time off
+                $dateTimeOffs = $timeOffs->get($dateStr, collect());
+                $hasTimeOff = $dateTimeOffs->contains(static function (TimeOff $to) use ($checkStaffId): bool {
+                    return $to->staff_id === null || $to->staff_id === $checkStaffId;
+                });
+
+                if ($hasTimeOff) {
+                    continue;
+                }
+
+                // Check working hours
+                $whKey = $checkStaffId . '_' . $dayOfWeek;
+                if ($workingHoursMap->has($whKey)) {
+                    $hasAvailability = true;
+                    break;
+                }
+            }
+
+            if ($hasAvailability) {
+                $availableDates[] = $dateStr;
+            }
+
+            $currentDate->addDay();
+        }
+
+        return response()->json(['available_dates' => $availableDates]);
     }
 
     public function create(PublicCreateBookingRequest $request, string $tenantSlug): JsonResponse

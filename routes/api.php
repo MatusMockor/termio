@@ -102,6 +102,7 @@ Route::prefix('book/{tenantSlug}')->name('booking.')->group(function (): void {
     Route::get('/staff', [BookingController::class, 'staff'])->name('staff');
     Route::get('/staff/{staffId}/services', [BookingController::class, 'staffServices'])->name('staff.services');
     Route::get('/availability', [BookingController::class, 'availability'])->name('availability');
+    Route::get('/available-dates', [BookingController::class, 'availableDates'])->name('available-dates');
     Route::post('/create', [BookingController::class, 'create'])->name('create');
 
     // Public Portfolio Gallery

@@ -11,6 +11,7 @@ use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Tenant;
 use App\Notifications\BookingConfirmed;
+use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
 use Illuminate\Support\Facades\DB;
 
@@ -46,12 +47,18 @@ final class BookingPublicCreateAction
             return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
         });
 
-        $this->sendConfirmationEmail($appointment);
+        $this->sendNotifications($appointment);
 
         return $appointment;
     }
 
-    private function sendConfirmationEmail(Appointment $appointment): void
+    private function sendNotifications(Appointment $appointment): void
+    {
+        $this->sendClientConfirmation($appointment);
+        $this->sendTenantNotification($appointment);
+    }
+
+    private function sendClientConfirmation(Appointment $appointment): void
     {
         $client = $appointment->client;
 
@@ -60,6 +67,17 @@ final class BookingPublicCreateAction
         }
 
         $client->notify(new BookingConfirmed($appointment));
+    }
+
+    private function sendTenantNotification(Appointment $appointment): void
+    {
+        $owner = $appointment->tenant->owner;
+
+        if (! $owner) {
+            return;
+        }
+
+        $owner->notify(new NewBookingReceived($appointment));
     }
 
     private function findOrCreateClient(CreatePublicBookingDTO $dto, Tenant $tenant): Client
