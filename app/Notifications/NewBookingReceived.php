@@ -21,12 +21,17 @@ final class NewBookingReceived extends Notification implements ShouldQueue
 
     /**
      * @return array<int, string>
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function via(User $notifiable): array
     {
         return ['mail'];
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
+     */
     public function toMail(User $notifiable): MailMessage
     {
         $appointment = $this->appointment;
@@ -44,6 +49,8 @@ final class NewBookingReceived extends Notification implements ShouldQueue
 
     /**
      * @return array<string, mixed>
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function toArray(User $notifiable): array
     {

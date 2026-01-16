@@ -277,7 +277,7 @@ final class BookingController extends Controller
             ->whereIn('staff_id', $staffIds)
             ->where('is_active', true)
             ->get()
-            ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id . '_' . $wh->day_of_week);
+            ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id.'_'.$wh->day_of_week);
 
         // Pre-fetch all time offs for the month
         $timeOffs = TimeOff::withoutTenantScope()
@@ -319,7 +319,7 @@ final class BookingController extends Controller
                 }
 
                 // Check working hours
-                $whKey = $checkStaffId . '_' . $dayOfWeek;
+                $whKey = $checkStaffId.'_'.$dayOfWeek;
                 if ($workingHoursMap->has($whKey)) {
                     $hasAvailability = true;
                     break;
