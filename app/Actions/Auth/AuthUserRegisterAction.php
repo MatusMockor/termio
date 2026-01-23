@@ -27,7 +27,7 @@ final class AuthUserRegisterAction
         return DB::transaction(function () use ($dto): array {
             $tenant = $this->tenantRepository->create([
                 'name' => $dto->businessName,
-                'slug' => Str::slug($dto->businessName).'-'.Str::random(6),
+                'slug' => Str::slug($dto->businessName),
                 'business_type' => $dto->businessType,
             ]);
 

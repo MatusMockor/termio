@@ -88,6 +88,23 @@ final class AuthControllerTest extends TestCase
             ->assertJsonValidationErrors(['password']);
     }
 
+    public function test_register_validates_unique_business_name(): void
+    {
+        $existingTenant = Tenant::factory()->create();
+        $password = fake()->password(minLength: 8);
+
+        $response = $this->postJson(route('auth.register'), [
+            'name' => fake()->name(),
+            'email' => fake()->unique()->safeEmail(),
+            'password' => $password,
+            'password_confirmation' => $password,
+            'business_name' => $existingTenant->name,
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['slug']);
+    }
+
     public function test_login_returns_token_for_valid_credentials(): void
     {
         $password = fake()->password(minLength: 8);
