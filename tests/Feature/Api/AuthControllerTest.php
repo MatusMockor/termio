@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 final class AuthControllerTest extends TestCase
@@ -90,7 +91,10 @@ final class AuthControllerTest extends TestCase
 
     public function test_register_validates_unique_business_name(): void
     {
-        $existingTenant = Tenant::factory()->create();
+        $businessName = fake()->company();
+        Tenant::factory()->create([
+            'slug' => Str::slug($businessName),
+        ]);
         $password = fake()->password(minLength: 8);
 
         $response = $this->postJson(route('auth.register'), [
@@ -98,7 +102,7 @@ final class AuthControllerTest extends TestCase
             'email' => fake()->unique()->safeEmail(),
             'password' => $password,
             'password_confirmation' => $password,
-            'business_name' => $existingTenant->name,
+            'business_name' => $businessName,
         ]);
 
         $response->assertUnprocessable()
