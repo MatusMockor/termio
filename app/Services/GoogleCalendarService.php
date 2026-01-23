@@ -188,7 +188,7 @@ class GoogleCalendarService
         }
 
         $lines[] = '';
-        $lines[] = 'Vytvorené cez Bookio';
+        $lines[] = 'Vytvorené cez Termio';
 
         return implode("\n", $lines);
     }

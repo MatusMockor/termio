@@ -1,21 +1,48 @@
-# Bookio - Claude Instructions
+# Termio - Claude Instructions
 
 ## Project Overview
 Laravel 12 + React SaaS application for booking management.
 
 **Repository locations:**
-- **Backend (Laravel):** `/Users/matusmockor/Developer/bookio`
-- **Frontend (React):** `/Users/matusmockor/Developer/bookioFe`
+- **Backend (Laravel):** `/Users/matusmockor/Developer/termio`
+- **Frontend (React):** `/Users/matusmockor/Developer/termio-fe`
 
 ## Available Agents
-Custom agents in `.claude/agents/`:
-- `orchestrator` - Master coordinator for all tasks
-- `backend-senior` - Laravel backend implementation
-- `frontend-senior` - React/TypeScript frontend
-- `php-reviewer` - PHP code review
-- `smart-reviewer` - Intelligent code review dispatcher
-- `architect` - Technical specifications from PRDs
-- `product-manager` - PRD creation
+
+Use Task tool with `subagent_type: "general-purpose"` and prompt referencing the agent.
+
+### When to Use Agents
+
+| Agent | Use When |
+|-------|----------|
+| `local/backend-senior` | Creating Controllers, Actions, Services, Repositories, Models, Migrations, API endpoints |
+| `local/frontend-senior` | React components, TypeScript, Tailwind, accessibility, frontend performance |
+| `local/php-reviewer` | Reviewing PHP/Laravel code quality and standards compliance |
+| `local/smart-reviewer` | Auto-detect file type and route to appropriate reviewer |
+| `local/architect` | Creating technical specs from PRDs, breaking features into tasks |
+| `local/product-manager` | PRD creation, requirements, SaaS strategy, invoicing domain questions |
+| `local/orchestrator` | Complex multi-agent workflows, when unsure which agent to use |
+
+### How to Call Agents
+
+```
+Task tool:
+- subagent_type: "general-purpose"
+- prompt: "Use the local/backend-senior agent to implement [feature]..."
+```
+
+### Agent Workflow
+
+1. **Backend implementation** → `local/backend-senior` → auto `local/smart-reviewer`
+2. **Frontend implementation** → `local/frontend-senior` → auto `local/smart-reviewer`
+3. **Full feature from idea** → `local/product-manager` → `local/architect`
+4. **Code review** → `local/smart-reviewer` (auto-routes to php-reviewer or frontend-senior)
+
+### Important
+
+- **Always delegate backend code to `local/backend-senior`** - they follow all coding standards
+- **Auto-review after implementations** - trigger `local/smart-reviewer` on changed files
+- Simple tasks (typos, config tweaks, git operations) - handle directly without agents
 
 ---
 
@@ -202,7 +229,43 @@ Apply patterns where appropriate:
 
 Don't force patterns - use them when they genuinely solve a problem.
 
-## 10. Task Completion Checklist
+## 10. Git Commits
+
+* **NEVER add `Co-Authored-By` lines** to commit messages
+* **Always use Conventional Commits with scope**: `<type>(<scope>): <description>`
+
+### Format
+
+```
+<type>(<scope>): <short description>
+
+[optional body]
+```
+
+### Types
+
+* `feat` - new feature
+* `fix` - bug fix
+* `refactor` - code refactoring (no feature/fix)
+* `test` - adding or updating tests
+* `docs` - documentation changes
+* `chore` - maintenance tasks (deps, config)
+* `perf` - performance improvements
+
+### Scopes (use relevant domain/module)
+
+* `auth`, `booking`, `client`, `staff`, `tenant`, `portfolio`, `api`, `factory`, `migration`, etc.
+
+### Examples
+
+```
+feat(booking): add recurring appointment support
+fix(auth): resolve token refresh race condition
+refactor(client): extract validation to service
+test(portfolio): add image upload edge cases
+```
+
+## 11. Task Completion Checklist
 
 - [ ] Pint ran successfully
 - [ ] Tests passed (`sail test`)

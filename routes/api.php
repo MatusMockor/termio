@@ -7,11 +7,14 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GoogleCalendarController;
+use App\Http\Controllers\Api\PortfolioImageController;
+use App\Http\Controllers\Api\PortfolioTagController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\TimeOffController;
 use App\Http\Controllers\Public\BookingController;
+use App\Http\Controllers\Public\PortfolioController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -40,6 +43,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
+    Route::get('/dashboard/report', [DashboardController::class, 'report'])->name('dashboard.report');
 
     // Appointments
     Route::apiResource('appointments', AppointmentController::class);
@@ -62,6 +66,14 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
     // Time Off
     Route::apiResource('time-off', TimeOffController::class)->parameters(['time-off' => 'timeOff']);
+
+    // Portfolio Images
+    Route::apiResource('portfolio-images', PortfolioImageController::class);
+    Route::post('/portfolio-images/reorder', [PortfolioImageController::class, 'reorder'])->name('portfolio-images.reorder');
+    Route::get('/staff/{staff}/portfolio', [PortfolioImageController::class, 'byStaff'])->name('staff.portfolio');
+
+    // Portfolio Tags
+    Route::apiResource('portfolio-tags', PortfolioTagController::class)->except(['show']);
 
     // Settings (owner only)
     Route::middleware('owner')->group(function (): void {
@@ -90,5 +102,11 @@ Route::prefix('book/{tenantSlug}')->name('booking.')->group(function (): void {
     Route::get('/staff', [BookingController::class, 'staff'])->name('staff');
     Route::get('/staff/{staffId}/services', [BookingController::class, 'staffServices'])->name('staff.services');
     Route::get('/availability', [BookingController::class, 'availability'])->name('availability');
+    Route::get('/available-dates', [BookingController::class, 'availableDates'])->name('available-dates');
     Route::post('/create', [BookingController::class, 'create'])->name('create');
+
+    // Public Portfolio Gallery
+    Route::get('/gallery', [PortfolioController::class, 'gallery'])->name('gallery');
+    Route::get('/gallery/tags', [PortfolioController::class, 'tags'])->name('gallery.tags');
+    Route::get('/gallery/{staffId}', [PortfolioController::class, 'staffGallery'])->name('gallery.staff');
 });

@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Public;
 use App\Actions\Booking\BookingPublicCreateAction;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\PublicAvailabilityRequest;
+use App\Http\Requests\Booking\PublicAvailableDatesRequest;
 use App\Http\Requests\Booking\PublicCreateBookingRequest;
 use App\Models\Appointment;
 use App\Models\Service;
@@ -99,12 +100,39 @@ final class BookingController extends Controller
             ->where('tenant_id', $tenant->id)
             ->findOrFail($request->getServiceId());
 
-        if ($this->hasAllDayTimeOff($tenant->id, $date, $staffId)) {
+        // If specific staff selected, use single staff flow
+        if ($staffId) {
+            return $this->getAvailabilityForStaff(
+                $tenant->id,
+                $staffId,
+                $service,
+                $date,
+                $dayOfWeek
+            );
+        }
+
+        // No staff selected - aggregate slots from all available staff
+        return $this->getAvailabilityForAnyStaff(
+            $tenant->id,
+            $service,
+            $date,
+            $dayOfWeek
+        );
+    }
+
+    private function getAvailabilityForStaff(
+        int $tenantId,
+        int $staffId,
+        Service $service,
+        Carbon $date,
+        int $dayOfWeek
+    ): JsonResponse {
+        if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return response()->json(['slots' => []]);
         }
 
         $workingHours = WorkingHours::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
+            ->where('tenant_id', $tenantId)
             ->where('staff_id', $staffId)
             ->where('day_of_week', $dayOfWeek)
             ->where('is_active', true)
@@ -115,13 +143,13 @@ final class BookingController extends Controller
         }
 
         $existingAppointments = Appointment::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
+            ->where('tenant_id', $tenantId)
             ->forDate($date)
+            ->where('staff_id', $staffId)
             ->whereNotIn('status', ['cancelled', 'no_show'])
-            ->when($staffId, static fn (Builder $q, int $id): Builder => $q->where('staff_id', $id))
             ->get();
 
-        $timeOffPeriods = $this->getPartialTimeOffPeriods($tenant->id, $date, $staffId);
+        $timeOffPeriods = $this->getPartialTimeOffPeriods($tenantId, $date, $staffId);
 
         $slots = $this->availabilitySlotService->generateAvailableSlots(
             $workingHours,
@@ -134,20 +162,205 @@ final class BookingController extends Controller
         return response()->json(['slots' => $slots]);
     }
 
+    private function getAvailabilityForAnyStaff(
+        int $tenantId,
+        Service $service,
+        Carbon $date,
+        int $dayOfWeek
+    ): JsonResponse {
+        // Get all staff who can perform this service
+        $staffIds = StaffProfile::withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->bookable()
+            ->forService($service->id)
+            ->pluck('id')
+            ->toArray();
+
+        if (empty($staffIds)) {
+            return response()->json(['slots' => []]);
+        }
+
+        $allSlots = [];
+
+        foreach ($staffIds as $staffId) {
+            if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
+                continue;
+            }
+
+            $workingHours = WorkingHours::withoutTenantScope()
+                ->where('tenant_id', $tenantId)
+                ->where('staff_id', $staffId)
+                ->where('day_of_week', $dayOfWeek)
+                ->where('is_active', true)
+                ->first();
+
+            if (! $workingHours) {
+                continue;
+            }
+
+            $existingAppointments = Appointment::withoutTenantScope()
+                ->where('tenant_id', $tenantId)
+                ->forDate($date)
+                ->where('staff_id', $staffId)
+                ->whereNotIn('status', ['cancelled', 'no_show'])
+                ->get();
+
+            $timeOffPeriods = $this->getPartialTimeOffPeriods($tenantId, $date, $staffId);
+
+            $staffSlots = $this->availabilitySlotService->generateAvailableSlots(
+                $workingHours,
+                $existingAppointments,
+                $timeOffPeriods,
+                $service->duration_minutes,
+                $date,
+            );
+
+            // Add staff_id to each available slot and merge
+            foreach ($staffSlots as $slot) {
+                if (! $slot['available']) {
+                    continue;
+                }
+
+                $slotTime = $slot['time'];
+                if (! isset($allSlots[$slotTime])) {
+                    $allSlots[$slotTime] = [
+                        'time' => $slotTime,
+                        'available' => true,
+                        'staff_id' => $staffId,
+                    ];
+                }
+            }
+        }
+
+        // Sort by time and return as indexed array
+        ksort($allSlots);
+
+        return response()->json(['slots' => array_values($allSlots)]);
+    }
+
+    public function availableDates(PublicAvailableDatesRequest $request, string $tenantSlug): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
+        $month = $request->getMonth();
+        $year = $request->getYear();
+        $staffId = $request->getStaffId();
+
+        $service = Service::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->findOrFail($request->getServiceId());
+
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+        $today = Carbon::today();
+
+        $availableDates = [];
+
+        // Get staff IDs to check
+        if ($staffId) {
+            $staffIds = [$staffId];
+        } else {
+            $staffIds = StaffProfile::withoutTenantScope()
+                ->where('tenant_id', $tenant->id)
+                ->bookable()
+                ->forService($service->id)
+                ->pluck('id')
+                ->toArray();
+        }
+
+        if (empty($staffIds)) {
+            return response()->json(['available_dates' => []]);
+        }
+
+        // Pre-fetch all working hours for the staff
+        $workingHoursMap = WorkingHours::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('staff_id', $staffIds)
+            ->where('is_active', true)
+            ->get()
+            ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id.'_'.$wh->day_of_week);
+
+        // Pre-fetch all time offs for the month
+        $timeOffs = TimeOff::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->where(static function (Builder $query) use ($staffIds): void {
+                $query->whereNull('staff_id')
+                    ->orWhereIn('staff_id', $staffIds);
+            })
+            ->where('date', '>=', $startDate->toDateString())
+            ->where('date', '<=', $endDate->toDateString())
+            ->whereNull('start_time')
+            ->whereNull('end_time')
+            ->get()
+            ->groupBy('date');
+
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            // Skip past dates
+            if ($currentDate < $today) {
+                $currentDate->addDay();
+
+                continue;
+            }
+
+            $dateStr = $currentDate->toDateString();
+            $dayOfWeek = $currentDate->dayOfWeek;
+            $hasAvailability = false;
+
+            foreach ($staffIds as $checkStaffId) {
+                // Check for all-day time off
+                $dateTimeOffs = $timeOffs->get($dateStr, collect());
+                $hasTimeOff = $dateTimeOffs->contains(static function (TimeOff $to) use ($checkStaffId): bool {
+                    return $to->staff_id === null || $to->staff_id === $checkStaffId;
+                });
+
+                if ($hasTimeOff) {
+                    continue;
+                }
+
+                // Check working hours
+                $whKey = $checkStaffId.'_'.$dayOfWeek;
+                if ($workingHoursMap->has($whKey)) {
+                    $hasAvailability = true;
+                    break;
+                }
+            }
+
+            if ($hasAvailability) {
+                $availableDates[] = $dateStr;
+            }
+
+            $currentDate->addDay();
+        }
+
+        return response()->json(['available_dates' => $availableDates]);
+    }
+
     public function create(PublicCreateBookingRequest $request, string $tenantSlug): JsonResponse
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
 
         $appointment = $this->bookingCreateAction->handle($request->toDTO(), $tenant);
 
+        $staffProfile = $appointment->staff_id
+            ? StaffProfile::withoutTenantScope()->find($appointment->staff_id)
+            : null;
+
         return response()->json([
-            'message' => 'Booking created successfully.',
-            'appointment' => [
-                'id' => $appointment->id,
-                'service' => $appointment->service->name,
-                'starts_at' => $appointment->starts_at,
-                'ends_at' => $appointment->ends_at,
+            'appointment_id' => $appointment->id,
+            'starts_at' => $appointment->starts_at->toIso8601String(),
+            'ends_at' => $appointment->ends_at->toIso8601String(),
+            'service' => [
+                'id' => $appointment->service->id,
+                'name' => $appointment->service->name,
+                'duration_minutes' => $appointment->service->duration_minutes,
+                'price' => $appointment->service->price,
             ],
+            'staff' => $staffProfile ? [
+                'id' => $staffProfile->id,
+                'display_name' => $staffProfile->display_name,
+            ] : null,
+            'client_name' => $request->getClientName(),
         ], 201);
     }
 

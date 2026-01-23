@@ -10,6 +10,8 @@ use App\DTOs\Booking\CreatePublicBookingDTO;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Tenant;
+use App\Notifications\BookingConfirmed;
+use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
 use Illuminate\Support\Facades\DB;
 
@@ -27,7 +29,7 @@ final class BookingPublicCreateAction
 
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
 
-        return DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
+        $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
             $client = $this->findOrCreateClient($dto, $tenant);
 
             $appointment = $this->appointmentRepository->create([
@@ -42,8 +44,40 @@ final class BookingPublicCreateAction
                 'source' => 'online',
             ]);
 
-            return $this->appointmentRepository->loadRelations($appointment, ['service']);
+            return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
         });
+
+        $this->sendNotifications($appointment);
+
+        return $appointment;
+    }
+
+    private function sendNotifications(Appointment $appointment): void
+    {
+        $this->sendClientConfirmation($appointment);
+        $this->sendTenantNotification($appointment);
+    }
+
+    private function sendClientConfirmation(Appointment $appointment): void
+    {
+        $client = $appointment->client;
+
+        if (! $client->email) {
+            return;
+        }
+
+        $client->notify(new BookingConfirmed($appointment));
+    }
+
+    private function sendTenantNotification(Appointment $appointment): void
+    {
+        $owner = $appointment->tenant->owner;
+
+        if (! $owner) {
+            return;
+        }
+
+        $owner->notify(new NewBookingReceived($appointment));
     }
 
     private function findOrCreateClient(CreatePublicBookingDTO $dto, Tenant $tenant): Client

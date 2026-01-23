@@ -6,12 +6,20 @@ namespace App\Http\Requests\Auth;
 
 use App\DTOs\Auth\RegisterUserDTO;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Str;
 
 final class RegisterRequest extends FormRequest
 {
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'slug' => Str::slug($this->input('business_name', '')),
+        ]);
     }
 
     /**
@@ -24,7 +32,18 @@ final class RegisterRequest extends FormRequest
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'business_name' => ['required', 'string', 'max:255'],
+            'slug' => ['required', 'string', 'unique:tenants,slug'],
             'business_type' => ['nullable', 'string', 'max:100'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'slug.unique' => 'Tento názov firmy je už obsadený.',
         ];
     }
 

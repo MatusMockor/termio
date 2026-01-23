@@ -56,9 +56,10 @@ final class SyncAppointmentToGoogleCalendar implements ShouldQueue
     {
         // First, try the staff member assigned to the appointment
         if ($this->appointment->staff_id) {
-            $staff = $this->appointment->staff;
-            if ($staff?->hasGoogleCalendarConnected()) {
-                return $staff;
+            $staffProfile = $this->appointment->staff;
+            $staffUser = $staffProfile?->user;
+            if ($staffUser?->hasGoogleCalendarConnected()) {
+                return $staffUser;
             }
         }
 

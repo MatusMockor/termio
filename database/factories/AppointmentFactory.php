@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Service;
+use App\Models\StaffProfile;
 use App\Models\Tenant;
 use App\Models\User;
 use Carbon\Carbon;
@@ -66,10 +67,17 @@ final class AppointmentFactory extends Factory
         });
     }
 
-    public function forStaff(User $staff): static
+    public function forStaff(StaffProfile $staff): static
     {
         return $this->state(fn (array $attributes): array => [
             'staff_id' => $staff->id,
+        ]);
+    }
+
+    public function forStaffUser(User $staff): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'staff_id' => $staff->staffProfile?->id,
         ]);
     }
 

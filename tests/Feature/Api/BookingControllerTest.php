@@ -9,9 +9,13 @@ use App\Models\Client;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\Tenant;
+use App\Models\User;
 use App\Models\WorkingHours;
+use App\Notifications\BookingConfirmed;
+use App\Notifications\NewBookingReceived;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 final class BookingControllerTest extends TestCase
@@ -94,12 +98,14 @@ final class BookingControllerTest extends TestCase
     public function test_availability_returns_time_slots(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
 
         $targetDate = Carbon::tomorrow();
         $dayOfWeek = $targetDate->dayOfWeek;
 
         WorkingHours::factory()->forTenant($this->tenant)->create([
-            'staff_id' => null,
+            'staff_id' => $staff->id,
             'day_of_week' => $dayOfWeek,
             'start_time' => '09:00',
             'end_time' => '17:00',
@@ -115,7 +121,7 @@ final class BookingControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonStructure([
                 'slots' => [
-                    '*' => ['time', 'available'],
+                    '*' => ['time', 'available', 'staff_id'],
                 ],
             ]);
 
@@ -126,13 +132,15 @@ final class BookingControllerTest extends TestCase
     public function test_availability_excludes_booked_slots(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
         $client = Client::factory()->forTenant($this->tenant)->create();
 
         $targetDate = Carbon::tomorrow();
         $dayOfWeek = $targetDate->dayOfWeek;
 
         WorkingHours::factory()->forTenant($this->tenant)->create([
-            'staff_id' => null,
+            'staff_id' => $staff->id,
             'day_of_week' => $dayOfWeek,
             'start_time' => '09:00',
             'end_time' => '12:00',
@@ -143,6 +151,7 @@ final class BookingControllerTest extends TestCase
             ->forTenant($this->tenant)
             ->forClient($client)
             ->forService($service)
+            ->forStaff($staff)
             ->at($targetDate->copy()->setHour(10)->setMinute(0))
             ->confirmed()
             ->create();
@@ -158,7 +167,44 @@ final class BookingControllerTest extends TestCase
         $slots = collect($response->json('slots'));
         $slot1000 = $slots->firstWhere('time', '10:00');
 
-        $this->assertFalse($slot1000['available']);
+        $this->assertNull($slot1000, 'Booked slot should not appear in available slots');
+    }
+
+    public function test_availability_for_specific_staff_returns_slots(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        $targetDate = Carbon::tomorrow();
+        $dayOfWeek = $targetDate->dayOfWeek;
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.availability', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'staff_id' => $staff->id,
+            'date' => $targetDate->toDateString(),
+        ]));
+
+        $response->assertOk()
+            ->assertJsonStructure([
+                'slots' => [
+                    '*' => ['time', 'available'],
+                ],
+            ]);
+
+        $slots = $response->json('slots');
+        $this->assertNotEmpty($slots);
+        // 30-min intervals: 09:00, 09:30, 10:00, 10:30, 11:00 (5 slots for 60min service in 3hr window)
+        $this->assertCount(5, $slots);
     }
 
     public function test_availability_returns_empty_for_non_working_day(): void
@@ -207,8 +253,11 @@ final class BookingControllerTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonStructure([
-                'message',
-                'appointment' => ['id', 'service', 'starts_at', 'ends_at'],
+                'appointment_id',
+                'starts_at',
+                'ends_at',
+                'service' => ['id', 'name', 'duration_minutes', 'price'],
+                'client_name',
             ]);
 
         $this->assertDatabaseHas(Client::class, [
@@ -266,5 +315,113 @@ final class BookingControllerTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['starts_at']);
+    }
+
+    public function test_create_booking_sends_confirmation_email_to_client(): void
+    {
+        Notification::fake();
+
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $startsAt = Carbon::tomorrow()->setHour(10)->setMinute(0);
+        $clientEmail = fake()->safeEmail();
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => $startsAt->toIso8601String(),
+            'client_name' => fake()->name(),
+            'client_phone' => fake()->phoneNumber(),
+            'client_email' => $clientEmail,
+        ]);
+
+        $response->assertCreated();
+
+        $client = Client::where('email', $clientEmail)->first();
+        Notification::assertSentTo($client, BookingConfirmed::class);
+    }
+
+    public function test_create_booking_sends_notification_to_tenant_owner(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->forTenant($this->tenant)->owner()->create();
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $startsAt = Carbon::tomorrow()->setHour(10)->setMinute(0);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => $startsAt->toIso8601String(),
+            'client_name' => fake()->name(),
+            'client_phone' => fake()->phoneNumber(),
+            'client_email' => fake()->safeEmail(),
+        ]);
+
+        $response->assertCreated();
+
+        Notification::assertSentTo($owner, NewBookingReceived::class);
+    }
+
+    public function test_create_booking_does_not_send_client_email_when_no_email_provided(): void
+    {
+        Notification::fake();
+
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $startsAt = Carbon::tomorrow()->setHour(10)->setMinute(0);
+
+        // Create existing client without email
+        $existingClient = Client::factory()->forTenant($this->tenant)->create([
+            'email' => null,
+            'phone' => '+421900123456',
+        ]);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => $startsAt->toIso8601String(),
+            'client_name' => fake()->name(),
+            'client_phone' => $existingClient->phone,
+            'client_email' => fake()->safeEmail(),
+        ]);
+
+        $response->assertCreated();
+
+        Notification::assertNotSentTo($existingClient, BookingConfirmed::class);
+    }
+
+    public function test_available_dates_returns_dates_with_availability(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        // Create working hours for Monday (1) and Wednesday (3)
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => 1,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => 3,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        $now = Carbon::now();
+
+        $response = $this->getJson(route('booking.available-dates', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'month' => $now->month,
+            'year' => $now->year,
+        ]));
+
+        $response->assertOk()
+            ->assertJsonStructure(['available_dates']);
+
+        $availableDates = $response->json('available_dates');
+        $this->assertIsArray($availableDates);
     }
 }

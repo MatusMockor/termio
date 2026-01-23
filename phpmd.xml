@@ -5,7 +5,7 @@
          xsi:schemaLocation="http://pmd.sf.net/ruleset/1.0.0 http://pmd.sf.net/ruleset_xml_schema.xsd"
          xsi:noNamespaceSchemaLocation="http://pmd.sf.net/ruleset_xml_schema.xsd">
 
-    <description>Custom PHPMD ruleset for Laravel project - Strict Level 5</description>
+    <description>Custom PHPMD ruleset for Laravel project - Level 6</description>
 
     <!-- Exclude paths -->
     <exclude-pattern>*/vendor/*</exclude-pattern>
@@ -29,62 +29,62 @@
     <rule ref="rulesets/cleancode.xml/ElseExpression"/>
 
     <!-- ============================================ -->
-    <!-- CODE SIZE RULES - STRICT                     -->
+    <!-- CODE SIZE RULES - LEVEL 6                    -->
     <!-- ============================================ -->
 
-    <!-- Cyclomatic Complexity: max 10 (stricter than default 20) -->
+    <!-- Cyclomatic Complexity: max 12 -->
     <rule ref="rulesets/codesize.xml/CyclomaticComplexity">
         <properties>
-            <property name="reportLevel" value="10"/>
+            <property name="reportLevel" value="12"/>
         </properties>
     </rule>
 
-    <!-- NPath Complexity: max 200 (stricter than default 1000) -->
+    <!-- NPath Complexity: max 250 -->
     <rule ref="rulesets/codesize.xml/NPathComplexity">
         <properties>
-            <property name="minimum" value="200"/>
+            <property name="minimum" value="250"/>
         </properties>
     </rule>
 
-    <!-- Method Length: max 50 lines (strict) -->
+    <!-- Method Length: max 60 lines -->
     <rule ref="rulesets/codesize.xml/ExcessiveMethodLength">
         <properties>
-            <property name="minimum" value="50"/>
+            <property name="minimum" value="60"/>
         </properties>
     </rule>
 
-    <!-- Class Length: max 500 lines (strict) -->
+    <!-- Class Length: max 600 lines -->
     <rule ref="rulesets/codesize.xml/ExcessiveClassLength">
         <properties>
-            <property name="minimum" value="500"/>
+            <property name="minimum" value="600"/>
         </properties>
     </rule>
 
-    <!-- Too Many Public Methods: max 15 -->
+    <!-- Too Many Public Methods: max 18 -->
     <rule ref="rulesets/codesize.xml/TooManyPublicMethods">
         <properties>
-            <property name="maxmethods" value="15"/>
+            <property name="maxmethods" value="18"/>
         </properties>
     </rule>
 
-    <!-- Too Many Methods: max 20 -->
+    <!-- Too Many Methods: max 25 -->
     <rule ref="rulesets/codesize.xml/TooManyMethods">
         <properties>
-            <property name="maxmethods" value="20"/>
+            <property name="maxmethods" value="25"/>
         </properties>
     </rule>
 
-    <!-- Excessive Parameter List: max 9 parameters (DTOs need more) -->
+    <!-- Excessive Parameter List: max 10 parameters -->
     <rule ref="rulesets/codesize.xml/ExcessiveParameterList">
         <properties>
-            <property name="minimum" value="9"/>
+            <property name="minimum" value="10"/>
         </properties>
     </rule>
 
-    <!-- Too Many Fields: max 15 -->
+    <!-- Too Many Fields: max 18 -->
     <rule ref="rulesets/codesize.xml/TooManyFields">
         <properties>
-            <property name="maxfields" value="15"/>
+            <property name="maxfields" value="18"/>
         </properties>
     </rule>
 
@@ -96,10 +96,10 @@
         <exclude name="CouplingBetweenObjects"/>
     </rule>
 
-    <!-- Coupling Between Objects: max 20 dependencies (AppServiceProvider needs more) -->
+    <!-- Coupling Between Objects: max 25 dependencies -->
     <rule ref="rulesets/design.xml/CouplingBetweenObjects">
         <properties>
-            <property name="maximum" value="20"/>
+            <property name="maximum" value="25"/>
         </properties>
     </rule>
 

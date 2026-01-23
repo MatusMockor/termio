@@ -31,7 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Tenant $tenant
  * @property-read Client $client
  * @property-read Service $service
- * @property-read User|null $staff
+ * @property-read StaffProfile|null $staff
  */
 final class Appointment extends Model
 {
@@ -77,11 +77,11 @@ final class Appointment extends Model
     }
 
     /**
-     * @return BelongsTo<User, $this>
+     * @return BelongsTo<StaffProfile, $this>
      */
     public function staff(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'staff_id');
+        return $this->belongsTo(StaffProfile::class, 'staff_id');
     }
 
     /**
