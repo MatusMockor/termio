@@ -30,7 +30,7 @@ final class PortfolioTagFactory extends Factory
             'Balayage',
             'Ombré',
             'Melír',
-        ]).' '.fake()->randomNumber(2);
+        ]).' '.fake()->unique()->numberBetween(1, 99999);
 
         return [
             'name' => $name,
