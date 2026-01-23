@@ -232,8 +232,38 @@ Don't force patterns - use them when they genuinely solve a problem.
 ## 10. Git Commits
 
 * **NEVER add `Co-Authored-By` lines** to commit messages
-* Write concise, descriptive commit messages
-* Use conventional commit format when appropriate (feat:, fix:, refactor:, etc.)
+* **Always use Conventional Commits with scope**: `<type>(<scope>): <description>`
+
+### Format
+
+```
+<type>(<scope>): <short description>
+
+[optional body]
+```
+
+### Types
+
+* `feat` - new feature
+* `fix` - bug fix
+* `refactor` - code refactoring (no feature/fix)
+* `test` - adding or updating tests
+* `docs` - documentation changes
+* `chore` - maintenance tasks (deps, config)
+* `perf` - performance improvements
+
+### Scopes (use relevant domain/module)
+
+* `auth`, `booking`, `client`, `staff`, `tenant`, `portfolio`, `api`, `factory`, `migration`, etc.
+
+### Examples
+
+```
+feat(booking): add recurring appointment support
+fix(auth): resolve token refresh race condition
+refactor(client): extract validation to service
+test(portfolio): add image upload edge cases
+```
 
 ## 11. Task Completion Checklist
 
