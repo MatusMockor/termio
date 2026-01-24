@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
@@ -148,6 +149,19 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::post('/payment-methods/{paymentMethod}/default', [BillingController::class, 'setDefaultPaymentMethod'])->name('payment-methods.default');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Admin Routes (require authentication + admin role)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('admin')
+    ->middleware(['auth:sanctum', 'admin'])
+    ->name('admin.')
+    ->group(static function (): void {
+        Route::get('/plans/statistics', [AdminPlanController::class, 'statistics'])->name('plans.statistics');
+        Route::apiResource('plans', AdminPlanController::class);
+    });
 
 /*
 |--------------------------------------------------------------------------

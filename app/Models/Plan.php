@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property bool $is_public
  * @property Carbon $created_at
  * @property Carbon $updated_at
+ * @property int|null $subscriber_count Virtual property for admin views
  * @property-read Collection<int, Subscription> $subscriptions
  */
 final class Plan extends Model

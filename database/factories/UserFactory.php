@@ -32,7 +32,15 @@ final class UserFactory extends Factory
             'remember_token' => Str::random(10),
             'role' => 'staff',
             'is_active' => true,
+            'is_admin' => false,
         ];
+    }
+
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'is_admin' => true,
+        ]);
     }
 
     public function owner(): static

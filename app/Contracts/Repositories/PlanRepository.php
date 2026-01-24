@@ -34,4 +34,15 @@ interface PlanRepository
     public function getPublic(): Collection;
 
     public function getFreePlan(): ?Plan;
+
+    /**
+     * @return Collection<int, Plan>
+     */
+    public function getAll(): Collection;
+
+    public function hasActiveSubscribers(Plan $plan): bool;
+
+    public function deactivate(Plan $plan): Plan;
+
+    public function getSubscriberCount(Plan $plan): int;
 }
