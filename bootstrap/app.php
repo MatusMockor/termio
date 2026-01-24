@@ -5,6 +5,7 @@ use App\Http\Middleware\CheckReservationLimit;
 use App\Http\Middleware\CheckServiceLimit;
 use App\Http\Middleware\CheckUserLimit;
 use App\Http\Middleware\EnsureOwnerRole;
+use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\TenantMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -21,6 +22,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => TenantMiddleware::class,
             'owner' => EnsureOwnerRole::class,
+            'admin' => EnsureUserIsAdmin::class,
             'check.reservation.limit' => CheckReservationLimit::class,
             'check.user.limit' => CheckUserLimit::class,
             'check.service.limit' => CheckServiceLimit::class,

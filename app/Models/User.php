@@ -28,6 +28,7 @@ use Laravel\Sanctum\HasApiTokens;
  * @property string|null $google_refresh_token
  * @property Carbon|null $google_token_expires_at
  * @property bool $is_active
+ * @property bool $is_admin
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
@@ -59,6 +60,7 @@ final class User extends Authenticatable
         'google_refresh_token',
         'google_token_expires_at',
         'is_active',
+        'is_admin',
     ];
 
     /**
@@ -81,6 +83,7 @@ final class User extends Authenticatable
             'password' => 'hashed',
             'google_token_expires_at' => 'datetime',
             'is_active' => 'boolean',
+            'is_admin' => 'boolean',
         ];
     }
 
@@ -121,5 +124,10 @@ final class User extends Authenticatable
     public function hasGoogleCalendarConnected(): bool
     {
         return $this->google_refresh_token !== null;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->is_admin;
     }
 }

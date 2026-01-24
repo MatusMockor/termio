@@ -51,4 +51,32 @@ final class EloquentPlanRepository implements PlanRepository
     {
         return Plan::where('slug', 'free')->first();
     }
+
+    public function getAll(): Collection
+    {
+        return Plan::orderBy('sort_order')->get();
+    }
+
+    public function hasActiveSubscribers(Plan $plan): bool
+    {
+        return $plan->subscriptions()
+            ->where('stripe_status', 'active')
+            ->whereNull('ends_at')
+            ->exists();
+    }
+
+    public function deactivate(Plan $plan): Plan
+    {
+        $plan->update(['is_active' => false]);
+
+        return $plan->fresh() ?? $plan;
+    }
+
+    public function getSubscriberCount(Plan $plan): int
+    {
+        return $plan->subscriptions()
+            ->where('stripe_status', 'active')
+            ->whereNull('ends_at')
+            ->count();
+    }
 }
