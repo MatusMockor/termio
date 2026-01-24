@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\CheckFeatureAccess;
+use App\Http\Middleware\CheckReservationLimit;
+use App\Http\Middleware\CheckServiceLimit;
+use App\Http\Middleware\CheckUserLimit;
 use App\Http\Middleware\EnsureOwnerRole;
 use App\Http\Middleware\TenantMiddleware;
 use Illuminate\Foundation\Application;
@@ -17,12 +21,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant' => TenantMiddleware::class,
             'owner' => EnsureOwnerRole::class,
+            'check.reservation.limit' => CheckReservationLimit::class,
+            'check.user.limit' => CheckUserLimit::class,
+            'check.service.limit' => CheckServiceLimit::class,
+            'feature' => CheckFeatureAccess::class,
         ]);
 
         $middleware->statefulApi();
 
         $middleware->validateCsrfTokens(except: [
             'api/book/*',
+            'api/webhooks/stripe',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

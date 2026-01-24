@@ -4,18 +4,34 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GoogleCalendarController;
+use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\PortfolioImageController;
 use App\Http\Controllers\Api\PortfolioTagController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\StaffController;
+use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\SubscriptionFeatureController;
 use App\Http\Controllers\Api\TimeOffController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\PortfolioController;
+use App\Http\Controllers\Webhooks\StripeWebhookController;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| Public Plan Routes (no authentication required)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('plans')->name('plans.')->group(static function (): void {
+    Route::get('/', [PlanController::class, 'index'])->name('index');
+    Route::get('/compare', [PlanController::class, 'compare'])->name('compare');
+    Route::get('/{plan:slug}', [PlanController::class, 'show'])->name('show');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -45,21 +61,30 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
     Route::get('/dashboard/report', [DashboardController::class, 'report'])->name('dashboard.report');
 
-    // Appointments
-    Route::apiResource('appointments', AppointmentController::class);
+    // Appointments - check reservation limit on creation
+    Route::apiResource('appointments', AppointmentController::class)->except(['store']);
+    Route::post('/appointments', [AppointmentController::class, 'store'])
+        ->middleware('check.reservation.limit')
+        ->name('appointments.store');
     Route::post('/appointments/{appointment}/complete', [AppointmentController::class, 'complete'])->name('appointments.complete');
     Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])->name('appointments.cancel');
 
-    // Services
-    Route::apiResource('services', ServiceController::class);
+    // Services - check service limit on creation
+    Route::apiResource('services', ServiceController::class)->except(['store']);
+    Route::post('/services', [ServiceController::class, 'store'])
+        ->middleware('check.service.limit')
+        ->name('services.store');
     Route::post('/services/reorder', [ServiceController::class, 'reorder'])->name('services.reorder');
 
     // Clients
     Route::apiResource('clients', ClientController::class);
     Route::get('/clients-search', [ClientController::class, 'search'])->name('clients.search');
 
-    // Staff
-    Route::apiResource('staff', StaffController::class);
+    // Staff - check user limit on creation
+    Route::apiResource('staff', StaffController::class)->except(['store']);
+    Route::post('/staff', [StaffController::class, 'store'])
+        ->middleware('check.user.limit')
+        ->name('staff.store');
     Route::post('/staff/reorder', [StaffController::class, 'reorder'])->name('staff.reorder');
     Route::get('/staff/{staff}/working-hours', [StaffController::class, 'getWorkingHours'])->name('staff.working-hours.index');
     Route::put('/staff/{staff}/working-hours', [StaffController::class, 'updateWorkingHours'])->name('staff.working-hours.update');
@@ -82,14 +107,55 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::put('/settings/working-hours', [SettingsController::class, 'updateWorkingHours'])->name('settings.working-hours');
     });
 
-    // Google Calendar Integration
-    Route::prefix('integrations/google-calendar')->name('google-calendar.')->group(function (): void {
-        Route::get('/status', [GoogleCalendarController::class, 'status'])->name('status');
-        Route::get('/connect', [GoogleCalendarController::class, 'connect'])->name('connect');
-        Route::post('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
-        Route::delete('/disconnect', [GoogleCalendarController::class, 'disconnect'])->name('disconnect');
+    // Google Calendar Integration (requires google_calendar_sync feature)
+    Route::prefix('integrations/google-calendar')
+        ->middleware('feature:google_calendar_sync')
+        ->name('google-calendar.')
+        ->group(function (): void {
+            Route::get('/status', [GoogleCalendarController::class, 'status'])->name('status');
+            Route::get('/connect', [GoogleCalendarController::class, 'connect'])->name('connect');
+            Route::post('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
+            Route::delete('/disconnect', [GoogleCalendarController::class, 'disconnect'])->name('disconnect');
+        });
+
+    // Subscriptions (owner only)
+    Route::middleware('owner')->prefix('subscriptions')->name('subscriptions.')->group(function (): void {
+        Route::post('/', [SubscriptionController::class, 'store'])->name('store');
+        Route::get('/', [SubscriptionController::class, 'show'])->name('show');
+        Route::get('/usage', [SubscriptionController::class, 'usage'])->name('usage');
+        Route::post('/upgrade', [SubscriptionController::class, 'upgrade'])->name('upgrade');
+        Route::post('/downgrade', [SubscriptionController::class, 'downgrade'])->name('downgrade');
+        Route::post('/cancel', [SubscriptionController::class, 'cancel'])->name('cancel');
+        Route::post('/resume', [SubscriptionController::class, 'resume'])->name('resume');
+
+        // Feature status endpoints
+        Route::get('/features', [SubscriptionFeatureController::class, 'index'])->name('features.index');
+        Route::get('/features/grouped', [SubscriptionFeatureController::class, 'grouped'])->name('features.grouped');
+        Route::get('/features/{feature}', [SubscriptionFeatureController::class, 'show'])->name('features.show');
+    });
+
+    // Billing (owner only)
+    Route::middleware('owner')->prefix('billing')->name('billing.')->group(function (): void {
+        // Invoices
+        Route::get('/invoices', [BillingController::class, 'invoices'])->name('invoices.index');
+        Route::get('/invoices/{invoice}', [BillingController::class, 'showInvoice'])->name('invoices.show');
+        Route::get('/invoices/{invoice}/download', [BillingController::class, 'downloadInvoice'])->name('invoices.download');
+
+        // Payment Methods
+        Route::get('/payment-methods', [BillingController::class, 'paymentMethods'])->name('payment-methods.index');
+        Route::post('/payment-methods', [BillingController::class, 'addPaymentMethod'])->name('payment-methods.store');
+        Route::delete('/payment-methods/{paymentMethod}', [BillingController::class, 'removePaymentMethod'])->name('payment-methods.destroy');
+        Route::post('/payment-methods/{paymentMethod}/default', [BillingController::class, 'setDefaultPaymentMethod'])->name('payment-methods.default');
     });
 });
+
+/*
+|--------------------------------------------------------------------------
+| Stripe Webhooks (no authentication, signature verified by Cashier)
+|--------------------------------------------------------------------------
+*/
+Route::post('/webhooks/stripe', [StripeWebhookController::class, 'handleWebhook'])
+    ->name('cashier.webhook');
 
 /*
 |--------------------------------------------------------------------------

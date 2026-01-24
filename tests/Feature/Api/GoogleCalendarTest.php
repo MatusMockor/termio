@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Models\Plan;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Services\GoogleCalendarService;
@@ -17,9 +19,35 @@ final class GoogleCalendarTest extends TestCase
 {
     use RefreshDatabase;
 
+    private Plan $plan;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Create a plan with google_calendar_sync feature enabled
+        $this->plan = Plan::factory()->create([
+            'name' => 'EASY',
+            'slug' => 'easy',
+            'features' => [
+                'google_calendar_sync' => true,
+            ],
+        ]);
+    }
+
+    private function createSubscriptionForTenant(Tenant $tenant): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $tenant->id,
+            'plan_id' => $this->plan->id,
+            'stripe_status' => 'active',
+        ]);
+    }
+
     public function test_status_returns_not_connected_by_default(): void
     {
         $this->actingAsOwner();
+        $this->createSubscriptionForTenant($this->tenant);
 
         $response = $this->getJson(route('google-calendar.status'));
 
@@ -33,6 +61,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_status_returns_connected_when_token_exists(): void
     {
         $tenant = Tenant::factory()->create();
+        $this->createSubscriptionForTenant($tenant);
         $user = User::factory()
             ->forTenant($tenant)
             ->owner()
@@ -56,6 +85,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_connect_returns_auth_url(): void
     {
         $this->actingAsOwner();
+        $this->createSubscriptionForTenant($this->tenant);
 
         $authUrl = fake()->url();
 
@@ -75,6 +105,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_callback_stores_tokens(): void
     {
         $this->actingAsOwner();
+        $this->createSubscriptionForTenant($this->tenant);
 
         $authCode = fake()->uuid();
         $accessToken = fake()->sha256();
@@ -113,6 +144,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_callback_validates_code_is_required(): void
     {
         $this->actingAsOwner();
+        $this->createSubscriptionForTenant($this->tenant);
 
         $response = $this->postJson(route('google-calendar.callback'), []);
 
@@ -123,6 +155,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_callback_handles_exchange_error(): void
     {
         $this->actingAsOwner();
+        $this->createSubscriptionForTenant($this->tenant);
 
         $invalidCode = fake()->uuid();
 
@@ -146,6 +179,7 @@ final class GoogleCalendarTest extends TestCase
     public function test_disconnect_removes_tokens(): void
     {
         $tenant = Tenant::factory()->create();
+        $this->createSubscriptionForTenant($tenant);
         $user = User::factory()
             ->forTenant($tenant)
             ->owner()

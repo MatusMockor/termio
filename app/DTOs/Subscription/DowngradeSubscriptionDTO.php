@@ -1,0 +1,13 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\DTOs\Subscription;
+
+final readonly class DowngradeSubscriptionDTO
+{
+    public function __construct(
+        public int $subscriptionId,
+        public int $newPlanId,
+    ) {}
+}

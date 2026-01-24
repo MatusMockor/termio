@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Laravel\Cashier\Billable;
+use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
 
 /**
  * @property int $id
@@ -19,9 +21,15 @@ use Illuminate\Support\Carbon;
  * @property string|null $business_type
  * @property string|null $address
  * @property string|null $phone
+ * @property string|null $country
+ * @property string|null $vat_id
+ * @property Carbon|null $vat_id_verified_at
  * @property string $timezone
  * @property array<string, mixed> $settings
  * @property string $status
+ * @property string|null $stripe_id
+ * @property string|null $pm_type
+ * @property string|null $pm_last_four
  * @property Carbon|null $trial_ends_at
  * @property Carbon $created_at
  * @property Carbon $updated_at
@@ -32,9 +40,14 @@ use Illuminate\Support\Carbon;
  * @property-read Collection<int, Client> $clients
  * @property-read Collection<int, Appointment> $appointments
  * @property-read Collection<int, WorkingHours> $workingHours
+ * @property-read Subscription|null $localSubscription
+ * @property-read Collection<int, Invoice> $invoices
+ * @property-read Collection<int, PaymentMethod> $paymentMethods
+ * @property-read Collection<int, UsageRecord> $usageRecords
  */
 final class Tenant extends Model
 {
+    use Billable;
     use HasFactory;
     use SoftDeletes;
 
@@ -44,9 +57,15 @@ final class Tenant extends Model
         'business_type',
         'address',
         'phone',
+        'country',
+        'vat_id',
+        'vat_id_verified_at',
         'timezone',
         'settings',
         'status',
+        'stripe_id',
+        'pm_type',
+        'pm_last_four',
         'trial_ends_at',
     ];
 
@@ -58,6 +77,7 @@ final class Tenant extends Model
         return [
             'settings' => 'array',
             'trial_ends_at' => 'datetime',
+            'vat_id_verified_at' => 'datetime',
         ];
     }
 
@@ -107,5 +127,81 @@ final class Tenant extends Model
     public function workingHours(): HasMany
     {
         return $this->hasMany(WorkingHours::class);
+    }
+
+    /**
+     * Get the local subscription record for this tenant.
+     *
+     * @return HasOne<Subscription, $this>
+     */
+    public function localSubscription(): HasOne
+    {
+        return $this->hasOne(Subscription::class);
+    }
+
+    /**
+     * @return HasMany<Invoice, $this>
+     */
+    public function invoices(): HasMany
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * @return HasMany<PaymentMethod, $this>
+     */
+    public function paymentMethods(): HasMany
+    {
+        return $this->hasMany(PaymentMethod::class);
+    }
+
+    /**
+     * @return HasMany<UsageRecord, $this>
+     */
+    public function usageRecords(): HasMany
+    {
+        return $this->hasMany(UsageRecord::class);
+    }
+
+    /**
+     * Get the default payment method from Stripe.
+     */
+    public function getDefaultPaymentMethod(): ?CashierPaymentMethod
+    {
+        if (! $this->hasStripeId()) {
+            return null;
+        }
+
+        return $this->defaultPaymentMethod();
+    }
+
+    /**
+     * Get the active local subscription record for this tenant.
+     */
+    public function activeSubscription(): ?Subscription
+    {
+        return $this->localSubscription()
+            ->where('stripe_status', 'active')
+            ->first();
+    }
+
+    /**
+     * Determine if the tenant is currently within their trial period.
+     */
+    public function isOnTrial(): bool
+    {
+        return $this->trial_ends_at !== null && $this->trial_ends_at->isFuture();
+    }
+
+    /**
+     * Get the number of days remaining in the trial period.
+     */
+    public function trialDaysRemaining(): int
+    {
+        if (! $this->isOnTrial()) {
+            return 0;
+        }
+
+        return (int) now()->diffInDays($this->trial_ends_at, false);
     }
 }

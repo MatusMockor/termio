@@ -26,3 +26,5 @@ parameters:
     ignoreErrors:
         # Ignore PHPMD @SuppressWarnings PHPDoc parse errors
         - '#PHPDoc tag @SuppressWarnings has invalid value#'
+        # Ignore Stripe SDK dynamic properties (current_period_start, current_period_end, etc.)
+        - '#Access to an undefined property Stripe\\Subscription::\$current_period#'
