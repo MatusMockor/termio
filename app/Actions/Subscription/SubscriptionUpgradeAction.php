@@ -8,6 +8,7 @@ use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
+use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -74,7 +75,7 @@ final class SubscriptionUpgradeAction
             // Only swap if not a free plan subscription
             if (! str_starts_with($subscription->stripe_id, 'free_')) {
                 // Swap to new plan with proration
-                $subscription->tenant->subscription('default')->swap($priceId);
+                $subscription->tenant->subscription(SubscriptionType::Default->value)->swap($priceId);
             }
 
             // Update local record

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Jobs\Subscription;
 
+use App\Enums\SubscriptionStatus;
 use App\Jobs\Subscription\HandleSubscriptionCanceledJob;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -48,7 +49,7 @@ final class HandleSubscriptionCanceledJobTest extends TestCase
 
         $subscription->refresh();
         $this->assertEquals($this->freePlan->id, $subscription->plan_id);
-        $this->assertEquals('canceled', $subscription->stripe_status);
+        $this->assertEquals(SubscriptionStatus::Canceled, $subscription->stripe_status);
         $this->assertNotNull($subscription->ends_at);
     }
 

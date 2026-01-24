@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Jobs\Subscription;
 
+use App\Enums\SubscriptionStatus;
 use App\Jobs\Subscription\HandleSubscriptionUpdatedJob;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -44,7 +45,7 @@ final class HandleSubscriptionUpdatedJobTest extends TestCase
         $job->handle(app(\App\Contracts\Repositories\SubscriptionRepository::class));
 
         $subscription->refresh();
-        $this->assertEquals('active', $subscription->stripe_status);
+        $this->assertEquals(SubscriptionStatus::Active, $subscription->stripe_status);
     }
 
     public function test_updates_trial_end_date(): void

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\SubscriptionStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +19,7 @@ use Illuminate\Support\Carbon;
  * @property int $plan_id
  * @property string $type
  * @property string $stripe_id
- * @property string $stripe_status
+ * @property SubscriptionStatus $stripe_status
  * @property string|null $stripe_price
  * @property string $billing_cycle
  * @property int $quantity
@@ -59,6 +60,7 @@ final class Subscription extends Model
     protected function casts(): array
     {
         return [
+            'stripe_status' => SubscriptionStatus::class,
             'quantity' => 'integer',
             'trial_ends_at' => 'datetime',
             'ends_at' => 'datetime',
@@ -112,7 +114,7 @@ final class Subscription extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('stripe_status', 'active');
+        return $query->where('stripe_status', SubscriptionStatus::Active);
     }
 
     /**
@@ -136,7 +138,7 @@ final class Subscription extends Model
 
     public function isActive(): bool
     {
-        return $this->stripe_status === 'active';
+        return $this->stripe_status === SubscriptionStatus::Active;
     }
 
     public function onTrial(): bool

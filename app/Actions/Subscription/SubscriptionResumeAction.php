@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions\Subscription;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Enums\SubscriptionStatus;
+use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Subscription;
 use App\Models\Tenant;
@@ -50,12 +52,12 @@ final class SubscriptionResumeAction
             if (str_starts_with($subscription->stripe_id, 'free_')) {
                 return $this->subscriptions->update($subscription, [
                     'ends_at' => null,
-                    'stripe_status' => 'active',
+                    'stripe_status' => SubscriptionStatus::Active->value,
                 ]);
             }
 
             // Resume in Stripe
-            $stripeSub = $tenant->subscription('default');
+            $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
             if (! $stripeSub) {
                 throw SubscriptionException::noActiveSubscription();

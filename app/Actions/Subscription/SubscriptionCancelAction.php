@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions\Subscription;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Enums\SubscriptionStatus;
+use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Subscription;
 use App\Models\Tenant;
@@ -29,7 +31,7 @@ final class SubscriptionCancelAction
             throw SubscriptionException::subscriptionNotFound($subscriptionId);
         }
 
-        if ($subscription->stripe_status === 'canceled') {
+        if ($subscription->stripe_status === SubscriptionStatus::Canceled) {
             throw SubscriptionException::alreadyCanceled();
         }
 
@@ -55,7 +57,7 @@ final class SubscriptionCancelAction
                 return [
                     'subscription' => $this->subscriptions->update($subscription, [
                         'ends_at' => $endsAt,
-                        'stripe_status' => 'canceled',
+                        'stripe_status' => SubscriptionStatus::Canceled->value,
                         'scheduled_plan_id' => null,
                         'scheduled_change_at' => null,
                     ]),
@@ -64,7 +66,7 @@ final class SubscriptionCancelAction
             }
 
             // Cancel at period end in Stripe
-            $stripeSub = $tenant->subscription('default');
+            $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
             if (! $stripeSub) {
                 throw SubscriptionException::noActiveSubscription();
