@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs\Subscription;
 
+use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use App\Notifications\TrialEndingNotification;
 use Illuminate\Bus\Queueable;
@@ -35,7 +36,7 @@ final class SendTrialEndingRemindersJob implements ShouldQueue
         $targetDate = now()->addDays($days)->startOfDay();
 
         Subscription::with(['tenant.owner'])
-            ->where('stripe_status', 'trialing')
+            ->where('stripe_status', SubscriptionStatus::Trialing)
             ->whereNotNull('trial_ends_at')
             ->whereDate('trial_ends_at', $targetDate)
             ->chunk(100, static function ($subscriptions) use ($days): void {

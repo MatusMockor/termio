@@ -61,6 +61,9 @@ Task tool:
 * For null checks, use `if (!$var)`
 * For empty array checks, use `if (!$array)` instead of `if ($array === [])`
 * **No magic numbers or hardcoded constants** - use `config()` values instead of `private const`
+* **Use enums for statuses and types** - never hardcode strings like `'active'`, `'canceled'`, `'default'`
+  - Use `SubscriptionStatus::Active` instead of `'active'`
+  - Use `SubscriptionType::Default->value` instead of `'default'`
 * Add comments only for exceptions and specific business logic
 * **Always type-hint parameters in callbacks**:
 

@@ -8,6 +8,7 @@ use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\DTOs\Subscription\DowngradeSubscriptionDTO;
+use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -82,7 +83,7 @@ final class SubscriptionDowngradeAction
             }
 
             // Get current period end from Stripe
-            $stripeSub = $subscription->tenant->subscription('default');
+            $stripeSub = $subscription->tenant->subscription(SubscriptionType::Default->value);
 
             if (! $stripeSub) {
                 throw SubscriptionException::noActiveSubscription();

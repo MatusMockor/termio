@@ -8,6 +8,8 @@ use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\StripeService;
 use App\DTOs\Subscription\CreateSubscriptionDTO;
+use App\Enums\SubscriptionStatus;
+use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -51,9 +53,9 @@ final class SubscriptionCreateAction
         return $this->subscriptions->create([
             'tenant_id' => $tenant->id,
             'plan_id' => $plan->id,
-            'type' => 'default',
+            'type' => SubscriptionType::Default->value,
             'stripe_id' => 'free_'.$tenant->id,
-            'stripe_status' => 'active',
+            'stripe_status' => SubscriptionStatus::Active->value,
             'stripe_price' => null,
             'billing_cycle' => 'monthly',
             'trial_ends_at' => null,
@@ -82,7 +84,7 @@ final class SubscriptionCreateAction
             }
 
             // Create Stripe subscription using Laravel Cashier
-            $stripeSubscriptionBuilder = $tenant->newSubscription('default', $priceId);
+            $stripeSubscriptionBuilder = $tenant->newSubscription(SubscriptionType::Default->value, $priceId);
 
             if ($dto->startTrial) {
                 $stripeSubscriptionBuilder->trialDays(config('subscription.trial_days'));
@@ -94,7 +96,7 @@ final class SubscriptionCreateAction
             return $this->subscriptions->create([
                 'tenant_id' => $tenant->id,
                 'plan_id' => $plan->id,
-                'type' => 'default',
+                'type' => SubscriptionType::Default->value,
                 'stripe_id' => $stripeSubscription->stripe_id,
                 'stripe_status' => $stripeSubscription->stripe_status,
                 'stripe_price' => $priceId,

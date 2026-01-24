@@ -6,6 +6,8 @@ namespace App\Jobs\Subscription;
 
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Enums\SubscriptionStatus;
+use App\Enums\SubscriptionType;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Notifications\TrialEndedNotification;
@@ -37,7 +39,7 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
         }
 
         Subscription::with(['tenant.owner', 'plan'])
-            ->where('stripe_status', 'trialing')
+            ->where('stripe_status', SubscriptionStatus::Trialing)
             ->whereNotNull('trial_ends_at')
             ->where('trial_ends_at', '<=', now())
             ->chunk(100, function ($expiredTrials) use ($subscriptions, $freePlan): void {
@@ -79,7 +81,7 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
         \App\Models\Tenant $tenant,
     ): void {
         $subscriptions->update($subscription, [
-            'stripe_status' => 'active',
+            'stripe_status' => SubscriptionStatus::Active->value,
             'trial_ends_at' => null,
         ]);
 
@@ -103,7 +105,7 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
     ): void {
         DB::transaction(static function () use ($subscription, $freePlan, $subscriptions, $tenant): void {
             if (! str_starts_with($subscription->stripe_id, 'free_')) {
-                $stripeSub = $tenant->subscription('default');
+                $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
                 if ($stripeSub) {
                     $stripeSub->cancelNow();
@@ -113,7 +115,7 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
             $subscriptions->update($subscription, [
                 'plan_id' => $freePlan->id,
                 'stripe_id' => 'free_'.$tenant->id,
-                'stripe_status' => 'active',
+                'stripe_status' => SubscriptionStatus::Active->value,
                 'stripe_price' => null,
                 'trial_ends_at' => null,
             ]);

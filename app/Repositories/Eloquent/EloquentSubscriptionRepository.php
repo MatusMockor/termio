@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use Illuminate\Support\Collection;
@@ -36,7 +37,7 @@ final class EloquentSubscriptionRepository implements SubscriptionRepository
     public function findActiveByTenant(Tenant $tenant): ?Subscription
     {
         return Subscription::where('tenant_id', $tenant->id)
-            ->whereIn('stripe_status', ['active', 'trialing'])
+            ->whereIn('stripe_status', SubscriptionStatus::activeStatusValues())
             ->first();
     }
 
@@ -49,7 +50,7 @@ final class EloquentSubscriptionRepository implements SubscriptionRepository
 
     public function getTrialsEndingSoon(int $days): Collection
     {
-        return Subscription::where('stripe_status', 'trialing')
+        return Subscription::where('stripe_status', SubscriptionStatus::Trialing)
             ->whereBetween('trial_ends_at', [now(), now()->addDays($days)])
             ->get();
     }
@@ -65,7 +66,7 @@ final class EloquentSubscriptionRepository implements SubscriptionRepository
     {
         return Subscription::whereNotNull('ends_at')
             ->where('ends_at', '<=', now())
-            ->where('stripe_status', '!=', 'canceled')
+            ->where('stripe_status', '!=', SubscriptionStatus::Canceled)
             ->get();
     }
 }

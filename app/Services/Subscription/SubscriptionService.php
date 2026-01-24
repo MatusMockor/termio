@@ -7,6 +7,7 @@ namespace App\Services\Subscription;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
+use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\Tenant;
 use Carbon\Carbon;
@@ -101,7 +102,7 @@ final class SubscriptionService implements SubscriptionServiceContract
             return false;
         }
 
-        return $subscription->stripe_status === 'trialing'
+        return $subscription->stripe_status === SubscriptionStatus::Trialing
             && $subscription->trial_ends_at !== null
             && $subscription->trial_ends_at->isFuture();
     }
