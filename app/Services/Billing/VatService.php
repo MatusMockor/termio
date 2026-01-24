@@ -14,16 +14,6 @@ use SoapClient;
 
 final class VatService implements VatServiceContract
 {
-    private const float SLOVAKIA_VAT_RATE = 0.20;
-
-    private const array EU_COUNTRIES = [
-        'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
-        'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
-        'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE',
-    ];
-
-    private const string VIES_WSDL = 'https://ec.europa.eu/taxation_customs/vies/checkVatService.wsdl';
-
     public function calculateVat(Tenant $tenant, float $amount): VatCalculation
     {
         $vatRate = $this->getVatRate($tenant);
@@ -49,7 +39,7 @@ final class VatService implements VatServiceContract
 
         // Slovakia - always 20% VAT
         if ($country === 'SK') {
-            return self::SLOVAKIA_VAT_RATE;
+            return config('subscription.vat.slovakia_rate');
         }
 
         // EU with valid VAT ID - reverse charge (0%)
@@ -59,7 +49,7 @@ final class VatService implements VatServiceContract
 
         // EU without valid VAT ID - Slovak VAT rate
         if ($this->isEuCountry($country)) {
-            return self::SLOVAKIA_VAT_RATE;
+            return config('subscription.vat.slovakia_rate');
         }
 
         // Non-EU - no VAT
@@ -140,7 +130,7 @@ final class VatService implements VatServiceContract
 
     public function isEuCountry(string $countryCode): bool
     {
-        return in_array(strtoupper($countryCode), self::EU_COUNTRIES, true);
+        return in_array(strtoupper($countryCode), config('subscription.vat.eu_countries'), true);
     }
 
     /**
@@ -150,7 +140,7 @@ final class VatService implements VatServiceContract
      */
     private function validateViaVies(string $countryCode, string $vatNumber): bool
     {
-        $client = new SoapClient(self::VIES_WSDL, [
+        $client = new SoapClient(config('subscription.vat.vies_wsdl'), [
             'trace' => true,
             'exceptions' => true,
             'connection_timeout' => 10,

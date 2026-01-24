@@ -17,8 +17,6 @@ use Illuminate\Support\Facades\DB;
 
 final class SubscriptionCreateAction
 {
-    private const TRIAL_DAYS = 14;
-
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly PlanRepository $plans,
@@ -87,7 +85,7 @@ final class SubscriptionCreateAction
             $stripeSubscriptionBuilder = $tenant->newSubscription('default', $priceId);
 
             if ($dto->startTrial) {
-                $stripeSubscriptionBuilder->trialDays(self::TRIAL_DAYS);
+                $stripeSubscriptionBuilder->trialDays(config('subscription.trial_days'));
             }
 
             $stripeSubscription = $stripeSubscriptionBuilder->create($dto->paymentMethodId);
@@ -101,7 +99,7 @@ final class SubscriptionCreateAction
                 'stripe_status' => $stripeSubscription->stripe_status,
                 'stripe_price' => $priceId,
                 'billing_cycle' => $dto->billingCycle,
-                'trial_ends_at' => $dto->startTrial ? now()->addDays(self::TRIAL_DAYS) : null,
+                'trial_ends_at' => $dto->startTrial ? now()->addDays(config('subscription.trial_days')) : null,
             ]);
         });
 

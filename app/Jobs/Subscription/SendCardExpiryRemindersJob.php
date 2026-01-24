@@ -20,12 +20,11 @@ final class SendCardExpiryRemindersJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    private const REMINDER_DAYS = 30;
-
     public function handle(): void
     {
-        $targetMonth = now()->addDays(self::REMINDER_DAYS)->month;
-        $targetYear = now()->addDays(self::REMINDER_DAYS)->year;
+        $reminderDays = config('subscription.reminders.card_expiry_days');
+        $targetMonth = now()->addDays($reminderDays)->month;
+        $targetYear = now()->addDays($reminderDays)->year;
 
         PaymentMethod::with(['tenant.owner'])
             ->where('is_default', true)
