@@ -4,13 +4,22 @@ declare(strict_types=1);
 
 namespace App\Observers;
 
+use App\Contracts\Services\UsageLimitServiceContract;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 
 final class AppointmentObserver
 {
+    public function __construct(
+        private readonly UsageLimitServiceContract $usageLimitService,
+    ) {}
+
     public function created(Appointment $appointment): void
     {
+        // Track usage for subscription limits
+        $this->usageLimitService->recordReservationCreated($appointment->tenant);
+
+        // Sync to Google Calendar
         SyncAppointmentToGoogleCalendar::dispatch($appointment, 'create');
     }
 
@@ -31,6 +40,10 @@ final class AppointmentObserver
 
     public function deleted(Appointment $appointment): void
     {
+        // Track usage for subscription limits
+        $this->usageLimitService->recordReservationDeleted($appointment->tenant);
+
+        // Sync to Google Calendar
         if ($appointment->google_event_id) {
             SyncAppointmentToGoogleCalendar::dispatch($appointment, 'delete');
         }
