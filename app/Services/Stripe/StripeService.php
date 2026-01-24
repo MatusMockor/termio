@@ -6,6 +6,7 @@ namespace App\Services\Stripe;
 
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Models\Tenant;
+use RuntimeException;
 use Stripe\Customer;
 use Stripe\Exception\ApiErrorException;
 use Stripe\PaymentMethod;
@@ -31,7 +32,7 @@ final class StripeService implements StripeServiceContract
         $secret = config('cashier.secret');
 
         if (empty($secret)) {
-            throw new \RuntimeException('Stripe is not configured. Please set STRIPE_SECRET in your environment.');
+            throw new RuntimeException('Stripe is not configured. Please set STRIPE_SECRET in your environment.');
         }
 
         $this->stripe = new StripeClient((string) $secret);

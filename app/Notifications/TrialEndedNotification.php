@@ -15,6 +15,9 @@ final class TrialEndedNotification extends Notification implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * @SuppressWarnings(PHPMD.BooleanArgumentFlag)
+     */
     public function __construct(
         private readonly Tenant $tenant,
         private readonly bool $converted = false,
