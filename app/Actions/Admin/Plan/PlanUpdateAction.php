@@ -20,7 +20,7 @@ final class PlanUpdateAction
     {
         $data = $dto->toArray();
 
-        if (!$data) {
+        if (! $data) {
             return $plan;
         }
 
