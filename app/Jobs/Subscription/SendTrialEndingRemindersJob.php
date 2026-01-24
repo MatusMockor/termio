@@ -20,11 +20,12 @@ final class SendTrialEndingRemindersJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    private const REMINDER_DAYS = [3, 1];
-
     public function handle(): void
     {
-        foreach (self::REMINDER_DAYS as $days) {
+        /** @var array<int, int> $reminderDays */
+        $reminderDays = config('subscription.reminders.trial_ending_days');
+
+        foreach ($reminderDays as $days) {
             $this->sendRemindersForDay($days);
         }
     }

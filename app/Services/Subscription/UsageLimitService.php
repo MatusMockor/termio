@@ -12,14 +12,6 @@ use RuntimeException;
 
 final class UsageLimitService implements UsageLimitServiceContract
 {
-    private const float WARNING_THRESHOLD = 0.8;
-
-    private const int DEFAULT_RESERVATION_LIMIT = 50;
-
-    private const int DEFAULT_USER_LIMIT = 5;
-
-    private const int DEFAULT_SERVICE_LIMIT = 10;
-
     public function __construct(
         private readonly SubscriptionServiceContract $subscriptionService,
         private readonly UsageRecordRepository $usageRecords,
@@ -37,7 +29,7 @@ final class UsageLimitService implements UsageLimitServiceContract
 
             $limit = $this->subscriptionService->getLimit($tenant, 'reservations_per_month');
         } catch (RuntimeException) {
-            $limit = self::DEFAULT_RESERVATION_LIMIT;
+            $limit = config('subscription.default_limits.reservations');
         }
 
         $usage = $this->usageRecords->getCurrentUsage($tenant);
@@ -57,7 +49,7 @@ final class UsageLimitService implements UsageLimitServiceContract
 
             $limit = $this->subscriptionService->getLimit($tenant, 'users');
         } catch (RuntimeException) {
-            $limit = self::DEFAULT_USER_LIMIT;
+            $limit = config('subscription.default_limits.users');
         }
 
         $currentCount = $tenant->users()->count();
@@ -77,7 +69,7 @@ final class UsageLimitService implements UsageLimitServiceContract
 
             $limit = $this->subscriptionService->getLimit($tenant, 'services');
         } catch (RuntimeException) {
-            $limit = self::DEFAULT_SERVICE_LIMIT;
+            $limit = config('subscription.default_limits.services');
         }
 
         $currentCount = $tenant->services()->count();
@@ -94,9 +86,9 @@ final class UsageLimitService implements UsageLimitServiceContract
     {
         $usage = $this->usageRecords->getCurrentUsage($tenant);
 
-        $reservationsLimit = $this->getLimit($tenant, 'reservations_per_month', self::DEFAULT_RESERVATION_LIMIT);
-        $usersLimit = $this->getLimit($tenant, 'users', self::DEFAULT_USER_LIMIT);
-        $servicesLimit = $this->getLimit($tenant, 'services', self::DEFAULT_SERVICE_LIMIT);
+        $reservationsLimit = $this->getLimit($tenant, 'reservations_per_month', config('subscription.default_limits.reservations'));
+        $usersLimit = $this->getLimit($tenant, 'users', config('subscription.default_limits.users'));
+        $servicesLimit = $this->getLimit($tenant, 'services', config('subscription.default_limits.services'));
 
         $userCount = $tenant->users()->count();
         $serviceCount = $tenant->services()->count();
@@ -153,7 +145,7 @@ final class UsageLimitService implements UsageLimitServiceContract
     {
         $percentage = $this->getUsagePercentage($tenant, $resource);
 
-        return $percentage >= (self::WARNING_THRESHOLD * 100) && $percentage < 100;
+        return $percentage >= (config('subscription.usage_warning_threshold') * 100) && $percentage < 100;
     }
 
     /**

@@ -20,11 +20,9 @@ final class SendDowngradeRemindersJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    private const REMINDER_DAYS = 3;
-
     public function handle(): void
     {
-        $targetDate = now()->addDays(self::REMINDER_DAYS)->startOfDay();
+        $targetDate = now()->addDays(config('subscription.reminders.downgrade_days'))->startOfDay();
 
         Subscription::with(['tenant.owner', 'plan', 'scheduledPlan'])
             ->whereNotNull('scheduled_plan_id')

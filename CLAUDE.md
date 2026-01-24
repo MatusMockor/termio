@@ -59,6 +59,8 @@ Task tool:
 
 * **Avoid `else` statements** - use guard clauses
 * For null checks, use `if (!$var)`
+* For empty array checks, use `if (!$array)` instead of `if ($array === [])`
+* **No magic numbers or hardcoded constants** - use `config()` values instead of `private const`
 * Add comments only for exceptions and specific business logic
 * **Always type-hint parameters in callbacks**:
 

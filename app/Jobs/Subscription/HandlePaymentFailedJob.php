@@ -29,8 +29,6 @@ final class HandlePaymentFailedJob implements ShouldQueue
     use Queueable;
     use SerializesModels;
 
-    private const MAX_ATTEMPTS = 3;
-
     public function __construct(
         private readonly int $tenantId,
         private readonly int $attemptCount,
@@ -54,7 +52,7 @@ final class HandlePaymentFailedJob implements ShouldQueue
 
         $this->notifyPaymentFailed($owner, $tenant);
 
-        if ($this->attemptCount >= self::MAX_ATTEMPTS) {
+        if ($this->attemptCount >= config('subscription.payment.max_retry_attempts')) {
             $this->downgradeToFree($tenant, $owner, $subscriptions, $plans);
         }
     }

@@ -15,8 +15,6 @@ final class PaymentFailedNotification extends Notification implements ShouldQueu
 {
     use Queueable;
 
-    private const MAX_ATTEMPTS = 3;
-
     public function __construct(
         private readonly Tenant $tenant,
         private readonly int $attemptCount,
@@ -34,7 +32,7 @@ final class PaymentFailedNotification extends Notification implements ShouldQueu
 
     public function toMail(User $notifiable): MailMessage
     {
-        $remainingAttempts = self::MAX_ATTEMPTS - $this->attemptCount;
+        $remainingAttempts = config('subscription.payment.max_retry_attempts') - $this->attemptCount;
         $frontendUrl = (string) config('app.frontend_url');
 
         $message = (new MailMessage)
