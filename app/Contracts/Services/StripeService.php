@@ -13,6 +13,11 @@ use Stripe\Product;
 interface StripeService
 {
     /**
+     * Check if Stripe is configured.
+     */
+    public function isConfigured(): bool;
+
+    /**
      * Create a new Stripe customer for the given tenant.
      */
     public function createCustomer(Tenant $tenant): Customer;

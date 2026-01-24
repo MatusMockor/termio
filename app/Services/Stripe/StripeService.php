@@ -15,11 +15,36 @@ use Stripe\StripeClient;
 
 final class StripeService implements StripeServiceContract
 {
-    private readonly StripeClient $stripe;
+    private ?StripeClient $stripe = null;
 
-    public function __construct()
+    /**
+     * Get the Stripe client, creating it lazily.
+     *
+     * @throws \RuntimeException if Stripe is not configured
+     */
+    private function getClient(): StripeClient
     {
-        $this->stripe = new StripeClient((string) config('cashier.secret'));
+        if ($this->stripe !== null) {
+            return $this->stripe;
+        }
+
+        $secret = config('cashier.secret');
+
+        if (empty($secret)) {
+            throw new \RuntimeException('Stripe is not configured. Please set STRIPE_SECRET in your environment.');
+        }
+
+        $this->stripe = new StripeClient((string) $secret);
+
+        return $this->stripe;
+    }
+
+    /**
+     * Check if Stripe is configured.
+     */
+    public function isConfigured(): bool
+    {
+        return ! empty(config('cashier.secret'));
     }
 
     /**
@@ -52,7 +77,7 @@ final class StripeService implements StripeServiceContract
             ];
         }
 
-        return $this->stripe->customers->create($params);
+        return $this->getClient()->customers->create($params);
     }
 
     /**
@@ -62,7 +87,7 @@ final class StripeService implements StripeServiceContract
      */
     public function getCustomer(string $customerId): Customer
     {
-        return $this->stripe->customers->retrieve($customerId);
+        return $this->getClient()->customers->retrieve($customerId);
     }
 
     /**
@@ -74,7 +99,7 @@ final class StripeService implements StripeServiceContract
      */
     public function updateCustomer(string $customerId, array $data): Customer
     {
-        return $this->stripe->customers->update($customerId, $data);
+        return $this->getClient()->customers->update($customerId, $data);
     }
 
     /**
@@ -84,7 +109,7 @@ final class StripeService implements StripeServiceContract
      */
     public function attachPaymentMethod(string $paymentMethodId, string $customerId): PaymentMethod
     {
-        return $this->stripe->paymentMethods->attach(
+        return $this->getClient()->paymentMethods->attach(
             $paymentMethodId,
             ['customer' => $customerId]
         );
@@ -97,7 +122,7 @@ final class StripeService implements StripeServiceContract
      */
     public function setDefaultPaymentMethod(string $customerId, string $paymentMethodId): Customer
     {
-        return $this->stripe->customers->update(
+        return $this->getClient()->customers->update(
             $customerId,
             ['invoice_settings' => ['default_payment_method' => $paymentMethodId]]
         );
@@ -110,7 +135,7 @@ final class StripeService implements StripeServiceContract
      */
     public function getPaymentMethod(string $paymentMethodId): PaymentMethod
     {
-        return $this->stripe->paymentMethods->retrieve($paymentMethodId);
+        return $this->getClient()->paymentMethods->retrieve($paymentMethodId);
     }
 
     /**
@@ -120,7 +145,7 @@ final class StripeService implements StripeServiceContract
      */
     public function detachPaymentMethod(string $paymentMethodId): PaymentMethod
     {
-        return $this->stripe->paymentMethods->detach($paymentMethodId);
+        return $this->getClient()->paymentMethods->detach($paymentMethodId);
     }
 
     /**
@@ -130,7 +155,7 @@ final class StripeService implements StripeServiceContract
      */
     public function getPrice(string $priceId): Price
     {
-        return $this->stripe->prices->retrieve($priceId);
+        return $this->getClient()->prices->retrieve($priceId);
     }
 
     /**
@@ -140,7 +165,7 @@ final class StripeService implements StripeServiceContract
      */
     public function getProduct(string $productId): Product
     {
-        return $this->stripe->products->retrieve($productId);
+        return $this->getClient()->products->retrieve($productId);
     }
 
     /**
@@ -152,7 +177,7 @@ final class StripeService implements StripeServiceContract
      */
     public function createSetupIntent(string $customerId): array
     {
-        $setupIntent = $this->stripe->setupIntents->create([
+        $setupIntent = $this->getClient()->setupIntents->create([
             'customer' => $customerId,
             'payment_method_types' => ['card'],
         ]);
