@@ -94,12 +94,21 @@
     <rule ref="rulesets/design.xml">
         <!-- Exclude CouplingBetweenObjects - configure separately -->
         <exclude name="CouplingBetweenObjects"/>
+        <!-- Exclude NumberOfChildren - configure separately -->
+        <exclude name="NumberOfChildren"/>
     </rule>
 
     <!-- Coupling Between Objects: max 25 dependencies -->
     <rule ref="rulesets/design.xml/CouplingBetweenObjects">
         <properties>
             <property name="maximum" value="25"/>
+        </properties>
+    </rule>
+
+    <!-- Number of Children: max 20 (allow base Controller with many child controllers) -->
+    <rule ref="rulesets/design.xml/NumberOfChildren">
+        <properties>
+            <property name="minimum" value="20"/>
         </properties>
     </rule>
 
@@ -111,6 +120,14 @@
         <exclude name="ShortVariable"/>
         <exclude name="LongVariable"/>
         <exclude name="ShortMethodName"/>
+        <exclude name="LongClassName"/>
+    </rule>
+
+    <!-- Long Class Name: max 50 chars (allow descriptive notification names) -->
+    <rule ref="rulesets/naming.xml/LongClassName">
+        <properties>
+            <property name="maximum" value="50"/>
+        </properties>
     </rule>
 
     <!-- Short Variable: min 2 chars, allow common exceptions -->
