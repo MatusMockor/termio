@@ -19,7 +19,7 @@ final class AuthControllerTest extends TestCase
         $name = fake()->name();
         $email = fake()->unique()->safeEmail();
         $businessName = fake()->company();
-        $businessType = fake()->word();
+        $businessType = fake()->randomElement(['hair_beauty', 'spa_wellness', 'other']);
         $password = fake()->password(minLength: 8);
 
         $response = $this->postJson(route('auth.register'), [
