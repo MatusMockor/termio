@@ -29,7 +29,7 @@ final class ServiceTemplateService
     /**
      * Apply templates to tenant and return service data ready for creation.
      *
-     * @return Collection<int, array<string, mixed>>
+     * @return Collection<int, array{tenant_id: int, name: mixed, duration_minutes: mixed, price: mixed, is_active: bool, created_at: \Illuminate\Support\Carbon, updated_at: \Illuminate\Support\Carbon}>
      */
     public function applyTemplatesToTenant(Tenant $tenant, BusinessType $type): Collection
     {
