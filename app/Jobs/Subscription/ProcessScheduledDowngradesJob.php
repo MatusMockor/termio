@@ -32,6 +32,9 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
         }
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
+     */
     private function processDowngrade(
         Subscription $subscription,
         SubscriptionRepository $subscriptions,
@@ -62,26 +65,45 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
         \App\Models\Plan $scheduledPlan,
         SubscriptionRepository $subscriptions,
     ): void {
-        DB::transaction(static function () use ($subscription, $scheduledPlan, $subscriptions): void {
-            $priceId = $subscription->billing_cycle === 'yearly'
-                ? $scheduledPlan->stripe_yearly_price_id
-                : $scheduledPlan->stripe_monthly_price_id;
-
-            if (! str_starts_with($subscription->stripe_id, 'free_')) {
-                $stripeSub = $subscription->tenant->subscription('default');
-
-                if ($stripeSub && $priceId) {
-                    $stripeSub->swap($priceId);
-                }
-            }
-
-            $subscriptions->update($subscription, [
-                'plan_id' => $scheduledPlan->id,
-                'stripe_price' => $priceId,
-                'scheduled_plan_id' => null,
-                'scheduled_change_at' => null,
-            ]);
+        DB::transaction(function () use ($subscription, $scheduledPlan, $subscriptions): void {
+            $priceId = $this->getNewPriceId($subscription, $scheduledPlan);
+            $this->swapStripeSubscription($subscription, $priceId);
+            $this->updateSubscriptionPlan($subscription, $scheduledPlan, $priceId, $subscriptions);
         });
+    }
+
+    private function getNewPriceId(Subscription $subscription, \App\Models\Plan $scheduledPlan): ?string
+    {
+        return $subscription->billing_cycle === 'yearly'
+            ? $scheduledPlan->stripe_yearly_price_id
+            : $scheduledPlan->stripe_monthly_price_id;
+    }
+
+    private function swapStripeSubscription(Subscription $subscription, ?string $priceId): void
+    {
+        if (str_starts_with($subscription->stripe_id, 'free_')) {
+            return;
+        }
+
+        $stripeSub = $subscription->tenant->subscription('default');
+
+        if ($stripeSub && $priceId) {
+            $stripeSub->swap($priceId);
+        }
+    }
+
+    private function updateSubscriptionPlan(
+        Subscription $subscription,
+        \App\Models\Plan $scheduledPlan,
+        ?string $priceId,
+        SubscriptionRepository $subscriptions,
+    ): void {
+        $subscriptions->update($subscription, [
+            'plan_id' => $scheduledPlan->id,
+            'stripe_price' => $priceId,
+            'scheduled_plan_id' => null,
+            'scheduled_change_at' => null,
+        ]);
     }
 
     private function sendDowngradeNotification(
@@ -93,14 +115,31 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
 
         if ($owner) {
             $owner->notify(new SubscriptionDowngradedNotification($tenant, $scheduledPlan));
+            $this->logDowngradeWithNotification($tenant, $owner, $scheduledPlan);
 
-            Log::info('Scheduled downgrade processed and notification sent', [
-                'tenant_id' => $tenant->id,
-                'user_id' => $owner->id,
-                'new_plan_id' => $scheduledPlan->id,
-            ]);
+            return;
         }
 
+        $this->logDowngrade($subscription, $tenant, $scheduledPlan);
+    }
+
+    private function logDowngradeWithNotification(
+        \App\Models\Tenant $tenant,
+        \App\Models\User $owner,
+        \App\Models\Plan $scheduledPlan,
+    ): void {
+        Log::info('Scheduled downgrade processed and notification sent', [
+            'tenant_id' => $tenant->id,
+            'user_id' => $owner->id,
+            'new_plan_id' => $scheduledPlan->id,
+        ]);
+    }
+
+    private function logDowngrade(
+        Subscription $subscription,
+        \App\Models\Tenant $tenant,
+        \App\Models\Plan $scheduledPlan,
+    ): void {
         Log::info('Scheduled downgrade processed', [
             'subscription_id' => $subscription->id,
             'tenant_id' => $tenant->id,

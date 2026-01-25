@@ -50,6 +50,9 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
             });
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
+     */
     private function processExpiredTrial(
         Subscription $subscription,
         SubscriptionRepository $subscriptions,
@@ -103,15 +106,31 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
         Plan $freePlan,
         \App\Models\Tenant $tenant,
     ): void {
+        $this->cancelStripeSubscription($subscription, $tenant);
+        $this->updateSubscriptionToFreePlan($subscription, $subscriptions, $freePlan, $tenant);
+        $this->notifyOwnerOfDowngrade($subscription, $tenant);
+    }
+
+    private function cancelStripeSubscription(Subscription $subscription, \App\Models\Tenant $tenant): void
+    {
+        if (str_starts_with($subscription->stripe_id, 'free_')) {
+            return;
+        }
+
+        $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
+
+        if ($stripeSub) {
+            $stripeSub->cancelNow();
+        }
+    }
+
+    private function updateSubscriptionToFreePlan(
+        Subscription $subscription,
+        SubscriptionRepository $subscriptions,
+        Plan $freePlan,
+        \App\Models\Tenant $tenant,
+    ): void {
         DB::transaction(static function () use ($subscription, $freePlan, $subscriptions, $tenant): void {
-            if (! str_starts_with($subscription->stripe_id, 'free_')) {
-                $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
-
-                if ($stripeSub) {
-                    $stripeSub->cancelNow();
-                }
-            }
-
             $subscriptions->update($subscription, [
                 'plan_id' => $freePlan->id,
                 'stripe_id' => 'free_'.$tenant->id,
@@ -120,21 +139,26 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
                 'trial_ends_at' => null,
             ]);
         });
+    }
 
+    private function notifyOwnerOfDowngrade(Subscription $subscription, \App\Models\Tenant $tenant): void
+    {
         $owner = $tenant->owner;
 
-        if ($owner) {
-            $owner->notify(new TrialEndedNotification($tenant, false));
-
-            Log::info('Expired trial processed - downgraded to FREE plan and notification sent', [
+        if (! $owner) {
+            Log::info('Expired trial processed - downgraded to FREE plan', [
+                'subscription_id' => $subscription->id,
                 'tenant_id' => $tenant->id,
-                'user_id' => $owner->id,
             ]);
+
+            return;
         }
 
-        Log::info('Expired trial processed - downgraded to FREE plan', [
-            'subscription_id' => $subscription->id,
+        $owner->notify(new TrialEndedNotification($tenant, false));
+
+        Log::info('Expired trial processed - downgraded to FREE plan and notification sent', [
             'tenant_id' => $tenant->id,
+            'user_id' => $owner->id,
         ]);
     }
 }
