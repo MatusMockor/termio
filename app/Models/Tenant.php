@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\BusinessType;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,7 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property int $id
  * @property string $name
  * @property string $slug
- * @property string|null $business_type
+ * @property BusinessType|null $business_type
  * @property string|null $address
  * @property string|null $phone
  * @property string|null $country
@@ -31,6 +32,9 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property string|null $pm_type
  * @property string|null $pm_last_four
  * @property Carbon|null $trial_ends_at
+ * @property Carbon|null $onboarding_completed_at
+ * @property string|null $onboarding_step
+ * @property array<string, mixed>|null $onboarding_data
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
@@ -67,6 +71,9 @@ final class Tenant extends Model
         'pm_type',
         'pm_last_four',
         'trial_ends_at',
+        'onboarding_completed_at',
+        'onboarding_step',
+        'onboarding_data',
     ];
 
     /**
@@ -75,9 +82,12 @@ final class Tenant extends Model
     protected function casts(): array
     {
         return [
+            'business_type' => BusinessType::class,
             'settings' => 'array',
             'trial_ends_at' => 'datetime',
             'vat_id_verified_at' => 'datetime',
+            'onboarding_completed_at' => 'datetime',
+            'onboarding_data' => 'array',
         ];
     }
 
@@ -203,5 +213,39 @@ final class Tenant extends Model
         }
 
         return (int) now()->diffInDays($this->trial_ends_at, false);
+    }
+
+    /**
+     * Determine if onboarding has been completed.
+     */
+    public function isOnboardingCompleted(): bool
+    {
+        return $this->onboarding_completed_at !== null;
+    }
+
+    /**
+     * Mark onboarding as complete.
+     */
+    public function markOnboardingComplete(): void
+    {
+        $this->onboarding_completed_at = now();
+        $this->onboarding_step = null;
+        $this->onboarding_data = null;
+        $this->save();
+    }
+
+    /**
+     * Get onboarding progress data.
+     *
+     * @return array<string, mixed>
+     */
+    public function getOnboardingProgress(): array
+    {
+        return [
+            'completed' => $this->isOnboardingCompleted(),
+            'current_step' => $this->onboarding_step,
+            'data' => $this->onboarding_data ?? [],
+            'completed_at' => $this->onboarding_completed_at?->toIso8601String(),
+        ];
     }
 }

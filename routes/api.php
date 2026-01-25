@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\GoogleCalendarController;
+use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\PortfolioImageController;
 use App\Http\Controllers\Api\PortfolioTagController;
@@ -57,6 +58,16 @@ Route::prefix('auth')->name('auth.')->group(function (): void {
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
+    // Onboarding
+    Route::prefix('onboarding')->name('onboarding.')->group(function (): void {
+        Route::get('/status', [OnboardingController::class, 'status'])->name('status');
+        Route::get('/templates/{businessType}', [OnboardingController::class, 'templates'])->name('templates');
+        Route::post('/start', [OnboardingController::class, 'start'])->name('start');
+        Route::post('/save-progress', [OnboardingController::class, 'saveProgress'])->name('save-progress');
+        Route::post('/complete', [OnboardingController::class, 'complete'])->name('complete');
+        Route::post('/skip', [OnboardingController::class, 'skip'])->name('skip');
+    });
+
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');

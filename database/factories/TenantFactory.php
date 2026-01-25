@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\BusinessType;
 use App\Models\Tenant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -25,7 +26,11 @@ final class TenantFactory extends Factory
         return [
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->randomNumber(4),
-            'business_type' => fake()->randomElement(['barbershop', 'salon', 'spa', 'clinic']),
+            'business_type' => fake()->randomElement([
+                BusinessType::HairBeauty->value,
+                BusinessType::SpaWellness->value,
+                BusinessType::Other->value,
+            ]),
             'address' => fake()->address(),
             'phone' => fake()->phoneNumber(),
             'country' => fake()->randomElement(['SK', 'CZ', 'AT', 'DE', 'PL']),
