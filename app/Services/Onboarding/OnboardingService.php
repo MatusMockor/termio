@@ -4,22 +4,26 @@ declare(strict_types=1);
 
 namespace App\Services\Onboarding;
 
+use App\Contracts\Repositories\OnboardingRepository;
+use App\DTOs\Onboarding\OnboardingStatusDTO;
 use App\Enums\BusinessType;
 use App\Models\Tenant;
+use Illuminate\Support\Facades\DB;
 
 final class OnboardingService
 {
+    public function __construct(
+        private readonly OnboardingRepository $repository,
+    ) {}
+
     /**
      * Start the onboarding process for a tenant.
      */
     public function startOnboarding(Tenant $tenant, BusinessType $type): void
     {
-        $tenant->business_type = $type;
-        $tenant->onboarding_step = 'business_details';
-        $tenant->onboarding_data = [
-            'started_at' => now()->toIso8601String(),
-        ];
-        $tenant->save();
+        DB::transaction(function () use ($tenant, $type): void {
+            $this->repository->startOnboarding($tenant, $type);
+        });
     }
 
     /**
@@ -27,23 +31,19 @@ final class OnboardingService
      */
     public function completeOnboarding(Tenant $tenant): void
     {
-        $tenant->markOnboardingComplete();
+        DB::transaction(function () use ($tenant): void {
+            $this->repository->completeOnboarding($tenant);
+        });
     }
 
     /**
      * Get the current onboarding status for a tenant.
-     *
-     * @return array<string, mixed>
      */
-    public function getOnboardingStatus(Tenant $tenant): array
+    public function getOnboardingStatus(Tenant $tenant): OnboardingStatusDTO
     {
-        return [
-            'completed' => $tenant->isOnboardingCompleted(),
-            'business_type' => $tenant->business_type?->value,
-            'current_step' => $tenant->onboarding_step,
-            'data' => $tenant->onboarding_data ?? [],
-            'completed_at' => $tenant->onboarding_completed_at?->toIso8601String(),
-        ];
+        $data = $this->repository->getTenantOnboardingStatus($tenant);
+
+        return OnboardingStatusDTO::fromArray($data);
     }
 
     /**
@@ -53,15 +53,9 @@ final class OnboardingService
      */
     public function saveOnboardingProgress(Tenant $tenant, string $step, array $data): void
     {
-        $tenant->onboarding_step = $step;
-
-        $existingData = $tenant->onboarding_data ?? [];
-        $tenant->onboarding_data = array_merge($existingData, [
-            $step => $data,
-            'last_updated_at' => now()->toIso8601String(),
-        ]);
-
-        $tenant->save();
+        DB::transaction(function () use ($tenant, $step, $data): void {
+            $this->repository->saveProgress($tenant, $step, $data);
+        });
     }
 
     /**
@@ -69,11 +63,9 @@ final class OnboardingService
      */
     public function skipOnboarding(Tenant $tenant): void
     {
-        if (! $tenant->business_type) {
-            $tenant->business_type = BusinessType::Other;
-        }
-
-        $tenant->markOnboardingComplete();
+        DB::transaction(function () use ($tenant): void {
+            $this->repository->skipOnboarding($tenant);
+        });
     }
 
     /**
@@ -89,9 +81,6 @@ final class OnboardingService
      */
     public function resetOnboarding(Tenant $tenant): void
     {
-        $tenant->onboarding_completed_at = null;
-        $tenant->onboarding_step = null;
-        $tenant->onboarding_data = null;
-        $tenant->save();
+        $this->repository->resetOnboarding($tenant);
     }
 }
