@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Enums\BusinessType;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Onboarding\GetTemplatesRequest;
 use App\Http\Requests\Onboarding\SaveOnboardingProgressRequest;
 use App\Http\Requests\Onboarding\StartOnboardingRequest;
 use App\Http\Resources\Onboarding\OnboardingStatusResource;
@@ -36,13 +36,9 @@ final class OnboardingController extends Controller
     /**
      * Get service templates for a business type.
      */
-    public function templates(string $businessType): AnonymousResourceCollection
+    public function templates(GetTemplatesRequest $request): AnonymousResourceCollection
     {
-        if (! in_array($businessType, ['hair_beauty', 'spa_wellness', 'other'])) {
-            abort(404, 'Invalid business type');
-        }
-
-        $type = BusinessType::from($businessType);
+        $type = $request->getBusinessType();
         $templates = $this->serviceTemplateService->getTemplatesForBusinessType($type);
 
         return ServiceTemplateResource::collection($templates);

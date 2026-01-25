@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Repositories\InvoiceRepository;
+use App\Contracts\Repositories\OnboardingRepository;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Repositories\UsageRecordRepository;
@@ -17,6 +18,7 @@ use App\Contracts\Services\VatService as VatServiceContract;
 use App\Models\Appointment;
 use App\Observers\AppointmentObserver;
 use App\Repositories\Eloquent\EloquentInvoiceRepository;
+use App\Repositories\Eloquent\EloquentOnboardingRepository;
 use App\Repositories\Eloquent\EloquentPlanRepository;
 use App\Repositories\Eloquent\EloquentSubscriptionRepository;
 use App\Repositories\Eloquent\EloquentUsageRecordRepository;
@@ -52,6 +54,9 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(InvoiceRepository::class, EloquentInvoiceRepository::class);
         $this->app->bind(VatServiceContract::class, VatService::class);
         $this->app->bind(BillingServiceContract::class, BillingService::class);
+
+        // Onboarding bindings
+        $this->app->bind(OnboardingRepository::class, EloquentOnboardingRepository::class);
     }
 
     public function boot(): void

@@ -8,7 +8,7 @@ use App\Enums\BusinessType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-final class StartOnboardingRequest extends FormRequest
+final class GetTemplatesRequest extends FormRequest
 {
     /**
      * @return array<string, mixed>
@@ -16,7 +16,7 @@ final class StartOnboardingRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'business_type' => [
+            'businessType' => [
                 'required',
                 Rule::enum(BusinessType::class),
             ],
@@ -25,6 +25,13 @@ final class StartOnboardingRequest extends FormRequest
 
     public function getBusinessType(): BusinessType
     {
-        return BusinessType::from($this->validated('business_type'));
+        return BusinessType::from($this->validated('businessType'));
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->merge([
+            'businessType' => $this->route('businessType'),
+        ]);
     }
 }

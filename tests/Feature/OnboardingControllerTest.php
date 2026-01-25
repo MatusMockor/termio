@@ -86,7 +86,8 @@ final class OnboardingControllerTest extends TestCase
     {
         $response = $this->getJson(route('onboarding.templates', ['businessType' => 'invalid']));
 
-        $response->assertNotFound();
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['businessType']);
     }
 
     public function test_can_start_onboarding(): void

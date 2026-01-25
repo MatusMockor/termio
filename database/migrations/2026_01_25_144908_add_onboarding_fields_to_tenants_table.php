@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Enums\BusinessType;
+use App\Models\Tenant;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
@@ -20,10 +22,12 @@ return new class extends Migration
         });
 
         // Set default business_type for existing records
-        DB::table('tenants')
-            ->whereNull('business_type')
-            ->orWhere('business_type', '')
-            ->update(['business_type' => 'hair_beauty']);
+        Tenant::query()
+            ->where(function ($query): void {
+                $query->whereNull('business_type')
+                    ->orWhere('business_type', '');
+            })
+            ->update(['business_type' => BusinessType::HairBeauty]);
     }
 
     public function down(): void

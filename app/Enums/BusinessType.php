@@ -22,9 +22,9 @@ enum BusinessType: string
     public function icon(): string
     {
         return match ($this) {
-            self::HairBeauty => '💈',
-            self::SpaWellness => '🧖',
-            self::Other => '📋',
+            self::HairBeauty => 'scissors',
+            self::SpaWellness => 'spa',
+            self::Other => 'clipboard',
         };
     }
 
