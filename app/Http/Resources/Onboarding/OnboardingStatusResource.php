@@ -12,6 +12,8 @@ final class OnboardingStatusResource extends JsonResource
 {
     /**
      * @return array<string, mixed>
+     *
+     * @SuppressWarnings(PHPMD.UnusedFormalParameter)
      */
     public function toArray(Request $request): array
     {
