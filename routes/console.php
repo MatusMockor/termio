@@ -44,10 +44,10 @@ Schedule::job(new SendCardExpiryRemindersJob)
     ->withoutOverlapping();
 
 // Subscription processing jobs - hourly
-Schedule::job(new ProcessScheduledDowngradesJob)
+Schedule::job(ProcessScheduledDowngradesJob::class)
     ->hourly()
     ->withoutOverlapping();
 
-Schedule::job(new ProcessExpiredTrialsJob)
+Schedule::job(ProcessExpiredTrialsJob::class)
     ->hourly()
     ->withoutOverlapping();

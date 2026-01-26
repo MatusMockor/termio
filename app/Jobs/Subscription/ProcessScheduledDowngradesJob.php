@@ -5,45 +5,67 @@ declare(strict_types=1);
 namespace App\Jobs\Subscription;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Notifications\SubscriptionDowngradedNotification;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-final class ProcessScheduledDowngradesJob implements ShouldQueue
+/**
+ * Processes scheduled subscription downgrades.
+ *
+ * For each subscription with a scheduled downgrade that is due:
+ * - Executes the plan change (swaps Stripe subscription if applicable)
+ * - Updates the subscription record
+ * - Sends notification to the tenant owner
+ */
+final class ProcessScheduledDowngradesJob extends AbstractSubscriptionProcessingJob
 {
-    use Dispatchable;
-    use InteractsWithQueue;
-    use Queueable;
-    use SerializesModels;
+    public function __construct(
+        private readonly SubscriptionRepository $subscriptions,
+    ) {}
 
-    public function handle(SubscriptionRepository $subscriptions): void
+    protected function getJobName(): string
     {
-        $scheduledDowngrades = $subscriptions->getScheduledDowngrades();
+        return 'ProcessScheduledDowngrades';
+    }
 
-        /** @var Subscription $subscription */
-        foreach ($scheduledDowngrades as $subscription) {
-            $this->processDowngrade($subscription, $subscriptions);
+    /**
+     * @return Builder<Subscription>
+     */
+    protected function buildQuery(): Builder
+    {
+        return Subscription::query()
+            ->with(['tenant.owner', 'scheduledPlan'])
+            ->whereNotNull('scheduled_plan_id')
+            ->whereNotNull('scheduled_change_at')
+            ->where('scheduled_change_at', '<=', now());
+    }
+
+    protected function processItem(Model $item): void
+    {
+        if (! ($item instanceof Subscription)) {
+            return;
+        }
+
+        try {
+            $this->processDowngrade($item);
+        } catch (\Throwable $exception) {
+            $this->handleError($exception, $item);
         }
     }
 
-    private function processDowngrade(
-        Subscription $subscription,
-        SubscriptionRepository $subscriptions,
-    ): void {
-        $subscription->load(['tenant.owner', 'scheduledPlan']);
-
-        /** @var \App\Models\Tenant|null $tenant */
+    private function processDowngrade(Subscription $subscription): void
+    {
+        /** @var Tenant|null $tenant */
         $tenant = $subscription->tenant;
-        /** @var \App\Models\Plan|null $scheduledPlan */
+        /** @var Plan|null $scheduledPlan */
         $scheduledPlan = $subscription->scheduledPlan;
 
-        if ($tenant === null || $scheduledPlan === null) {
+        if (! $tenant || ! $scheduledPlan) {
             Log::error('Cannot process scheduled downgrade: missing tenant or plan', [
                 'subscription_id' => $subscription->id,
                 'tenant_id' => $subscription->tenant_id,
@@ -53,16 +75,13 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
             return;
         }
 
-        $this->executeDowngrade($subscription, $scheduledPlan, $subscriptions);
+        $this->executeDowngrade($subscription, $scheduledPlan);
         $this->sendDowngradeNotification($subscription, $tenant, $scheduledPlan);
     }
 
-    private function executeDowngrade(
-        Subscription $subscription,
-        \App\Models\Plan $scheduledPlan,
-        SubscriptionRepository $subscriptions,
-    ): void {
-        DB::transaction(static function () use ($subscription, $scheduledPlan, $subscriptions): void {
+    private function executeDowngrade(Subscription $subscription, Plan $scheduledPlan): void
+    {
+        DB::transaction(function () use ($subscription, $scheduledPlan): void {
             $priceId = $subscription->billing_cycle === 'yearly'
                 ? $scheduledPlan->stripe_yearly_price_id
                 : $scheduledPlan->stripe_monthly_price_id;
@@ -75,7 +94,7 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
                 }
             }
 
-            $subscriptions->update($subscription, [
+            $this->subscriptions->update($subscription, [
                 'plan_id' => $scheduledPlan->id,
                 'stripe_price' => $priceId,
                 'scheduled_plan_id' => null,
@@ -86,8 +105,8 @@ final class ProcessScheduledDowngradesJob implements ShouldQueue
 
     private function sendDowngradeNotification(
         Subscription $subscription,
-        \App\Models\Tenant $tenant,
-        \App\Models\Plan $scheduledPlan,
+        Tenant $tenant,
+        Plan $scheduledPlan,
     ): void {
         $owner = $tenant->owner;
 

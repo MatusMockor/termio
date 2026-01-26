@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Contracts\States\SubscriptionState;
 use App\Enums\SubscriptionStatus;
+use App\Services\Subscription\SubscriptionStateFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -164,5 +166,65 @@ final class Subscription extends Model
     public function hasScheduledPlanChange(): bool
     {
         return $this->scheduled_plan_id !== null;
+    }
+
+    /**
+     * Get the current state object for this subscription.
+     *
+     * Uses the State pattern to encapsulate state-specific behavior.
+     */
+    public function getState(): SubscriptionState
+    {
+        return app(SubscriptionStateFactory::class)->create($this);
+    }
+
+    /**
+     * Check if subscription can be upgraded in current state.
+     *
+     * Delegates to state object for state-specific logic.
+     */
+    public function canUpgrade(): bool
+    {
+        return $this->getState()->canUpgrade();
+    }
+
+    /**
+     * Check if subscription can be downgraded in current state.
+     *
+     * Delegates to state object for state-specific logic.
+     */
+    public function canDowngrade(): bool
+    {
+        return $this->getState()->canDowngrade();
+    }
+
+    /**
+     * Check if subscription can be canceled in current state.
+     *
+     * Delegates to state object for state-specific logic.
+     */
+    public function canCancel(): bool
+    {
+        return $this->getState()->canCancel();
+    }
+
+    /**
+     * Check if subscription can be resumed in current state.
+     *
+     * Delegates to state object for state-specific logic.
+     */
+    public function canResume(): bool
+    {
+        return $this->getState()->canResume();
+    }
+
+    /**
+     * Get list of available actions in current state.
+     *
+     * @return array<int, string>
+     */
+    public function getAvailableActions(): array
+    {
+        return $this->getState()->getAllowedActions();
     }
 }

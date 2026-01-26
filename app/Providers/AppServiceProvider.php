@@ -14,6 +14,7 @@ use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Contracts\Services\UsageValidationServiceContract;
 use App\Contracts\Services\VatService as VatServiceContract;
 use App\Models\Appointment;
 use App\Observers\AppointmentObserver;
@@ -26,8 +27,12 @@ use App\Services\Billing\BillingService;
 use App\Services\Billing\VatService;
 use App\Services\Stripe\StripeService;
 use App\Services\Subscription\FeatureGateService;
+use App\Services\Subscription\Strategies\FreeSubscriptionStrategy;
+use App\Services\Subscription\Strategies\PaidSubscriptionStrategy;
 use App\Services\Subscription\SubscriptionService;
+use App\Services\Subscription\SubscriptionStrategyResolver;
 use App\Services\Subscription\UsageLimitService;
+use App\Services\Subscription\UsageValidationService;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Support\ServiceProvider;
 
@@ -46,6 +51,7 @@ final class AppServiceProvider extends ServiceProvider
         // Usage limit bindings
         $this->app->bind(UsageRecordRepository::class, EloquentUsageRecordRepository::class);
         $this->app->bind(UsageLimitServiceContract::class, UsageLimitService::class);
+        $this->app->bind(UsageValidationServiceContract::class, UsageValidationService::class);
 
         // Feature gate binding
         $this->app->bind(FeatureGateServiceContract::class, FeatureGateService::class);
@@ -57,6 +63,14 @@ final class AppServiceProvider extends ServiceProvider
 
         // Onboarding bindings
         $this->app->bind(OnboardingRepository::class, EloquentOnboardingRepository::class);
+
+        // Subscription strategy resolver
+        $this->app->singleton(SubscriptionStrategyResolver::class, static function ($app): SubscriptionStrategyResolver {
+            return new SubscriptionStrategyResolver([
+                $app->make(FreeSubscriptionStrategy::class),
+                $app->make(PaidSubscriptionStrategy::class),
+            ]);
+        });
     }
 
     public function boot(): void
