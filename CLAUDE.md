@@ -270,7 +270,16 @@ refactor(client): extract validation to service
 test(portfolio): add image upload edge cases
 ```
 
-## 11. Task Completion Checklist
+## 11. Pull Requests
+
+* **NEVER add "Generated with Claude Code" footer** to PR descriptions
+* Create clear PR titles using the same format as commit messages: `<type>(<scope>): <description>`
+* Include a summary section explaining what changed and why
+* List all modified files with brief descriptions
+* Add a test plan checklist for reviewers
+* Do NOT include promotional text or tool attribution
+
+## 12. Task Completion Checklist
 
 - [ ] Pint ran successfully
 - [ ] Tests passed (`sail test`)
