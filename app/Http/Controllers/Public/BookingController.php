@@ -37,6 +37,7 @@ final class BookingController extends Controller
             'business_type' => $tenant->business_type,
             'address' => $tenant->address,
             'phone' => $tenant->phone,
+            'logo_url' => $tenant->getLogoUrl(),
         ]);
     }
 

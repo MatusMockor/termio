@@ -12,9 +12,9 @@ use App\Contracts\Repositories\WorkingHoursRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
 use App\Http\Requests\Settings\UpdateWorkingHoursRequest;
+use App\Http\Requests\Settings\UploadLogoRequest;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 final class SettingsController extends Controller
 {
@@ -56,14 +56,10 @@ final class SettingsController extends Controller
         return response()->json(['working_hours' => $workingHours]);
     }
 
-    public function uploadLogo(Request $request): JsonResponse
+    public function uploadLogo(UploadLogoRequest $request): JsonResponse
     {
-        $request->validate([
-            'logo' => 'required|image|max:2048',
-        ]);
-
         $tenant = $this->tenantContext->getTenant();
-        $updatedTenant = $this->uploadLogoAction->handle($tenant, $request->file('logo'));
+        $updatedTenant = $this->uploadLogoAction->handle($tenant, $request->getLogo());
 
         return response()->json(['tenant' => $updatedTenant]);
     }
