@@ -46,9 +46,9 @@ final class OnboardingControllerTest extends TestCase
             ]);
     }
 
-    public function test_can_get_service_templates_for_hair_beauty(): void
+    public function test_can_get_service_templates_for_salon(): void
     {
-        $response = $this->getJson(route('onboarding.templates', ['businessType' => 'hair_beauty']));
+        $response = $this->getJson(route('onboarding.templates', ['businessType' => 'salon']));
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -61,12 +61,12 @@ final class OnboardingControllerTest extends TestCase
                 ],
             ]);
 
-        $this->assertCount(12, $response->json('data'));
+        $this->assertCount(6, $response->json('data'));
     }
 
-    public function test_can_get_service_templates_for_spa_wellness(): void
+    public function test_can_get_service_templates_for_massage(): void
     {
-        $response = $this->getJson(route('onboarding.templates', ['businessType' => 'spa_wellness']));
+        $response = $this->getJson(route('onboarding.templates', ['businessType' => 'massage']));
 
         $response->assertOk()
             ->assertJsonStructure([
@@ -79,7 +79,7 @@ final class OnboardingControllerTest extends TestCase
                 ],
             ]);
 
-        $this->assertCount(8, $response->json('data'));
+        $this->assertCount(7, $response->json('data'));
     }
 
     public function test_cannot_get_templates_for_invalid_business_type(): void
@@ -93,17 +93,17 @@ final class OnboardingControllerTest extends TestCase
     public function test_can_start_onboarding(): void
     {
         $response = $this->postJson(route('onboarding.start'), [
-            'business_type' => 'hair_beauty',
+            'business_type' => 'salon',
         ]);
 
         $response->assertOk()
             ->assertJson([
                 'message' => 'Onboarding started successfully',
-                'business_type' => 'hair_beauty',
+                'business_type' => 'salon',
             ]);
 
         $this->tenant->refresh();
-        $this->assertEquals(BusinessType::HairBeauty, $this->tenant->business_type);
+        $this->assertEquals(BusinessType::Salon, $this->tenant->business_type);
         $this->assertEquals('business_details', $this->tenant->onboarding_step);
         $this->assertNotNull($this->tenant->onboarding_data);
     }
@@ -129,7 +129,7 @@ final class OnboardingControllerTest extends TestCase
     public function test_can_save_onboarding_progress(): void
     {
         $this->tenant->update([
-            'business_type' => BusinessType::HairBeauty,
+            'business_type' => BusinessType::Salon,
             'onboarding_step' => 'business_details',
         ]);
 
@@ -174,7 +174,7 @@ final class OnboardingControllerTest extends TestCase
     public function test_can_complete_onboarding(): void
     {
         $this->tenant->update([
-            'business_type' => BusinessType::HairBeauty,
+            'business_type' => BusinessType::Salon,
             'onboarding_step' => 'review',
         ]);
 
@@ -210,7 +210,7 @@ final class OnboardingControllerTest extends TestCase
     public function test_skip_onboarding_preserves_existing_business_type(): void
     {
         $this->tenant->update([
-            'business_type' => BusinessType::HairBeauty,
+            'business_type' => BusinessType::Salon,
         ]);
 
         $response = $this->postJson(route('onboarding.skip'));
@@ -219,7 +219,7 @@ final class OnboardingControllerTest extends TestCase
 
         $this->tenant->refresh();
         $this->assertNotNull($this->tenant->onboarding_completed_at);
-        $this->assertEquals(BusinessType::HairBeauty, $this->tenant->business_type);
+        $this->assertEquals(BusinessType::Salon, $this->tenant->business_type);
     }
 
     public function test_onboarding_endpoints_require_authentication(): void
@@ -227,7 +227,7 @@ final class OnboardingControllerTest extends TestCase
         auth()->logout();
 
         $this->getJson(route('onboarding.status'))->assertUnauthorized();
-        $this->getJson(route('onboarding.templates', ['businessType' => 'hair_beauty']))->assertUnauthorized();
+        $this->getJson(route('onboarding.templates', ['businessType' => 'salon']))->assertUnauthorized();
         $this->postJson(route('onboarding.start'))->assertUnauthorized();
         $this->postJson(route('onboarding.save-progress'))->assertUnauthorized();
         $this->postJson(route('onboarding.complete'))->assertUnauthorized();

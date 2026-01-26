@@ -27,7 +27,7 @@ return new class extends Migration
                 $query->whereNull('business_type')
                     ->orWhere('business_type', '');
             })
-            ->update(['business_type' => BusinessType::HairBeauty]);
+            ->update(['business_type' => BusinessType::Other]);
     }
 
     public function down(): void

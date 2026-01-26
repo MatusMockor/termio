@@ -6,24 +6,33 @@ namespace App\Enums;
 
 enum BusinessType: string
 {
-    case HairBeauty = 'hair_beauty';
-    case SpaWellness = 'spa_wellness';
+    case Salon = 'salon';
+    case Barber = 'barber';
+    case Beauty = 'beauty';
+    case Massage = 'massage';
+    case Fitness = 'fitness';
     case Other = 'other';
 
     public function label(): string
     {
         return match ($this) {
-            self::HairBeauty => 'Hair & Beauty',
-            self::SpaWellness => 'Spa & Wellness',
-            self::Other => 'Other',
+            self::Salon => 'Salón',
+            self::Barber => 'Barbershop',
+            self::Beauty => 'Kozmetika',
+            self::Massage => 'Masáže',
+            self::Fitness => 'Fitness',
+            self::Other => 'Iné',
         };
     }
 
     public function icon(): string
     {
         return match ($this) {
-            self::HairBeauty => 'scissors',
-            self::SpaWellness => 'spa',
+            self::Salon => 'scissors',
+            self::Barber => 'razor',
+            self::Beauty => 'sparkles',
+            self::Massage => 'spa',
+            self::Fitness => 'dumbbell',
             self::Other => 'clipboard',
         };
     }
@@ -31,9 +40,12 @@ enum BusinessType: string
     public function description(): string
     {
         return match ($this) {
-            self::HairBeauty => 'Barber shops • Salons • Nails • Makeup',
-            self::SpaWellness => 'Massage • Facials • Body Treatments',
-            self::Other => 'Other type of business',
+            self::Salon => 'Kaderníctvo • Nechtový dizajn • Styling',
+            self::Barber => 'Pánske holičstvo • Strihanie • Úprava fúzov',
+            self::Beauty => 'Kozmetické služby • Líčenie • Starostlivosť o pleť',
+            self::Massage => 'Masáže • Terapie • Relaxácia',
+            self::Fitness => 'Fitness tréning • Personal training • Kondícia',
+            self::Other => 'Iný typ podnikania',
         };
     }
 }

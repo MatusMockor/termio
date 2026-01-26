@@ -27,8 +27,11 @@ final class TenantFactory extends Factory
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->randomNumber(4),
             'business_type' => fake()->randomElement([
-                BusinessType::HairBeauty->value,
-                BusinessType::SpaWellness->value,
+                BusinessType::Salon->value,
+                BusinessType::Barber->value,
+                BusinessType::Beauty->value,
+                BusinessType::Massage->value,
+                BusinessType::Fitness->value,
                 BusinessType::Other->value,
             ]),
             'address' => fake()->address(),

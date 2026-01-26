@@ -3,22 +3,7 @@
 declare(strict_types=1);
 
 return [
-    'hair_beauty' => [
-        [
-            'name' => 'Haircut',
-            'duration_minutes' => 30,
-            'price' => 2000,
-        ],
-        [
-            'name' => 'Beard Trim',
-            'duration_minutes' => 15,
-            'price' => 1000,
-        ],
-        [
-            'name' => 'Haircut + Beard Combo',
-            'duration_minutes' => 40,
-            'price' => 2800,
-        ],
+    'salon' => [
         [
             'name' => 'Women\'s Haircut',
             'duration_minutes' => 45,
@@ -49,6 +34,32 @@ return [
             'duration_minutes' => 60,
             'price' => 4000,
         ],
+    ],
+
+    'barber' => [
+        [
+            'name' => 'Haircut',
+            'duration_minutes' => 30,
+            'price' => 2000,
+        ],
+        [
+            'name' => 'Beard Trim',
+            'duration_minutes' => 15,
+            'price' => 1000,
+        ],
+        [
+            'name' => 'Haircut + Beard Combo',
+            'duration_minutes' => 40,
+            'price' => 2800,
+        ],
+        [
+            'name' => 'Hot Towel Shave',
+            'duration_minutes' => 30,
+            'price' => 2500,
+        ],
+    ],
+
+    'beauty' => [
         [
             'name' => 'Eyelash Extensions',
             'duration_minutes' => 90,
@@ -64,9 +75,19 @@ return [
             'duration_minutes' => 30,
             'price' => 2000,
         ],
+        [
+            'name' => 'Facial Treatment',
+            'duration_minutes' => 60,
+            'price' => 6500,
+        ],
+        [
+            'name' => 'Eyebrow Shaping',
+            'duration_minutes' => 20,
+            'price' => 1500,
+        ],
     ],
 
-    'spa_wellness' => [
+    'massage' => [
         [
             'name' => 'Swedish Massage',
             'duration_minutes' => 60,
@@ -88,11 +109,6 @@ return [
             'price' => 6500,
         ],
         [
-            'name' => 'Facial Treatment',
-            'duration_minutes' => 60,
-            'price' => 6500,
-        ],
-        [
             'name' => 'Body Scrub',
             'duration_minutes' => 45,
             'price' => 5500,
@@ -106,6 +122,34 @@ return [
             'name' => 'Reflexology',
             'duration_minutes' => 45,
             'price' => 5000,
+        ],
+    ],
+
+    'fitness' => [
+        [
+            'name' => 'Personal Training Session',
+            'duration_minutes' => 60,
+            'price' => 5000,
+        ],
+        [
+            'name' => 'Group Fitness Class',
+            'duration_minutes' => 45,
+            'price' => 2000,
+        ],
+        [
+            'name' => 'Yoga Class',
+            'duration_minutes' => 60,
+            'price' => 2500,
+        ],
+        [
+            'name' => 'HIIT Training',
+            'duration_minutes' => 45,
+            'price' => 3000,
+        ],
+        [
+            'name' => 'Nutrition Consultation',
+            'duration_minutes' => 30,
+            'price' => 3500,
         ],
     ],
 
