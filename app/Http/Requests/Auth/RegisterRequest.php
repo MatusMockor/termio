@@ -25,7 +25,7 @@ final class RegisterRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, \Illuminate\Contracts\Validation\ValidationRule|string>>
      */
     public function rules(): array
     {
