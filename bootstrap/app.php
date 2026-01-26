@@ -32,9 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
 
         $middleware->validateCsrfTokens(except: [
-            'api/auth/*',
-            'api/book/*',
-            'api/webhooks/stripe',
+            'api/*',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
