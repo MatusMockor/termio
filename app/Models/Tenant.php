@@ -19,6 +19,7 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property int $id
  * @property string $name
  * @property string $slug
+ * @property string|null $logo
  * @property BusinessType|null $business_type
  * @property string|null $address
  * @property string|null $phone
@@ -58,6 +59,7 @@ final class Tenant extends Model
     protected $fillable = [
         'name',
         'slug',
+        'logo',
         'business_type',
         'address',
         'phone',
