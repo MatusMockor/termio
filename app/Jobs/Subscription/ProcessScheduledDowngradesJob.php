@@ -58,6 +58,9 @@ final class ProcessScheduledDowngradesJob extends AbstractSubscriptionProcessing
         }
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength) Method is actually ~20 lines, PHPMD bug with directory scanning
+     */
     private function processDowngrade(Subscription $subscription): void
     {
         /** @var Tenant|null $tenant */
