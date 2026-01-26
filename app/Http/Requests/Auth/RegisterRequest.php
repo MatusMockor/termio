@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Requests\Auth;
 
 use App\DTOs\Auth\RegisterUserDTO;
+use App\Enums\BusinessType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 
 final class RegisterRequest extends FormRequest
 {
@@ -33,7 +35,7 @@ final class RegisterRequest extends FormRequest
             'password' => ['required', 'string', 'min:8', 'confirmed'],
             'business_name' => ['required', 'string', 'max:255'],
             'slug' => ['required', 'string', 'unique:tenants,slug'],
-            'business_type' => ['nullable', 'string', 'max:100'],
+            'business_type' => ['nullable', Rule::enum(BusinessType::class)],
         ];
     }
 
@@ -67,9 +69,11 @@ final class RegisterRequest extends FormRequest
         return $this->validated('business_name');
     }
 
-    public function getBusinessType(): ?string
+    public function getBusinessType(): ?BusinessType
     {
-        return $this->validated('business_type');
+        $value = $this->validated('business_type');
+
+        return $value !== null ? BusinessType::from($value) : null;
     }
 
     public function toDTO(): RegisterUserDTO

@@ -56,19 +56,40 @@ final class ServiceTemplateService
     public function getAllBusinessTypesWithCounts(): array
     {
         return [
-            'hair_beauty' => [
-                'type' => BusinessType::HairBeauty,
-                'label' => BusinessType::HairBeauty->label(),
-                'icon' => BusinessType::HairBeauty->icon(),
-                'description' => BusinessType::HairBeauty->description(),
-                'template_count' => count(config('service_templates.hair_beauty', [])),
+            'salon' => [
+                'type' => BusinessType::Salon,
+                'label' => BusinessType::Salon->label(),
+                'icon' => BusinessType::Salon->icon(),
+                'description' => BusinessType::Salon->description(),
+                'template_count' => count(config('service_templates.salon', [])),
             ],
-            'spa_wellness' => [
-                'type' => BusinessType::SpaWellness,
-                'label' => BusinessType::SpaWellness->label(),
-                'icon' => BusinessType::SpaWellness->icon(),
-                'description' => BusinessType::SpaWellness->description(),
-                'template_count' => count(config('service_templates.spa_wellness', [])),
+            'barber' => [
+                'type' => BusinessType::Barber,
+                'label' => BusinessType::Barber->label(),
+                'icon' => BusinessType::Barber->icon(),
+                'description' => BusinessType::Barber->description(),
+                'template_count' => count(config('service_templates.barber', [])),
+            ],
+            'beauty' => [
+                'type' => BusinessType::Beauty,
+                'label' => BusinessType::Beauty->label(),
+                'icon' => BusinessType::Beauty->icon(),
+                'description' => BusinessType::Beauty->description(),
+                'template_count' => count(config('service_templates.beauty', [])),
+            ],
+            'massage' => [
+                'type' => BusinessType::Massage,
+                'label' => BusinessType::Massage->label(),
+                'icon' => BusinessType::Massage->icon(),
+                'description' => BusinessType::Massage->description(),
+                'template_count' => count(config('service_templates.massage', [])),
+            ],
+            'fitness' => [
+                'type' => BusinessType::Fitness,
+                'label' => BusinessType::Fitness->label(),
+                'icon' => BusinessType::Fitness->icon(),
+                'description' => BusinessType::Fitness->description(),
+                'template_count' => count(config('service_templates.fitness', [])),
             ],
             'other' => [
                 'type' => BusinessType::Other,
