@@ -6,6 +6,7 @@ namespace App\Actions\Tenant;
 
 use App\Models\Tenant;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 final class TenantLogoUploadAction
@@ -19,18 +20,20 @@ final class TenantLogoUploadAction
 
     public function handle(Tenant $tenant, UploadedFile $logo): Tenant
     {
-        // Delete old logo if exists
-        if ($tenant->logo && Storage::disk($this->disk)->exists($tenant->logo)) {
-            Storage::disk($this->disk)->delete($tenant->logo);
-        }
+        return DB::transaction(function () use ($tenant, $logo) {
+            // Delete old logo if exists
+            if ($tenant->logo && Storage::disk($this->disk)->exists($tenant->logo)) {
+                Storage::disk($this->disk)->delete($tenant->logo);
+            }
 
-        // Store new logo
-        $path = $logo->store('logos', $this->disk);
+            // Store new logo
+            $path = $logo->store('logos', $this->disk);
 
-        // Update tenant
-        $tenant->logo = $path;
-        $tenant->save();
+            // Update tenant
+            $tenant->logo = $path;
+            $tenant->save();
 
-        return $tenant;
+            return $tenant;
+        });
     }
 }

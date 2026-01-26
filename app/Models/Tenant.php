@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Cashier\Billable;
 use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
 
@@ -249,5 +250,17 @@ final class Tenant extends Model
             'data' => $this->onboarding_data ?? [],
             'completed_at' => $this->onboarding_completed_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Get the public URL for the tenant's logo.
+     */
+    public function getLogoUrl(): ?string
+    {
+        if (! $this->logo) {
+            return null;
+        }
+
+        return Storage::disk(config('filesystems.logo_disk', 'public'))->url($this->logo);
     }
 }
