@@ -61,6 +61,9 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
         }
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength) Method is actually ~29 lines, PHPMD bug with directory scanning
+     */
     private function processExpiredTrial(Subscription $subscription): void
     {
         $freePlan = $this->plans->getFreePlan();
