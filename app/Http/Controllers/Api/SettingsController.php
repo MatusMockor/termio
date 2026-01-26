@@ -6,18 +6,23 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Settings\SettingsUpdateAction;
 use App\Actions\Settings\SettingsWorkingHoursUpdateAction;
+use App\Actions\Tenant\TenantLogoDeleteAction;
+use App\Actions\Tenant\TenantLogoUploadAction;
 use App\Contracts\Repositories\WorkingHoursRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
 use App\Http\Requests\Settings\UpdateWorkingHoursRequest;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 final class SettingsController extends Controller
 {
     public function __construct(
         private readonly TenantContextService $tenantContext,
         private readonly WorkingHoursRepository $workingHoursRepository,
+        private readonly TenantLogoUploadAction $uploadLogoAction,
+        private readonly TenantLogoDeleteAction $deleteLogoAction,
     ) {}
 
     public function index(): JsonResponse
@@ -49,5 +54,25 @@ final class SettingsController extends Controller
         $workingHours = $action->handle($tenant, $request->getWorkingHours());
 
         return response()->json(['working_hours' => $workingHours]);
+    }
+
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'logo' => 'required|image|max:2048',
+        ]);
+
+        $tenant = $this->tenantContext->getTenant();
+        $updatedTenant = $this->uploadLogoAction->handle($tenant, $request->file('logo'));
+
+        return response()->json(['tenant' => $updatedTenant]);
+    }
+
+    public function deleteLogo(): JsonResponse
+    {
+        $tenant = $this->tenantContext->getTenant();
+        $updatedTenant = $this->deleteLogoAction->handle($tenant);
+
+        return response()->json(['tenant' => $updatedTenant]);
     }
 }
