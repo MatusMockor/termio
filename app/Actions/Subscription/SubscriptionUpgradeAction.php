@@ -6,13 +6,14 @@ namespace App\Actions\Subscription;
 
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
-use App\Contracts\Services\SubscriptionServiceContract;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
+use App\DTOs\Subscription\ValidationContext;
 use App\Enums\SubscriptionType;
-use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Notifications\SubscriptionUpgradedNotification;
+use App\Services\Validation\ValidationChainBuilder;
 use Illuminate\Support\Facades\DB;
 
 final class SubscriptionUpgradeAction
@@ -20,29 +21,28 @@ final class SubscriptionUpgradeAction
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly PlanRepository $plans,
-        private readonly SubscriptionServiceContract $subscriptionService,
+        private readonly ValidationChainBuilder $validationChainBuilder,
     ) {}
 
     public function handle(UpgradeSubscriptionDTO $dto): Subscription
     {
         $subscription = $this->subscriptions->findById($dto->subscriptionId);
-
-        if (! $subscription) {
-            throw SubscriptionException::subscriptionNotFound($dto->subscriptionId);
-        }
-
         $newPlan = $this->plans->findById($dto->newPlanId);
 
-        if (! $newPlan) {
-            throw SubscriptionException::planNotFound($dto->newPlanId);
-        }
+        // Build and run validation chain
+        $validationChain = $this->validationChainBuilder->buildUpgradeChain();
+        $context = ValidationContext::forUpgrade(
+            subscription: $subscription,
+            newPlan: $newPlan,
+            subscriptionId: $dto->subscriptionId,
+            planId: $dto->newPlanId,
+        );
+        $validationChain->validate($context);
 
+        /** @var Subscription $subscription */
+        /** @var Plan $newPlan */
         $tenant = $subscription->tenant;
         $oldPlan = $subscription->plan;
-
-        if (! $this->subscriptionService->canUpgradeTo($tenant, $newPlan)) {
-            throw SubscriptionException::cannotUpgrade($oldPlan, $newPlan);
-        }
 
         $updatedSubscription = $this->performUpgrade($subscription, $newPlan, $dto);
 
@@ -88,7 +88,7 @@ final class SubscriptionUpgradeAction
     }
 
     private function sendUpgradeNotification(
-        \App\Models\Tenant $tenant,
+        Tenant $tenant,
         Plan $oldPlan,
         Plan $newPlan,
     ): void {

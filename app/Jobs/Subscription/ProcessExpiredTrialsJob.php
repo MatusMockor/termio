@@ -10,55 +10,71 @@ use App\Enums\SubscriptionStatus;
 use App\Enums\SubscriptionType;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Notifications\TrialEndedNotification;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-final class ProcessExpiredTrialsJob implements ShouldQueue
+/**
+ * Processes expired trial subscriptions.
+ *
+ * For each expired trial:
+ * - If tenant has a payment method: converts to active subscription
+ * - If tenant has no payment method: downgrades to free plan
+ */
+final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
 {
-    use Dispatchable;
-    use InteractsWithQueue;
-    use Queueable;
-    use SerializesModels;
+    public function __construct(
+        private readonly SubscriptionRepository $subscriptions,
+        private readonly PlanRepository $plans,
+    ) {}
 
-    public function handle(
-        SubscriptionRepository $subscriptions,
-        PlanRepository $plans,
-    ): void {
-        $freePlan = $plans->getFreePlan();
+    protected function getJobName(): string
+    {
+        return 'ProcessExpiredTrials';
+    }
+
+    /**
+     * @return Builder<Subscription>
+     */
+    protected function buildQuery(): Builder
+    {
+        return Subscription::query()
+            ->with(['tenant.owner', 'plan'])
+            ->where('stripe_status', SubscriptionStatus::Trialing)
+            ->whereNotNull('trial_ends_at')
+            ->where('trial_ends_at', '<=', now());
+    }
+
+    protected function processItem(Model $item): void
+    {
+        if (! ($item instanceof Subscription)) {
+            return;
+        }
+
+        try {
+            $this->processExpiredTrial($item);
+        } catch (\Throwable $exception) {
+            $this->handleError($exception, $item);
+        }
+    }
+
+    private function processExpiredTrial(Subscription $subscription): void
+    {
+        $freePlan = $this->plans->getFreePlan();
 
         if (! $freePlan) {
-            Log::error('Cannot process expired trials: FREE plan not found');
+            Log::error('Cannot process expired trial: FREE plan not found');
 
             return;
         }
 
-        Subscription::with(['tenant.owner', 'plan'])
-            ->where('stripe_status', SubscriptionStatus::Trialing)
-            ->whereNotNull('trial_ends_at')
-            ->where('trial_ends_at', '<=', now())
-            ->chunk(100, function ($expiredTrials) use ($subscriptions, $freePlan): void {
-                /** @var Subscription $subscription */
-                foreach ($expiredTrials as $subscription) {
-                    $this->processExpiredTrial($subscription, $subscriptions, $freePlan);
-                }
-            });
-    }
-
-    private function processExpiredTrial(
-        Subscription $subscription,
-        SubscriptionRepository $subscriptions,
-        Plan $freePlan,
-    ): void {
-        /** @var \App\Models\Tenant|null $tenant */
+        /** @var Tenant|null $tenant */
         $tenant = $subscription->tenant;
 
-        if ($tenant === null) {
+        if (! $tenant) {
             Log::error('Cannot process expired trial: tenant not found', [
                 'subscription_id' => $subscription->id,
             ]);
@@ -67,20 +83,17 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
         }
 
         if ($tenant->hasDefaultPaymentMethod()) {
-            $this->convertToActiveSubscription($subscription, $subscriptions, $tenant);
+            $this->convertToActiveSubscription($subscription, $tenant);
 
             return;
         }
 
-        $this->downgradeToFreePlan($subscription, $subscriptions, $freePlan, $tenant);
+        $this->downgradeToFreePlan($subscription, $freePlan, $tenant);
     }
 
-    private function convertToActiveSubscription(
-        Subscription $subscription,
-        SubscriptionRepository $subscriptions,
-        \App\Models\Tenant $tenant,
-    ): void {
-        $subscriptions->update($subscription, [
+    private function convertToActiveSubscription(Subscription $subscription, Tenant $tenant): void
+    {
+        $this->subscriptions->update($subscription, [
             'stripe_status' => SubscriptionStatus::Active->value,
             'trial_ends_at' => null,
         ]);
@@ -99,11 +112,10 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
 
     private function downgradeToFreePlan(
         Subscription $subscription,
-        SubscriptionRepository $subscriptions,
         Plan $freePlan,
-        \App\Models\Tenant $tenant,
+        Tenant $tenant,
     ): void {
-        DB::transaction(static function () use ($subscription, $freePlan, $subscriptions, $tenant): void {
+        DB::transaction(function () use ($subscription, $freePlan, $tenant): void {
             if (! str_starts_with($subscription->stripe_id, 'free_')) {
                 $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
@@ -112,7 +124,7 @@ final class ProcessExpiredTrialsJob implements ShouldQueue
                 }
             }
 
-            $subscriptions->update($subscription, [
+            $this->subscriptions->update($subscription, [
                 'plan_id' => $freePlan->id,
                 'stripe_id' => 'free_'.$tenant->id,
                 'stripe_status' => SubscriptionStatus::Active->value,

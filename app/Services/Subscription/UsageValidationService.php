@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\Subscription;
 
+use App\Contracts\Services\UsageValidationServiceContract;
 use App\Models\Plan;
 use App\Models\Tenant;
 
-final class UsageValidationService
+final class UsageValidationService implements UsageValidationServiceContract
 {
     /**
      * Check if tenant's current usage exceeds new plan limits.
