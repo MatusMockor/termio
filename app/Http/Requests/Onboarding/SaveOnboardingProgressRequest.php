@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests\Onboarding;
 
 use App\DTOs\Onboarding\SaveProgressDTO;
+use App\Enums\BusinessType;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class SaveOnboardingProgressRequest extends FormRequest
 {
@@ -17,6 +19,8 @@ final class SaveOnboardingProgressRequest extends FormRequest
         return [
             'step' => ['required', 'string', 'max:255'],
             'data' => ['required', 'array'],
+            'data.business_type' => ['sometimes', Rule::enum(BusinessType::class)],
+            'data.booking_slug' => ['sometimes', 'string', 'max:255'],
             'data.phone' => ['sometimes', 'string', 'max:20'],
             'data.address' => ['sometimes', 'string', 'max:255'],
             'data.city' => ['sometimes', 'string', 'max:100'],
