@@ -21,7 +21,7 @@ final class DatabaseSeeder extends Seeder
         $tenant = Tenant::create([
             'name' => 'Demo Barbershop',
             'slug' => 'demo-barbershop',
-            'business_type' => 'barbershop',
+            'business_type' => 'barber',
             'address' => 'Hlavná 123, Bratislava',
             'phone' => '+421 900 123 456',
             'timezone' => 'Europe/Bratislava',
