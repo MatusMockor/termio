@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\BillingService;
+use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Jobs\Subscription\HandlePaymentFailedJob;
 use App\Jobs\Subscription\HandleSubscriptionCanceledJob;
 use App\Jobs\Subscription\HandleSubscriptionUpdatedJob;
@@ -14,7 +15,6 @@ use App\Models\Tenant;
 use App\Notifications\TrialEndingNotification;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\Http\Controllers\WebhookController as CashierWebhookController;
-use Stripe\Invoice as StripeInvoice;
 use Symfony\Component\HttpFoundation\Response;
 
 final class StripeWebhookController extends CashierWebhookController
@@ -23,6 +23,7 @@ final class StripeWebhookController extends CashierWebhookController
         private readonly SubscriptionRepository $subscriptions,
         private readonly InvoiceRepository $invoices,
         private readonly BillingService $billingService,
+        private readonly StripeServiceContract $stripeService,
     ) {}
 
     /**
@@ -71,7 +72,7 @@ final class StripeWebhookController extends CashierWebhookController
         }
 
         // Retrieve full Stripe invoice object
-        $stripeInvoiceObject = StripeInvoice::retrieve($stripeInvoiceId);
+        $stripeInvoiceObject = $this->stripeService->getInvoice($stripeInvoiceId);
 
         // Create our invoice
         $this->billingService->createInvoiceFromStripe($tenant, $subscription, $stripeInvoiceObject);

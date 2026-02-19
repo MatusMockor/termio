@@ -13,6 +13,7 @@ use App\Notifications\SubscriptionUpgradedNotification;
 use App\Notifications\TrialEndedNotification;
 use App\Services\Notification\SubscriptionNotificationBuilder;
 use Carbon\Carbon;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -22,6 +23,8 @@ use Tests\TestCase;
  */
 final class SubscriptionNotificationBuilderTest extends TestCase
 {
+    use RefreshDatabase;
+
     private SubscriptionNotificationBuilder $builder;
 
     protected function setUp(): void
@@ -32,9 +35,9 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_fluent_interface_returns_self(): void
     {
-        $tenant = new Tenant;
-        $plan = new Plan;
-        $previousPlan = new Plan;
+        $tenant = Tenant::factory()->create();
+        $plan = Plan::factory()->create();
+        $previousPlan = Plan::factory()->create();
         $date = Carbon::now();
 
         $result = $this->builder
@@ -52,17 +55,17 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgrade_scheduled_creates_notification(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
-        $currentPlan = new Plan;
+        $currentPlan = Plan::factory()->create();
         $currentPlan->id = 1;
         $currentPlan->name = 'Pro';
         $currentPlan->features = [];
         $currentPlan->limits = [];
 
-        $newPlan = new Plan;
+        $newPlan = Plan::factory()->create();
         $newPlan->id = 2;
         $newPlan->name = 'Basic';
         $newPlan->features = [];
@@ -82,17 +85,17 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_upgraded_creates_notification(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
-        $oldPlan = new Plan;
+        $oldPlan = Plan::factory()->create();
         $oldPlan->id = 1;
         $oldPlan->name = 'Basic';
         $oldPlan->features = [];
         $oldPlan->limits = [];
 
-        $newPlan = new Plan;
+        $newPlan = Plan::factory()->create();
         $newPlan->id = 2;
         $newPlan->name = 'Pro';
         $newPlan->features = [];
@@ -109,7 +112,7 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_canceled_creates_notification(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
@@ -125,7 +128,7 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_trial_ended_with_conversion(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
@@ -138,7 +141,7 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_trial_ended_without_conversion(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
@@ -151,11 +154,11 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgraded_creates_notification(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
         $tenant->name = 'Test Tenant';
 
-        $plan = new Plan;
+        $plan = Plan::factory()->create();
         $plan->id = 1;
         $plan->name = 'Free';
 
@@ -169,8 +172,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgrade_scheduled_throws_without_tenant(): void
     {
-        $plan = new Plan;
-        $previousPlan = new Plan;
+        $plan = Plan::factory()->create();
+        $previousPlan = Plan::factory()->create();
         $date = Carbon::now();
 
         $this->expectException(RuntimeException::class);
@@ -185,8 +188,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgrade_scheduled_throws_without_plan(): void
     {
-        $tenant = new Tenant;
-        $previousPlan = new Plan;
+        $tenant = Tenant::factory()->create();
+        $previousPlan = Plan::factory()->create();
         $date = Carbon::now();
 
         $this->expectException(RuntimeException::class);
@@ -201,8 +204,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgrade_scheduled_throws_without_previous_plan(): void
     {
-        $tenant = new Tenant;
-        $plan = new Plan;
+        $tenant = Tenant::factory()->create();
+        $plan = Plan::factory()->create();
         $date = Carbon::now();
 
         $this->expectException(RuntimeException::class);
@@ -217,9 +220,9 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_build_downgrade_scheduled_throws_without_effective_date(): void
     {
-        $tenant = new Tenant;
-        $plan = new Plan;
-        $previousPlan = new Plan;
+        $tenant = Tenant::factory()->create();
+        $plan = Plan::factory()->create();
+        $previousPlan = Plan::factory()->create();
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Effective date is required. Call effectiveAt() before building.');
@@ -237,8 +240,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('Tenant is required. Call forTenant() before building.');
 
         $this->builder
-            ->withPlan(new Plan)
-            ->withPreviousPlan(new Plan)
+            ->withPlan(Plan::factory()->create())
+            ->withPreviousPlan(Plan::factory()->create())
             ->buildUpgraded();
     }
 
@@ -248,8 +251,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('New plan is required. Call withPlan() before building.');
 
         $this->builder
-            ->forTenant(new Tenant)
-            ->withPreviousPlan(new Plan)
+            ->forTenant(Tenant::factory()->create())
+            ->withPreviousPlan(Plan::factory()->create())
             ->buildUpgraded();
     }
 
@@ -259,8 +262,8 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('Previous plan is required. Call withPreviousPlan() before building.');
 
         $this->builder
-            ->forTenant(new Tenant)
-            ->withPlan(new Plan)
+            ->forTenant(Tenant::factory()->create())
+            ->withPlan(Plan::factory()->create())
             ->buildUpgraded();
     }
 
@@ -280,7 +283,7 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('Effective date is required. Call effectiveAt() before building.');
 
         $this->builder
-            ->forTenant(new Tenant)
+            ->forTenant(Tenant::factory()->create())
             ->buildCanceled();
     }
 
@@ -298,7 +301,7 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('Tenant is required. Call forTenant() before building.');
 
         $this->builder
-            ->withPlan(new Plan)
+            ->withPlan(Plan::factory()->create())
             ->buildDowngraded();
     }
 
@@ -308,15 +311,15 @@ final class SubscriptionNotificationBuilderTest extends TestCase
         $this->expectExceptionMessage('Plan is required. Call withPlan() before building.');
 
         $this->builder
-            ->forTenant(new Tenant)
+            ->forTenant(Tenant::factory()->create())
             ->buildDowngraded();
     }
 
     public function test_reset_clears_all_properties(): void
     {
-        $tenant = new Tenant;
-        $plan = new Plan;
-        $previousPlan = new Plan;
+        $tenant = Tenant::factory()->create();
+        $plan = Plan::factory()->create();
+        $previousPlan = Plan::factory()->create();
         $date = Carbon::now();
 
         $this->builder
@@ -391,11 +394,11 @@ final class SubscriptionNotificationBuilderTest extends TestCase
 
     public function test_builder_can_be_reused_after_build(): void
     {
-        $tenant1 = new Tenant;
+        $tenant1 = Tenant::factory()->create();
         $tenant1->id = 1;
         $tenant1->name = 'Tenant 1';
 
-        $tenant2 = new Tenant;
+        $tenant2 = Tenant::factory()->create();
         $tenant2->id = 2;
         $tenant2->name = 'Tenant 2';
 

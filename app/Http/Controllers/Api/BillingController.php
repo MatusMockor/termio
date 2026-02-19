@@ -6,12 +6,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Services\BillingService;
+use App\Contracts\Services\PaymentMethodServiceContract;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Billing\AddPaymentMethodRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Http\Resources\PaymentMethodResource;
 use App\Models\PaymentMethod;
-use App\Services\Billing\PaymentMethodService;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -21,7 +21,7 @@ final class BillingController extends Controller
     public function __construct(
         private readonly InvoiceRepository $invoices,
         private readonly BillingService $billingService,
-        private readonly PaymentMethodService $paymentMethodService,
+        private readonly PaymentMethodServiceContract $paymentMethodService,
         private readonly TenantContextService $tenantContext,
     ) {}
 
@@ -126,11 +126,10 @@ final class BillingController extends Controller
             return response()->json(['error' => 'No Stripe customer found. Please contact support.'], 400);
         }
 
-        $paymentMethod = $this->paymentMethodService->addPaymentMethod(
-            $tenant,
-            $request->getPaymentMethodId(),
-            $request->shouldSetAsDefault()
-        );
+        $paymentMethodId = $request->getPaymentMethodId();
+        $paymentMethod = $request->shouldSetAsDefault()
+            ? $this->paymentMethodService->addPaymentMethod($tenant, $paymentMethodId)
+            : $this->paymentMethodService->addPaymentMethodWithoutDefault($tenant, $paymentMethodId);
 
         return response()->json([
             'data' => new PaymentMethodResource($paymentMethod),

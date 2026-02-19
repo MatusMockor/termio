@@ -35,8 +35,9 @@ final class CheckFeatureAccess
 
         if (! $this->featureGate->canAccess($tenant, $feature)) {
             $currentPlan = $this->subscriptionService->getCurrentPlan($tenant);
+            $payload = $this->featureGate->buildUpgradeMessage($feature, $currentPlan->slug);
 
-            return $this->featureGate->denyWithUpgradeMessage($feature, $currentPlan->slug);
+            return response()->json($payload, 403);
         }
 
         return $next($request);

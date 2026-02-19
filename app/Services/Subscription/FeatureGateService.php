@@ -11,7 +11,6 @@ use App\Enums\Feature;
 use App\Exceptions\FeatureNotAvailableException;
 use App\Models\Plan;
 use App\Models\Tenant;
-use Illuminate\Http\JsonResponse;
 
 final class FeatureGateService implements FeatureGateServiceContract
 {
@@ -53,9 +52,18 @@ final class FeatureGateService implements FeatureGateServiceContract
     }
 
     /**
-     * Deny access and return a JSON response with upgrade information.
+     * Build feature access denial payload for API callers.
+     *
+     * @return array{
+     *     error: string,
+     *     message: string,
+     *     feature: string,
+     *     current_plan: string|null,
+     *     required_plan: array{name: string|null, slug: string, monthly_price: string|null},
+     *     upgrade_url: string
+     * }
      */
-    public function denyWithUpgradeMessage(string $feature, ?string $currentPlan = null): JsonResponse
+    public function buildUpgradeMessage(string $feature, ?string $currentPlan = null): array
     {
         $requiredPlan = $this->getRequiredPlan($feature);
         $featureEnum = Feature::tryFromString($feature);
@@ -65,7 +73,7 @@ final class FeatureGateService implements FeatureGateServiceContract
         $requiredPlanSlug = $requiredPlan ? $requiredPlan->slug : 'premium';
         $requiredPlanPrice = $requiredPlan?->monthly_price;
 
-        return response()->json([
+        return [
             'error' => 'feature_not_available',
             'message' => "The '{$featureLabel}' feature requires {$requiredPlanName} plan or higher.",
             'feature' => $feature,
@@ -76,7 +84,7 @@ final class FeatureGateService implements FeatureGateServiceContract
                 'monthly_price' => $requiredPlanPrice,
             ],
             'upgrade_url' => '/billing/upgrade',
-        ], 403);
+        ];
     }
 
     /**

@@ -39,6 +39,7 @@ return [
         'reservations' => 50,
         'users' => 5,
         'services' => 10,
+        'clients' => 100,
     ],
 
     'usage_warning_threshold' => 0.8,

@@ -12,8 +12,6 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\GoogleCalendarService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Mockery;
-use Mockery\MockInterface;
 use Tests\TestCase;
 
 final class SyncAppointmentToGoogleCalendarTest extends TestCase
@@ -53,16 +51,13 @@ final class SyncAppointmentToGoogleCalendarTest extends TestCase
             ->forTenant($this->tenant)
             ->forClient($this->client)
             ->forService($this->service)
-            ->make();
+            ->create();
 
-        $appointment->tenant_id = $this->tenant->id;
-        $appointment->save();
-
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('createEvent')
-                ->once()
-                ->andReturn('google_event_123');
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('createEvent')
+            ->willReturn('google_event_123');
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $job = new SyncAppointmentToGoogleCalendar($appointment, 'create');
         $job->handle(app(GoogleCalendarService::class));
@@ -78,16 +73,13 @@ final class SyncAppointmentToGoogleCalendarTest extends TestCase
             ->forClient($this->client)
             ->forService($this->service)
             ->withGoogleEvent()
-            ->make();
+            ->create();
 
-        $appointment->tenant_id = $this->tenant->id;
-        $appointment->save();
-
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('updateEvent')
-                ->once()
-                ->andReturn(true);
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('updateEvent')
+            ->willReturn(true);
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $job = new SyncAppointmentToGoogleCalendar($appointment, 'update');
         $job->handle(app(GoogleCalendarService::class));
@@ -100,19 +92,16 @@ final class SyncAppointmentToGoogleCalendarTest extends TestCase
             ->forClient($this->client)
             ->forService($this->service)
             ->withGoogleEvent()
-            ->make();
-
-        $appointment->tenant_id = $this->tenant->id;
-        $appointment->save();
+            ->create();
 
         $googleEventId = $appointment->google_event_id;
 
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock) use ($googleEventId): void {
-            $mock->shouldReceive('deleteEvent')
-                ->with(Mockery::any(), $googleEventId)
-                ->once()
-                ->andReturn(true);
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('deleteEvent')
+            ->with($this->isInstanceOf(User::class), $googleEventId)
+            ->willReturn(true);
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $job = new SyncAppointmentToGoogleCalendar($appointment, 'delete');
         $job->handle(app(GoogleCalendarService::class));
@@ -138,16 +127,13 @@ final class SyncAppointmentToGoogleCalendarTest extends TestCase
             ->forTenant($tenantWithoutCalendar)
             ->forClient($client)
             ->forService($this->service)
-            ->make();
+            ->create();
 
-        $appointment->tenant_id = $tenantWithoutCalendar->id;
-        $appointment->save();
-
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock): void {
-            $mock->shouldNotReceive('createEvent');
-            $mock->shouldNotReceive('updateEvent');
-            $mock->shouldNotReceive('deleteEvent');
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->never())->method('createEvent');
+        $googleCalendarService->expects($this->never())->method('updateEvent');
+        $googleCalendarService->expects($this->never())->method('deleteEvent');
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $job = new SyncAppointmentToGoogleCalendar($appointment, 'create');
         $job->handle(app(GoogleCalendarService::class));
@@ -159,16 +145,13 @@ final class SyncAppointmentToGoogleCalendarTest extends TestCase
             ->forTenant($this->tenant)
             ->forClient($this->client)
             ->forService($this->service)
-            ->make(['google_event_id' => null]);
+            ->create(['google_event_id' => null]);
 
-        $appointment->tenant_id = $this->tenant->id;
-        $appointment->save();
-
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock): void {
-            $mock->shouldReceive('createEvent')
-                ->once()
-                ->andReturn('new_google_event');
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('createEvent')
+            ->willReturn('new_google_event');
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $job = new SyncAppointmentToGoogleCalendar($appointment, 'update');
         $job->handle(app(GoogleCalendarService::class));

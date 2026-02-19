@@ -8,10 +8,13 @@ use App\DTOs\Subscription\ValidationContext;
 use App\Exceptions\SubscriptionException;
 use App\Models\Subscription;
 use App\Services\Validation\Validators\SubscriptionExistsValidator;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 final class SubscriptionExistsValidatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     private SubscriptionExistsValidator $validator;
 
     protected function setUp(): void
@@ -22,7 +25,7 @@ final class SubscriptionExistsValidatorTest extends TestCase
 
     public function test_passes_when_subscription_exists(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->id = 1;
 
         $context = new ValidationContext(

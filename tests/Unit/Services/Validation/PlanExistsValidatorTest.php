@@ -8,10 +8,13 @@ use App\DTOs\Subscription\ValidationContext;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Services\Validation\Validators\PlanExistsValidator;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 final class PlanExistsValidatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     private PlanExistsValidator $validator;
 
     protected function setUp(): void
@@ -22,7 +25,7 @@ final class PlanExistsValidatorTest extends TestCase
 
     public function test_passes_when_plan_exists(): void
     {
-        $plan = new Plan;
+        $plan = Plan::factory()->create();
         $plan->id = 1;
 
         $context = new ValidationContext(

@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use RuntimeException;
 use Stripe\Customer;
 use Stripe\Exception\ApiErrorException;
+use Stripe\Invoice;
 use Stripe\PaymentMethod;
 use Stripe\Price;
 use Stripe\Product;
@@ -167,6 +168,16 @@ final class StripeService implements StripeServiceContract
     public function getProduct(string $productId): Product
     {
         return $this->getClient()->products->retrieve($productId);
+    }
+
+    /**
+     * Retrieve a Stripe invoice by ID.
+     *
+     * @throws ApiErrorException
+     */
+    public function getInvoice(string $invoiceId): Invoice
+    {
+        return $this->getClient()->invoices->retrieve($invoiceId);
     }
 
     /**

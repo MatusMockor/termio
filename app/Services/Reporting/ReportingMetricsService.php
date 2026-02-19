@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Reporting;
 
+use App\Contracts\Services\ReportingDataProvider;
 use App\Contracts\Services\ReportingMetricsService as ReportingMetricsServiceContract;
 use App\DTOs\Reporting\AppointmentMetricsDTO;
 use App\DTOs\Reporting\ClientMetricsDTO;
@@ -14,14 +15,15 @@ use App\DTOs\Reporting\ReportMetricsDTO;
 use App\DTOs\Reporting\ServiceRevenueDTO;
 use App\DTOs\Reporting\StaffPerformanceDTO;
 use App\Models\Appointment;
-use App\Models\Client;
-use App\Models\StaffProfile;
-use App\Models\WorkingHours;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
 final class ReportingMetricsService implements ReportingMetricsServiceContract
 {
+    public function __construct(
+        private readonly ReportingDataProvider $dataProvider,
+    ) {}
+
     public function generateFullReport(DateRangeDTO $range): FullReportDTO
     {
         return $this->buildReport($range, $this->comparePeriods($range));
@@ -46,7 +48,7 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
 
     public function calculateMetrics(DateRangeDTO $range): ReportMetricsDTO
     {
-        $appointments = $this->getAppointments($range);
+        $appointments = $this->dataProvider->getAppointments($range);
 
         $totalAppointments = $appointments->count();
         $completedAppointments = $appointments->where('status', 'completed')->count();
@@ -183,33 +185,12 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
     }
 
     /**
-     * @return Collection<int, Appointment>
-     */
-    private function getAppointments(DateRangeDTO $range): Collection
-    {
-        return Appointment::with(['service', 'staff', 'client'])
-            ->forDateRange($range->startDate, $range->endDate)
-            ->get();
-    }
-
-    /**
      * @return array{int, int} [newClients, returningClients]
      */
     private function getClientMetrics(DateRangeDTO $range): array
     {
-        $newClients = Client::whereBetween('created_at', [
-            $range->startDate,
-            $range->endDate,
-        ])->count();
-
-        $appointmentsInRange = Appointment::forDateRange($range->startDate, $range->endDate)
-            ->whereIn('status', ['completed', 'confirmed', 'pending'])
-            ->pluck('client_id')
-            ->unique();
-
-        $clientsCreatedBefore = Client::whereIn('id', $appointmentsInRange)
-            ->where('created_at', '<', $range->startDate)
-            ->count();
+        $newClients = $this->dataProvider->getNewClientCount($range);
+        $clientsCreatedBefore = $this->dataProvider->getReturningClientCount($range);
 
         return [$newClients, $clientsCreatedBefore];
     }
@@ -219,9 +200,7 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
         $totalMinutes = 0;
         $current = $range->startDate->copy();
 
-        $workingHoursByDay = WorkingHours::active()
-            ->get()
-            ->groupBy('day_of_week');
+        $workingHoursByDay = $this->dataProvider->getWorkingHoursByDay();
 
         while ($current <= $range->endDate) {
             $dayOfWeek = $current->dayOfWeek;
@@ -246,7 +225,7 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
     private function aggregateStaffMetrics(Collection $appointments, DateRangeDTO $range): Collection
     {
         $grouped = $appointments->groupBy('staff_id');
-        $staffProfiles = StaffProfile::whereIn('id', $grouped->keys())->get()->keyBy('id');
+        $staffProfiles = $this->dataProvider->getStaffProfilesByIds($grouped->keys()->all());
 
         return $grouped->map(function (Collection $staffAppointments, int $staffId) use ($staffProfiles, $range): ?StaffPerformanceDTO {
             $staff = $staffProfiles->get($staffId);
@@ -284,10 +263,7 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
         $totalMinutes = 0;
         $current = $range->startDate->copy();
 
-        $workingHoursByDay = WorkingHours::active()
-            ->where('staff_id', $staffId)
-            ->get()
-            ->groupBy('day_of_week');
+        $workingHoursByDay = $this->dataProvider->getWorkingHoursByDay($staffId);
 
         while ($current <= $range->endDate) {
             $dayOfWeek = $current->dayOfWeek;
@@ -312,5 +288,13 @@ final class ReportingMetricsService implements ReportingMetricsServiceContract
         }
 
         return (($current - $previous) / $previous) * 100;
+    }
+
+    /**
+     * @return Collection<int, Appointment>
+     */
+    private function getAppointments(DateRangeDTO $range): Collection
+    {
+        return $this->dataProvider->getAppointments($range);
     }
 }

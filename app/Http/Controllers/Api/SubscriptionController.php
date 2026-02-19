@@ -12,6 +12,7 @@ use App\Actions\Subscription\SubscriptionUpgradeAction;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\UsageResource;
 use App\Exceptions\SubscriptionException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Subscription\CancelSubscriptionRequest;
@@ -207,9 +208,9 @@ final class SubscriptionController extends Controller
         return response()->json([
             'data' => $usageStats,
             'warnings' => [
-                'reservations' => $this->usageLimitService->isNearLimit($tenant, 'reservations'),
-                'users' => $this->usageLimitService->isNearLimit($tenant, 'users'),
-                'services' => $this->usageLimitService->isNearLimit($tenant, 'services'),
+                UsageResource::Reservations->value => $this->usageLimitService->isNearLimit($tenant, UsageResource::Reservations),
+                UsageResource::Users->value => $this->usageLimitService->isNearLimit($tenant, UsageResource::Users),
+                UsageResource::Services->value => $this->usageLimitService->isNearLimit($tenant, UsageResource::Services),
             ],
         ]);
     }

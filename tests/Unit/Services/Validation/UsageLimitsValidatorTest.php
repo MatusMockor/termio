@@ -10,36 +10,32 @@ use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Tenant;
 use App\Services\Validation\Validators\UsageLimitsValidator;
-use Mockery;
-use Mockery\MockInterface;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\MockObject\MockObject;
 use Tests\TestCase;
 
 final class UsageLimitsValidatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     private UsageLimitsValidator $validator;
 
-    private UsageValidationServiceContract&MockInterface $usageValidation;
+    private UsageValidationServiceContract&MockObject $usageValidation;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->usageValidation = Mockery::mock(UsageValidationServiceContract::class);
+        $this->usageValidation = $this->createMock(UsageValidationServiceContract::class);
         $this->validator = new UsageLimitsValidator($this->usageValidation);
-    }
-
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
     }
 
     public function test_passes_when_no_violations(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
-        $plan = new Plan;
+        $plan = Plan::factory()->create();
         $plan->id = 1;
 
         $context = new ValidationContext(
@@ -49,10 +45,10 @@ final class UsageLimitsValidatorTest extends TestCase
         );
 
         $this->usageValidation
-            ->shouldReceive('checkLimitViolations')
+            ->expects($this->once())
+            ->method('checkLimitViolations')
             ->with($tenant, $plan)
-            ->once()
-            ->andReturn([]);
+            ->willReturn([]);
 
         $this->validator->validate($context);
 
@@ -61,10 +57,10 @@ final class UsageLimitsValidatorTest extends TestCase
 
     public function test_throws_when_usage_exceeds_limits(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
-        $plan = new Plan;
+        $plan = Plan::factory()->create();
         $plan->id = 1;
 
         $context = new ValidationContext(
@@ -79,10 +75,10 @@ final class UsageLimitsValidatorTest extends TestCase
         ];
 
         $this->usageValidation
-            ->shouldReceive('checkLimitViolations')
+            ->expects($this->once())
+            ->method('checkLimitViolations')
             ->with($tenant, $plan)
-            ->once()
-            ->andReturn($violations);
+            ->willReturn($violations);
 
         $this->expectException(SubscriptionException::class);
         $this->expectExceptionMessage('Current usage exceeds new plan limits:');
@@ -94,12 +90,13 @@ final class UsageLimitsValidatorTest extends TestCase
     {
         $context = new ValidationContext(
             subscription: null,
-            plan: new Plan,
+            plan: Plan::factory()->create(),
             tenant: null,
         );
 
         $this->usageValidation
-            ->shouldNotReceive('checkLimitViolations');
+            ->expects($this->never())
+            ->method('checkLimitViolations');
 
         $this->validator->validate($context);
 
@@ -108,7 +105,7 @@ final class UsageLimitsValidatorTest extends TestCase
 
     public function test_skips_validation_when_plan_is_null(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
         $context = new ValidationContext(
@@ -118,7 +115,8 @@ final class UsageLimitsValidatorTest extends TestCase
         );
 
         $this->usageValidation
-            ->shouldNotReceive('checkLimitViolations');
+            ->expects($this->never())
+            ->method('checkLimitViolations');
 
         $this->validator->validate($context);
 

@@ -7,7 +7,9 @@ namespace App\Services\Subscription;
 use App\Contracts\Repositories\UsageRecordRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\UsageResource;
 use App\Models\Tenant;
+use App\Models\UsageRecord;
 use RuntimeException;
 
 final class UsageLimitService implements UsageLimitServiceContract
@@ -17,64 +19,15 @@ final class UsageLimitService implements UsageLimitServiceContract
         private readonly UsageRecordRepository $usageRecords,
     ) {}
 
-    /**
-     * Check if tenant can create a new reservation.
-     */
-    public function canCreateReservation(Tenant $tenant): bool
+    public function canUseResource(Tenant $tenant, UsageResource $resource): bool
     {
-        try {
-            if ($this->subscriptionService->isUnlimited($tenant, 'reservations_per_month')) {
-                return true;
-            }
+        $limit = $this->resolveLimit($tenant, $resource);
 
-            $limit = $this->subscriptionService->getLimit($tenant, 'reservations_per_month');
-        } catch (RuntimeException) {
-            $limit = config('subscription.default_limits.reservations');
+        if ($limit === -1) {
+            return true;
         }
 
-        $usage = $this->usageRecords->getCurrentUsage($tenant);
-
-        return $usage->reservations_count < $limit;
-    }
-
-    /**
-     * Check if tenant can add a new user (staff).
-     */
-    public function canAddUser(Tenant $tenant): bool
-    {
-        try {
-            if ($this->subscriptionService->isUnlimited($tenant, 'users')) {
-                return true;
-            }
-
-            $limit = $this->subscriptionService->getLimit($tenant, 'users');
-        } catch (RuntimeException) {
-            $limit = config('subscription.default_limits.users');
-        }
-
-        $currentCount = $tenant->users()->count();
-
-        return $currentCount < $limit;
-    }
-
-    /**
-     * Check if tenant can add a new service.
-     */
-    public function canAddService(Tenant $tenant): bool
-    {
-        try {
-            if ($this->subscriptionService->isUnlimited($tenant, 'services')) {
-                return true;
-            }
-
-            $limit = $this->subscriptionService->getLimit($tenant, 'services');
-        } catch (RuntimeException) {
-            $limit = config('subscription.default_limits.services');
-        }
-
-        $currentCount = $tenant->services()->count();
-
-        return $currentCount < $limit;
+        return $this->getCurrentCount($tenant, $resource) < $limit;
     }
 
     /**
@@ -85,63 +38,36 @@ final class UsageLimitService implements UsageLimitServiceContract
     public function getUsageStats(Tenant $tenant): array
     {
         $usage = $this->usageRecords->getCurrentUsage($tenant);
+        $stats = [];
 
-        $reservationsLimit = $this->getLimit($tenant, 'reservations_per_month', config('subscription.default_limits.reservations'));
-        $usersLimit = $this->getLimit($tenant, 'users', config('subscription.default_limits.users'));
-        $servicesLimit = $this->getLimit($tenant, 'services', config('subscription.default_limits.services'));
+        foreach (UsageResource::usageStatsResources() as $resource) {
+            $current = $this->getCurrentCount($tenant, $resource, $usage);
+            $limit = $this->resolveLimit($tenant, $resource);
 
-        $userCount = $tenant->users()->count();
-        $serviceCount = $tenant->services()->count();
-
-        return [
-            'reservations' => [
-                'current' => $usage->reservations_count,
-                'limit' => $reservationsLimit === -1 ? 'unlimited' : $reservationsLimit,
-                'percentage' => $this->calculatePercentage($usage->reservations_count, $reservationsLimit),
-            ],
-            'users' => [
-                'current' => $userCount,
-                'limit' => $usersLimit === -1 ? 'unlimited' : $usersLimit,
-                'percentage' => $this->calculatePercentage($userCount, $usersLimit),
-            ],
-            'services' => [
-                'current' => $serviceCount,
-                'limit' => $servicesLimit === -1 ? 'unlimited' : $servicesLimit,
-                'percentage' => $this->calculatePercentage($serviceCount, $servicesLimit),
-            ],
-        ];
-    }
-
-    /**
-     * Get limit for a resource with fallback to default.
-     */
-    private function getLimit(Tenant $tenant, string $resource, int $default): int
-    {
-        try {
-            return $this->subscriptionService->getLimit($tenant, $resource);
-        } catch (RuntimeException) {
-            return $default;
+            $stats[$resource->value] = [
+                'current' => $current,
+                'limit' => $limit === -1 ? 'unlimited' : $limit,
+                'percentage' => $this->calculatePercentage($current, $limit),
+            ];
         }
+
+        return $stats;
     }
 
     /**
      * Get usage percentage for a specific resource.
      */
-    public function getUsagePercentage(Tenant $tenant, string $resource): float
+    public function getUsagePercentage(Tenant $tenant, UsageResource $resource): float
     {
         $stats = $this->getUsageStats($tenant);
 
-        if (! isset($stats[$resource])) {
-            return 0.0;
-        }
-
-        return $stats[$resource]['percentage'];
+        return $stats[$resource->value]['percentage'] ?? 0.0;
     }
 
     /**
      * Check if tenant is near the limit (>= 80%).
      */
-    public function isNearLimit(Tenant $tenant, string $resource): bool
+    public function isNearLimit(Tenant $tenant, UsageResource $resource): bool
     {
         $percentage = $this->getUsagePercentage($tenant, $resource);
 
@@ -151,7 +77,7 @@ final class UsageLimitService implements UsageLimitServiceContract
     /**
      * Check if tenant has reached the limit (>= 100%).
      */
-    public function hasReachedLimit(Tenant $tenant, string $resource): bool
+    public function hasReachedLimit(Tenant $tenant, UsageResource $resource): bool
     {
         $percentage = $this->getUsagePercentage($tenant, $resource);
 
@@ -172,6 +98,36 @@ final class UsageLimitService implements UsageLimitServiceContract
     public function recordReservationDeleted(Tenant $tenant): void
     {
         $this->usageRecords->decrementReservations($tenant);
+    }
+
+    private function resolveLimit(Tenant $tenant, UsageResource $resource): int
+    {
+        try {
+            if ($this->subscriptionService->isUnlimited($tenant, $resource->planLimitKey())) {
+                return -1;
+            }
+
+            return $this->subscriptionService->getLimit($tenant, $resource->planLimitKey());
+        } catch (RuntimeException) {
+            return $resource->defaultLimit();
+        }
+    }
+
+    private function getCurrentCount(Tenant $tenant, UsageResource $resource, ?UsageRecord $usage = null): int
+    {
+        if ($resource === UsageResource::Reservations) {
+            if ($usage !== null) {
+                return $usage->reservations_count;
+            }
+
+            return $this->usageRecords->getCurrentUsage($tenant)->reservations_count;
+        }
+
+        return match ($resource) {
+            UsageResource::Users => $tenant->users()->count(),
+            UsageResource::Services => $tenant->services()->count(),
+            UsageResource::Clients => $tenant->clients()->count(),
+        };
     }
 
     /**

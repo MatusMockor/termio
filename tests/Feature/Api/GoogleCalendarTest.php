@@ -11,7 +11,6 @@ use App\Models\User;
 use App\Services\GoogleCalendarService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
-use Mockery\MockInterface;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -89,11 +88,11 @@ final class GoogleCalendarTest extends TestCase
 
         $authUrl = fake()->url();
 
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock) use ($authUrl): void {
-            $mock->shouldReceive('getAuthUrl')
-                ->once()
-                ->andReturn($authUrl);
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('getAuthUrl')
+            ->willReturn($authUrl);
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $response = $this->getJson(route('google-calendar.connect'));
 
@@ -117,12 +116,12 @@ final class GoogleCalendarTest extends TestCase
             'expires_in' => 3600,
         ];
 
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock) use ($authCode, $tokens): void {
-            $mock->shouldReceive('exchangeCode')
-                ->with($authCode)
-                ->once()
-                ->andReturn($tokens);
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('exchangeCode')
+            ->with($authCode)
+            ->willReturn($tokens);
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $response = $this->postJson(route('google-calendar.callback'), [
             'code' => $authCode,
@@ -159,12 +158,12 @@ final class GoogleCalendarTest extends TestCase
 
         $invalidCode = fake()->uuid();
 
-        $this->mock(GoogleCalendarService::class, function (MockInterface $mock) use ($invalidCode): void {
-            $mock->shouldReceive('exchangeCode')
-                ->with($invalidCode)
-                ->once()
-                ->andThrow(new RuntimeException('Invalid code'));
-        });
+        $googleCalendarService = $this->createMock(GoogleCalendarService::class);
+        $googleCalendarService->expects($this->once())
+            ->method('exchangeCode')
+            ->with($invalidCode)
+            ->willThrowException(new RuntimeException('Invalid code'));
+        $this->instance(GoogleCalendarService::class, $googleCalendarService);
 
         $response = $this->postJson(route('google-calendar.callback'), [
             'code' => $invalidCode,

@@ -4,24 +4,12 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
+use App\Enums\UsageResource;
 use App\Models\Tenant;
 
 interface UsageLimitServiceContract
 {
-    /**
-     * Check if tenant can create a new reservation.
-     */
-    public function canCreateReservation(Tenant $tenant): bool;
-
-    /**
-     * Check if tenant can add a new user (staff).
-     */
-    public function canAddUser(Tenant $tenant): bool;
-
-    /**
-     * Check if tenant can add a new service.
-     */
-    public function canAddService(Tenant $tenant): bool;
+    public function canUseResource(Tenant $tenant, UsageResource $resource): bool;
 
     /**
      * Get current usage vs limits for all resources.
@@ -33,17 +21,17 @@ interface UsageLimitServiceContract
     /**
      * Get usage percentage for a specific resource.
      */
-    public function getUsagePercentage(Tenant $tenant, string $resource): float;
+    public function getUsagePercentage(Tenant $tenant, UsageResource $resource): float;
 
     /**
      * Check if tenant is near the limit (>= 80%).
      */
-    public function isNearLimit(Tenant $tenant, string $resource): bool;
+    public function isNearLimit(Tenant $tenant, UsageResource $resource): bool;
 
     /**
      * Check if tenant has reached the limit (>= 100%).
      */
-    public function hasReachedLimit(Tenant $tenant, string $resource): bool;
+    public function hasReachedLimit(Tenant $tenant, UsageResource $resource): bool;
 
     /**
      * Record that a reservation was created.
