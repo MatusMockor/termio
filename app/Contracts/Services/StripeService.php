@@ -6,6 +6,7 @@ namespace App\Contracts\Services;
 
 use App\Models\Tenant;
 use Stripe\Customer;
+use Stripe\Invoice;
 use Stripe\PaymentMethod;
 use Stripe\Price;
 use Stripe\Product;
@@ -63,6 +64,11 @@ interface StripeService
      * Retrieve a Stripe product by ID.
      */
     public function getProduct(string $productId): Product;
+
+    /**
+     * Retrieve a Stripe invoice by ID.
+     */
+    public function getInvoice(string $invoiceId): Invoice;
 
     /**
      * Create a setup intent for adding payment methods.

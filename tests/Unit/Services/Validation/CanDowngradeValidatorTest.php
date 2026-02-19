@@ -11,44 +11,40 @@ use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Services\Validation\Validators\CanDowngradeValidator;
-use Mockery;
-use Mockery\MockInterface;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use PHPUnit\Framework\MockObject\MockObject;
 use Tests\TestCase;
 
 final class CanDowngradeValidatorTest extends TestCase
 {
+    use RefreshDatabase;
+
     private CanDowngradeValidator $validator;
 
-    private SubscriptionServiceContract&MockInterface $subscriptionService;
+    private SubscriptionServiceContract&MockObject $subscriptionService;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->subscriptionService = Mockery::mock(SubscriptionServiceContract::class);
+        $this->subscriptionService = $this->createMock(SubscriptionServiceContract::class);
         $this->validator = new CanDowngradeValidator($this->subscriptionService);
-    }
-
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
     }
 
     public function test_passes_when_can_downgrade(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
-        $currentPlan = new Plan;
+        $currentPlan = Plan::factory()->create();
         $currentPlan->id = 2;
         $currentPlan->name = 'Pro';
 
-        $newPlan = new Plan;
+        $newPlan = Plan::factory()->create();
         $newPlan->id = 1;
         $newPlan->name = 'Basic';
 
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->id = 1;
         $subscription->setRelation('tenant', $tenant);
         $subscription->setRelation('plan', $currentPlan);
@@ -60,10 +56,10 @@ final class CanDowngradeValidatorTest extends TestCase
         );
 
         $this->subscriptionService
-            ->shouldReceive('canDowngradeTo')
+            ->expects($this->once())
+            ->method('canDowngradeTo')
             ->with($tenant, $newPlan)
-            ->once()
-            ->andReturn(true);
+            ->willReturn(true);
 
         $this->validator->validate($context);
 
@@ -72,18 +68,18 @@ final class CanDowngradeValidatorTest extends TestCase
 
     public function test_throws_when_cannot_downgrade(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
-        $currentPlan = new Plan;
+        $currentPlan = Plan::factory()->create();
         $currentPlan->id = 1;
         $currentPlan->name = 'Basic';
 
-        $newPlan = new Plan;
+        $newPlan = Plan::factory()->create();
         $newPlan->id = 2;
         $newPlan->name = 'Pro';
 
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->id = 1;
         $subscription->setRelation('tenant', $tenant);
         $subscription->setRelation('plan', $currentPlan);
@@ -95,10 +91,10 @@ final class CanDowngradeValidatorTest extends TestCase
         );
 
         $this->subscriptionService
-            ->shouldReceive('canDowngradeTo')
+            ->expects($this->once())
+            ->method('canDowngradeTo')
             ->with($tenant, $newPlan)
-            ->once()
-            ->andReturn(false);
+            ->willReturn(false);
 
         $this->expectException(SubscriptionException::class);
         $this->expectExceptionMessage('Cannot downgrade from Basic to Pro.');
@@ -110,12 +106,13 @@ final class CanDowngradeValidatorTest extends TestCase
     {
         $context = new ValidationContext(
             subscription: null,
-            plan: new Plan,
+            plan: Plan::factory()->create(),
             tenant: null,
         );
 
         $this->subscriptionService
-            ->shouldNotReceive('canDowngradeTo');
+            ->expects($this->never())
+            ->method('canDowngradeTo');
 
         $this->validator->validate($context);
 
@@ -124,7 +121,7 @@ final class CanDowngradeValidatorTest extends TestCase
 
     public function test_skips_validation_when_plan_is_null(): void
     {
-        $tenant = new Tenant;
+        $tenant = Tenant::factory()->create();
         $tenant->id = 1;
 
         $context = new ValidationContext(
@@ -134,7 +131,8 @@ final class CanDowngradeValidatorTest extends TestCase
         );
 
         $this->subscriptionService
-            ->shouldNotReceive('canDowngradeTo');
+            ->expects($this->never())
+            ->method('canDowngradeTo');
 
         $this->validator->validate($context);
 

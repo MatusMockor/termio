@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Billing;
 
+use App\Contracts\Services\PaymentMethodServiceContract;
 use App\Contracts\Services\StripeService;
 use App\Models\PaymentMethod;
 use App\Models\Tenant;
@@ -11,7 +12,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
-final class PaymentMethodService
+final class PaymentMethodService implements PaymentMethodServiceContract
 {
     private const int EXPIRING_SOON_DAYS = 30;
 
@@ -20,34 +21,19 @@ final class PaymentMethodService
     ) {}
 
     /**
-     * Add a new payment method to tenant.
-     *
-     * @SuppressWarnings(PHPMD.BooleanArgumentFlag)
+     * Add a new payment method to tenant and set it as default.
      */
-    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId, bool $setDefault = true): PaymentMethod
+    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
     {
-        // Attach to Stripe customer
-        $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
+        return $this->storeDefaultPaymentMethod($tenant, $paymentMethodId);
+    }
 
-        return DB::transaction(function () use ($tenant, $paymentMethodId, $stripePaymentMethod, $setDefault): PaymentMethod {
-            // If setting as default, update Stripe and unset other defaults
-            if ($setDefault) {
-                $this->stripeService->setDefaultPaymentMethod((string) $tenant->stripe_id, $paymentMethodId);
-                PaymentMethod::where('tenant_id', $tenant->id)->update(['is_default' => false]);
-            }
-
-            // Create local record
-            return PaymentMethod::create([
-                'tenant_id' => $tenant->id,
-                'stripe_payment_method_id' => $paymentMethodId,
-                'type' => $stripePaymentMethod->type,
-                'card_brand' => $stripePaymentMethod->card?->brand,
-                'card_last4' => $stripePaymentMethod->card?->last4,
-                'card_exp_month' => $stripePaymentMethod->card?->exp_month,
-                'card_exp_year' => $stripePaymentMethod->card?->exp_year,
-                'is_default' => $setDefault,
-            ]);
-        });
+    /**
+     * Add a new payment method to tenant without changing default.
+     */
+    public function addPaymentMethodWithoutDefault(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    {
+        return $this->storeAdditionalPaymentMethod($tenant, $paymentMethodId);
     }
 
     /**
@@ -119,5 +105,42 @@ final class PaymentMethodService
         return PaymentMethod::where('tenant_id', $tenant->id)
             ->where('is_default', true)
             ->first();
+    }
+
+    private function storeDefaultPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    {
+        $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
+
+        return DB::transaction(function () use ($tenant, $paymentMethodId, $stripePaymentMethod): PaymentMethod {
+            $this->stripeService->setDefaultPaymentMethod((string) $tenant->stripe_id, $paymentMethodId);
+            PaymentMethod::where('tenant_id', $tenant->id)->update(['is_default' => false]);
+
+            return PaymentMethod::create([
+                'tenant_id' => $tenant->id,
+                'stripe_payment_method_id' => $paymentMethodId,
+                'type' => $stripePaymentMethod->type,
+                'card_brand' => $stripePaymentMethod->card?->brand,
+                'card_last4' => $stripePaymentMethod->card?->last4,
+                'card_exp_month' => $stripePaymentMethod->card?->exp_month,
+                'card_exp_year' => $stripePaymentMethod->card?->exp_year,
+                'is_default' => true,
+            ]);
+        });
+    }
+
+    private function storeAdditionalPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    {
+        $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
+
+        return PaymentMethod::create([
+            'tenant_id' => $tenant->id,
+            'stripe_payment_method_id' => $paymentMethodId,
+            'type' => $stripePaymentMethod->type,
+            'card_brand' => $stripePaymentMethod->card?->brand,
+            'card_last4' => $stripePaymentMethod->card?->last4,
+            'card_exp_month' => $stripePaymentMethod->card?->exp_month,
+            'card_exp_year' => $stripePaymentMethod->card?->exp_year,
+            'is_default' => false,
+        ]);
     }
 }

@@ -11,12 +11,15 @@ use App\States\Subscription\ActiveState;
 use App\States\Subscription\CanceledState;
 use App\States\Subscription\PastDueState;
 use App\States\Subscription\TrialingState;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 use Tests\TestCase;
 
 final class SubscriptionStateFactoryTest extends TestCase
 {
+    use RefreshDatabase;
+
     private SubscriptionStateFactory $factory;
 
     protected function setUp(): void
@@ -27,7 +30,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_trialing_state_when_trial_ends_at_is_in_future(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = Carbon::now()->addDays(7);
         $subscription->stripe_status = SubscriptionStatus::Trialing;
 
@@ -38,7 +41,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_trialing_state_even_with_active_status_when_on_trial(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = Carbon::now()->addDays(7);
         $subscription->stripe_status = SubscriptionStatus::Active;
 
@@ -49,7 +52,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_canceled_state_when_ends_at_is_set_and_on_grace_period(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = Carbon::now()->addDays(7);
         $subscription->stripe_status = SubscriptionStatus::Active;
@@ -61,7 +64,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_canceled_state_when_ends_at_is_in_past(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = Carbon::now()->subDay();
         $subscription->stripe_status = SubscriptionStatus::Canceled;
@@ -73,7 +76,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_past_due_state_when_status_is_past_due(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::PastDue;
@@ -85,7 +88,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_active_state_when_status_is_active(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Active;
@@ -97,7 +100,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_active_state_for_incomplete_status(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Incomplete;
@@ -109,7 +112,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_active_state_for_unpaid_status(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Unpaid;
@@ -121,7 +124,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_creates_active_state_for_paused_status(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Paused;
@@ -134,7 +137,7 @@ final class SubscriptionStateFactoryTest extends TestCase
     public function test_trialing_takes_precedence_over_canceled(): void
     {
         // Edge case: subscription has both trial_ends_at and ends_at in future
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = Carbon::now()->addDays(7);
         $subscription->ends_at = Carbon::now()->addDays(3);
         $subscription->stripe_status = SubscriptionStatus::Trialing;
@@ -147,7 +150,7 @@ final class SubscriptionStateFactoryTest extends TestCase
     public function test_canceled_takes_precedence_over_past_due(): void
     {
         // Edge case: subscription is canceled but also past due
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = Carbon::now()->addDays(7);
         $subscription->stripe_status = SubscriptionStatus::PastDue;
@@ -159,7 +162,7 @@ final class SubscriptionStateFactoryTest extends TestCase
 
     public function test_throws_for_incomplete_expired_status(): void
     {
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->id = 123;
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
@@ -174,7 +177,7 @@ final class SubscriptionStateFactoryTest extends TestCase
     public function test_handles_trialing_status_without_trial_end_date(): void
     {
         // Edge case: status is trialing but trial_ends_at is null
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = null;
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Trialing;
@@ -188,7 +191,7 @@ final class SubscriptionStateFactoryTest extends TestCase
     public function test_handles_trialing_status_with_expired_trial_date(): void
     {
         // Edge case: status is trialing but trial has already ended
-        $subscription = new Subscription;
+        $subscription = Subscription::factory()->create();
         $subscription->trial_ends_at = Carbon::now()->subDay();
         $subscription->ends_at = null;
         $subscription->stripe_status = SubscriptionStatus::Trialing;

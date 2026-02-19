@@ -13,33 +13,31 @@ use App\Services\Validation\Validators\CanUpgradeValidator;
 use App\Services\Validation\Validators\PlanExistsValidator;
 use App\Services\Validation\Validators\SubscriptionExistsValidator;
 use App\Services\Validation\Validators\UsageLimitsValidator;
-use Mockery;
+use PHPUnit\Framework\MockObject\MockObject;
 use Tests\TestCase;
 
 final class ValidationChainBuilderTest extends TestCase
 {
     private ValidationChainBuilder $builder;
 
+    private SubscriptionServiceContract&MockObject $subscriptionService;
+
+    private UsageValidationServiceContract&MockObject $usageValidation;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $subscriptionService = Mockery::mock(SubscriptionServiceContract::class);
-        $usageValidation = Mockery::mock(UsageValidationServiceContract::class);
+        $this->subscriptionService = $this->createMock(SubscriptionServiceContract::class);
+        $this->usageValidation = $this->createMock(UsageValidationServiceContract::class);
 
         $this->builder = new ValidationChainBuilder(
             subscriptionExistsValidator: new SubscriptionExistsValidator,
             planExistsValidator: new PlanExistsValidator,
-            canDowngradeValidator: new CanDowngradeValidator($subscriptionService),
-            canUpgradeValidator: new CanUpgradeValidator($subscriptionService),
-            usageLimitsValidator: new UsageLimitsValidator($usageValidation),
+            canDowngradeValidator: new CanDowngradeValidator($this->subscriptionService),
+            canUpgradeValidator: new CanUpgradeValidator($this->subscriptionService),
+            usageLimitsValidator: new UsageLimitsValidator($this->usageValidation),
         );
-    }
-
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
     }
 
     public function test_build_downgrade_chain_returns_validator(): void

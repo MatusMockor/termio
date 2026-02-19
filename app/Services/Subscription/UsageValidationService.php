@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Subscription;
 
 use App\Contracts\Services\UsageValidationServiceContract;
+use App\Enums\UsageResource;
 use App\Models\Plan;
 use App\Models\Tenant;
 
@@ -20,37 +21,16 @@ final class UsageValidationService implements UsageValidationServiceContract
         $violations = [];
         $limits = $newPlan->limits;
 
-        // Check users limit
-        $userCount = $tenant->users()->count();
-        $userLimit = $limits['users'] ?? 1;
+        foreach (UsageResource::planValidationResources() as $resource) {
+            $current = $this->getCurrentResourceCount($tenant, $resource);
+            $limit = (int) ($limits[$resource->planLimitKey()] ?? $resource->defaultLimit());
 
-        if ($userLimit !== -1 && $userCount > $userLimit) {
-            $violations['users'] = [
-                'current' => $userCount,
-                'limit' => $userLimit,
-            ];
-        }
-
-        // Check services limit
-        $serviceCount = $tenant->services()->count();
-        $serviceLimit = $limits['services'] ?? 10;
-
-        if ($serviceLimit !== -1 && $serviceCount > $serviceLimit) {
-            $violations['services'] = [
-                'current' => $serviceCount,
-                'limit' => $serviceLimit,
-            ];
-        }
-
-        // Check clients limit
-        $clientCount = $tenant->clients()->count();
-        $clientLimit = $limits['clients'] ?? 100;
-
-        if ($clientLimit !== -1 && $clientCount > $clientLimit) {
-            $violations['clients'] = [
-                'current' => $clientCount,
-                'limit' => $clientLimit,
-            ];
+            if ($limit !== -1 && $current > $limit) {
+                $violations[$resource->value] = [
+                    'current' => $current,
+                    'limit' => $limit,
+                ];
+            }
         }
 
         return $violations;
@@ -59,10 +39,10 @@ final class UsageValidationService implements UsageValidationServiceContract
     /**
      * Check if a specific resource can be added based on current plan limits.
      */
-    public function canAddResource(Tenant $tenant, Plan $plan, string $resource): bool
+    public function canAddResource(Tenant $tenant, Plan $plan, UsageResource $resource): bool
     {
         $limits = $plan->limits;
-        $limit = $limits[$resource] ?? 0;
+        $limit = (int) ($limits[$resource->planLimitKey()] ?? $resource->defaultLimit());
 
         // Unlimited
         if ($limit === -1) {
@@ -77,10 +57,10 @@ final class UsageValidationService implements UsageValidationServiceContract
     /**
      * Get remaining capacity for a specific resource.
      */
-    public function getRemainingCapacity(Tenant $tenant, Plan $plan, string $resource): int
+    public function getRemainingCapacity(Tenant $tenant, Plan $plan, UsageResource $resource): int
     {
         $limits = $plan->limits;
-        $limit = $limits[$resource] ?? 0;
+        $limit = (int) ($limits[$resource->planLimitKey()] ?? $resource->defaultLimit());
 
         // Unlimited
         if ($limit === -1) {
@@ -95,13 +75,13 @@ final class UsageValidationService implements UsageValidationServiceContract
     /**
      * Get current count for a specific resource.
      */
-    private function getCurrentResourceCount(Tenant $tenant, string $resource): int
+    private function getCurrentResourceCount(Tenant $tenant, UsageResource $resource): int
     {
         return match ($resource) {
-            'users' => $tenant->users()->count(),
-            'services' => $tenant->services()->count(),
-            'clients' => $tenant->clients()->count(),
-            default => 0,
+            UsageResource::Users => $tenant->users()->count(),
+            UsageResource::Services => $tenant->services()->count(),
+            UsageResource::Clients => $tenant->clients()->count(),
+            UsageResource::Reservations => 0,
         };
     }
 }

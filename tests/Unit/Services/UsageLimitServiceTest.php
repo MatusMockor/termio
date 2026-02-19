@@ -6,14 +6,18 @@ namespace Tests\Unit\Services;
 
 use App\Contracts\Repositories\UsageRecordRepository;
 use App\Contracts\Services\SubscriptionServiceContract;
+use App\Enums\UsageResource;
 use App\Models\Tenant;
 use App\Models\UsageRecord;
 use App\Services\Subscription\UsageLimitService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\MockObject\MockObject;
 use Tests\TestCase;
 
 final class UsageLimitServiceTest extends TestCase
 {
+    use RefreshDatabase;
+
     private UsageLimitService $service;
 
     private SubscriptionServiceContract&MockObject $subscriptionService;
@@ -35,10 +39,9 @@ final class UsageLimitServiceTest extends TestCase
 
     public function test_can_create_reservation_returns_true_when_under_limit(): void
     {
-        $tenant = new Tenant;
-        $tenant->id = 1;
+        $tenant = Tenant::factory()->create();
 
-        $usageRecord = new UsageRecord;
+        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
         $usageRecord->reservations_count = 10;
         $usageRecord->reservations_limit = 100;
 
@@ -46,17 +49,16 @@ final class UsageLimitServiceTest extends TestCase
         $this->subscriptionService->method('getLimit')->willReturn(100);
         $this->usageRecords->method('getCurrentUsage')->willReturn($usageRecord);
 
-        $result = $this->service->canCreateReservation($tenant);
+        $result = $this->service->canUseResource($tenant, UsageResource::Reservations);
 
         $this->assertTrue($result);
     }
 
     public function test_can_create_reservation_returns_false_when_at_limit(): void
     {
-        $tenant = new Tenant;
-        $tenant->id = 1;
+        $tenant = Tenant::factory()->create();
 
-        $usageRecord = new UsageRecord;
+        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
         $usageRecord->reservations_count = 100;
         $usageRecord->reservations_limit = 100;
 
@@ -64,29 +66,27 @@ final class UsageLimitServiceTest extends TestCase
         $this->subscriptionService->method('getLimit')->willReturn(100);
         $this->usageRecords->method('getCurrentUsage')->willReturn($usageRecord);
 
-        $result = $this->service->canCreateReservation($tenant);
+        $result = $this->service->canUseResource($tenant, UsageResource::Reservations);
 
         $this->assertFalse($result);
     }
 
     public function test_can_create_reservation_returns_true_when_unlimited(): void
     {
-        $tenant = new Tenant;
-        $tenant->id = 1;
+        $tenant = Tenant::factory()->create();
 
         $this->subscriptionService->method('isUnlimited')->willReturn(true);
 
-        $result = $this->service->canCreateReservation($tenant);
+        $result = $this->service->canUseResource($tenant, UsageResource::Reservations);
 
         $this->assertTrue($result);
     }
 
     public function test_record_reservation_created_increments_count(): void
     {
-        $tenant = new Tenant;
-        $tenant->id = 1;
+        $tenant = Tenant::factory()->create();
 
-        $usageRecord = new UsageRecord;
+        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
         $usageRecord->reservations_count = 10;
         $usageRecord->reservations_limit = 100;
 
@@ -100,10 +100,9 @@ final class UsageLimitServiceTest extends TestCase
 
     public function test_record_reservation_deleted_decrements_count(): void
     {
-        $tenant = new Tenant;
-        $tenant->id = 1;
+        $tenant = Tenant::factory()->create();
 
-        $usageRecord = new UsageRecord;
+        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
         $usageRecord->reservations_count = 10;
         $usageRecord->reservations_limit = 100;
 

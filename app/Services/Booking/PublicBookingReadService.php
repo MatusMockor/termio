@@ -1,0 +1,268 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services\Booking;
+
+use App\Models\Service;
+use App\Models\StaffProfile;
+use App\Models\Tenant;
+use App\Models\TimeOff;
+use App\Models\WorkingHours;
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
+
+final class PublicBookingReadService
+{
+    public function getTenantBySlug(string $tenantSlug): Tenant
+    {
+        return Tenant::where('slug', $tenantSlug)->firstOrFail();
+    }
+
+    /**
+     * @return array{
+     *     name: string,
+     *     business_type: \App\Enums\BusinessType|null,
+     *     address: string|null,
+     *     phone: string|null,
+     *     logo_url: string|null
+     * }
+     */
+    public function getTenantInfo(string $tenantSlug): array
+    {
+        $tenant = $this->getTenantBySlug($tenantSlug);
+
+        return [
+            'name' => $tenant->name,
+            'business_type' => $tenant->business_type,
+            'address' => $tenant->address,
+            'phone' => $tenant->phone,
+            'logo_url' => $tenant->getLogoUrl(),
+        ];
+    }
+
+    /**
+     * @return Collection<int, Service>
+     */
+    public function getServices(string $tenantSlug): Collection
+    {
+        $tenant = $this->getTenantBySlug($tenantSlug);
+
+        return Service::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->active()
+            ->bookableOnline()
+            ->ordered()
+            ->get(['id', 'name', 'description', 'duration_minutes', 'price', 'category']);
+    }
+
+    /**
+     * @return Collection<int, StaffProfile>
+     */
+    public function getStaff(string $tenantSlug, ?int $serviceId = null): Collection
+    {
+        $tenant = $this->getTenantBySlug($tenantSlug);
+
+        $query = StaffProfile::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->bookable()
+            ->ordered();
+
+        if ($serviceId !== null) {
+            $query->forService($serviceId);
+        }
+
+        return $query->get(['id', 'display_name', 'bio', 'photo_url', 'specializations']);
+    }
+
+    /**
+     * @return Collection<int, Service>
+     */
+    public function getStaffServices(string $tenantSlug, int $staffId): Collection
+    {
+        $tenant = $this->getTenantBySlug($tenantSlug);
+
+        $staffProfile = StaffProfile::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->findOrFail($staffId);
+
+        return $staffProfile->services()
+            ->active()
+            ->bookableOnline()
+            ->ordered()
+            ->get(['services.id', 'name', 'description', 'duration_minutes', 'price', 'category']);
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function getAvailableDates(
+        string $tenantSlug,
+        int $serviceId,
+        int $month,
+        int $year,
+        ?int $staffId = null
+    ): array {
+        $tenant = $this->getTenantBySlug($tenantSlug);
+
+        $service = Service::withoutTenantScope()
+            ->where('tenant_id', $tenant->id)
+            ->findOrFail($serviceId);
+
+        $startDate = Carbon::create($year, $month, 1)->startOfMonth();
+        $endDate = $startDate->copy()->endOfMonth();
+        $today = Carbon::today();
+        $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
+
+        if (empty($staffIds)) {
+            return [];
+        }
+
+        $workingHoursMap = $this->getWorkingHoursMap($tenant->id, $staffIds);
+        $timeOffsByDate = $this->getAllDayTimeOffsByDate($tenant->id, $staffIds, $startDate, $endDate);
+
+        return $this->collectAvailableDates(
+            $staffIds,
+            $workingHoursMap,
+            $timeOffsByDate,
+            $startDate,
+            $endDate,
+            $today,
+        );
+    }
+
+    /**
+     * @return array{id: int, display_name: string}|null
+     */
+    public function getStaffSummary(?int $staffId): ?array
+    {
+        if ($staffId === null) {
+            return null;
+        }
+
+        $staff = StaffProfile::withoutTenantScope()->find($staffId);
+
+        if ($staff === null) {
+            return null;
+        }
+
+        return [
+            'id' => $staff->id,
+            'display_name' => $staff->display_name,
+        ];
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function resolveStaffIds(int $tenantId, int $serviceId, ?int $staffId): array
+    {
+        if ($staffId !== null) {
+            return [$staffId];
+        }
+
+        return StaffProfile::withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->bookable()
+            ->forService($serviceId)
+            ->pluck('id')
+            ->toArray();
+    }
+
+    private function getWorkingHoursMap(int $tenantId, array $staffIds): SupportCollection
+    {
+        return WorkingHours::withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->whereIn('staff_id', $staffIds)
+            ->where('is_active', true)
+            ->get()
+            ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id.'_'.$wh->day_of_week);
+    }
+
+    private function getAllDayTimeOffsByDate(
+        int $tenantId,
+        array $staffIds,
+        Carbon $startDate,
+        Carbon $endDate
+    ): SupportCollection {
+        return TimeOff::withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->where(static function (Builder $query) use ($staffIds): void {
+                $query->whereNull('staff_id')
+                    ->orWhereIn('staff_id', $staffIds);
+            })
+            ->where('date', '>=', $startDate->toDateString())
+            ->where('date', '<=', $endDate->toDateString())
+            ->whereNull('start_time')
+            ->whereNull('end_time')
+            ->get()
+            ->groupBy('date');
+    }
+
+    /**
+     * @param  array<int, int>  $staffIds
+     * @return array<int, string>
+     */
+    private function collectAvailableDates(
+        array $staffIds,
+        SupportCollection $workingHoursMap,
+        SupportCollection $timeOffsByDate,
+        Carbon $startDate,
+        Carbon $endDate,
+        Carbon $today
+    ): array {
+        $availableDates = [];
+        $currentDate = $startDate->copy();
+
+        while ($currentDate <= $endDate) {
+            if ($currentDate < $today) {
+                $currentDate->addDay();
+
+                continue;
+            }
+
+            $dateStr = $currentDate->toDateString();
+            if ($this->hasAvailabilityForDate($dateStr, $currentDate->dayOfWeek, $staffIds, $workingHoursMap, $timeOffsByDate)) {
+                $availableDates[] = $dateStr;
+            }
+
+            $currentDate->addDay();
+        }
+
+        return $availableDates;
+    }
+
+    /**
+     * @param  array<int, int>  $staffIds
+     */
+    private function hasAvailabilityForDate(
+        string $dateStr,
+        int $dayOfWeek,
+        array $staffIds,
+        SupportCollection $workingHoursMap,
+        SupportCollection $timeOffsByDate
+    ): bool {
+        $dateTimeOffs = $timeOffsByDate->get($dateStr, collect());
+
+        foreach ($staffIds as $checkStaffId) {
+            if ($this->isAllDayOffForStaff($dateTimeOffs, $checkStaffId)) {
+                continue;
+            }
+
+            if ($workingHoursMap->has($checkStaffId.'_'.$dayOfWeek)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function isAllDayOffForStaff(SupportCollection $dateTimeOffs, int $staffId): bool
+    {
+        return $dateTimeOffs->contains(
+            static fn (TimeOff $timeOff): bool => $timeOff->staff_id === null || $timeOff->staff_id === $staffId
+        );
+    }
+}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\UsageResource;
 use App\Services\Tenant\TenantContextService;
 use Closure;
 use Illuminate\Http\Request;
@@ -24,13 +25,14 @@ final class CheckServiceLimit
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $resource = UsageResource::Services;
         $tenant = $this->tenantContext->getTenant();
 
         if (! $tenant) {
             return $next($request);
         }
 
-        if (! $this->usageLimitService->canAddService($tenant)) {
+        if (! $this->usageLimitService->canUseResource($tenant, $resource)) {
             return response()->json([
                 'error' => 'service_limit_exceeded',
                 'message' => 'You have reached your service limit. Please upgrade your plan to add more services.',
@@ -41,9 +43,9 @@ final class CheckServiceLimit
         $response = $next($request);
 
         // Add warning header if at 80% usage
-        if ($this->usageLimitService->isNearLimit($tenant, 'services')) {
-            $percentage = $this->usageLimitService->getUsagePercentage($tenant, 'services');
-            $response->headers->set('X-Usage-Warning', sprintf('Service usage at %.0f%%', $percentage));
+        if ($this->usageLimitService->isNearLimit($tenant, $resource)) {
+            $percentage = $this->usageLimitService->getUsagePercentage($tenant, $resource);
+            $response->headers->set('X-Usage-Warning', sprintf('%s usage at %.0f%%', $resource->displayName(), $percentage));
         }
 
         return $response;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Jobs;
 
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\UsageResource;
 use App\Models\Tenant;
 use App\Notifications\UsageWarningNotification;
 use Illuminate\Bus\Queueable;
@@ -29,7 +30,7 @@ final class CheckUsageWarningsJob implements ShouldQueue
             ->chunk(100, static function ($tenants) use ($usageLimitService): void {
                 /** @var Tenant $tenant */
                 foreach ($tenants as $tenant) {
-                    if (! $usageLimitService->isNearLimit($tenant, 'reservations')) {
+                    if (! $usageLimitService->isNearLimit($tenant, UsageResource::Reservations)) {
                         continue;
                     }
 

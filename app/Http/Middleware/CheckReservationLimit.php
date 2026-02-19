@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\UsageResource;
 use App\Services\Tenant\TenantContextService;
 use Closure;
 use Illuminate\Http\Request;
@@ -24,13 +25,14 @@ final class CheckReservationLimit
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $resource = UsageResource::Reservations;
         $tenant = $this->tenantContext->getTenant();
 
         if (! $tenant) {
             return $next($request);
         }
 
-        if (! $this->usageLimitService->canCreateReservation($tenant)) {
+        if (! $this->usageLimitService->canUseResource($tenant, $resource)) {
             return response()->json([
                 'error' => 'reservation_limit_exceeded',
                 'message' => 'You have reached your monthly reservation limit. Please upgrade your plan to create more reservations.',
@@ -41,9 +43,9 @@ final class CheckReservationLimit
         $response = $next($request);
 
         // Add warning header if at 80% usage
-        if ($this->usageLimitService->isNearLimit($tenant, 'reservations')) {
-            $percentage = $this->usageLimitService->getUsagePercentage($tenant, 'reservations');
-            $response->headers->set('X-Usage-Warning', sprintf('Reservation usage at %.0f%%', $percentage));
+        if ($this->usageLimitService->isNearLimit($tenant, $resource)) {
+            $percentage = $this->usageLimitService->getUsagePercentage($tenant, $resource);
+            $response->headers->set('X-Usage-Warning', sprintf('%s usage at %.0f%%', $resource->displayName(), $percentage));
         }
 
         return $response;
