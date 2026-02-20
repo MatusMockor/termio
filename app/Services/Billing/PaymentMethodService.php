@@ -6,6 +6,7 @@ namespace App\Services\Billing;
 
 use App\Contracts\Services\PaymentMethodServiceContract;
 use App\Contracts\Services\StripeService;
+use App\DTOs\Billing\PaymentMethodDTO;
 use App\Models\PaymentMethod;
 use App\Models\Tenant;
 use Carbon\Carbon;
@@ -22,7 +23,7 @@ final class PaymentMethodService implements PaymentMethodServiceContract
     /**
      * Add a new payment method to tenant and set it as default.
      */
-    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO
     {
         return $this->storeDefaultPaymentMethod($tenant, $paymentMethodId);
     }
@@ -30,7 +31,7 @@ final class PaymentMethodService implements PaymentMethodServiceContract
     /**
      * Add a new payment method to tenant without changing default.
      */
-    public function addPaymentMethodWithoutDefault(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    public function addPaymentMethodWithoutDefault(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO
     {
         return $this->storeAdditionalPaymentMethod($tenant, $paymentMethodId);
     }
@@ -106,16 +107,16 @@ final class PaymentMethodService implements PaymentMethodServiceContract
             ->first();
     }
 
-    private function storeDefaultPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    private function storeDefaultPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO
     {
         try {
-            return DB::transaction(function () use ($tenant, $paymentMethodId): PaymentMethod {
+            return DB::transaction(function () use ($tenant, $paymentMethodId): PaymentMethodDTO {
                 $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
 
                 $this->stripeService->setDefaultPaymentMethod((string) $tenant->stripe_id, $paymentMethodId);
                 PaymentMethod::where('tenant_id', $tenant->id)->update(['is_default' => false]);
 
-                return PaymentMethod::create([
+                $paymentMethod = PaymentMethod::create([
                     'tenant_id' => $tenant->id,
                     'stripe_payment_method_id' => $paymentMethodId,
                     'type' => $stripePaymentMethod->type,
@@ -125,6 +126,8 @@ final class PaymentMethodService implements PaymentMethodServiceContract
                     'card_exp_year' => $stripePaymentMethod->card?->exp_year,
                     'is_default' => true,
                 ]);
+
+                return PaymentMethodDTO::fromModel($paymentMethod);
             });
         } catch (Throwable $exception) {
             $this->detachPaymentMethodSafely($paymentMethodId);
@@ -133,12 +136,12 @@ final class PaymentMethodService implements PaymentMethodServiceContract
         }
     }
 
-    private function storeAdditionalPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
+    private function storeAdditionalPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO
     {
         $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
 
         try {
-            return PaymentMethod::create([
+            $paymentMethod = PaymentMethod::create([
                 'tenant_id' => $tenant->id,
                 'stripe_payment_method_id' => $paymentMethodId,
                 'type' => $stripePaymentMethod->type,
@@ -148,6 +151,8 @@ final class PaymentMethodService implements PaymentMethodServiceContract
                 'card_exp_year' => $stripePaymentMethod->card?->exp_year,
                 'is_default' => false,
             ]);
+
+            return PaymentMethodDTO::fromModel($paymentMethod);
         } catch (Throwable $exception) {
             $this->detachPaymentMethodSafely($paymentMethodId);
 
