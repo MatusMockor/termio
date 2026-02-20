@@ -83,7 +83,7 @@ final class PaymentMethodService implements PaymentMethodServiceContract
      */
     public function isCardExpiringSoon(PaymentMethod $paymentMethod): bool
     {
-        if (! $paymentMethod->card_exp_month || ! $paymentMethod->card_exp_year) {
+        if (! $paymentMethod->hasCardExpiration()) {
             return false;
         }
 
