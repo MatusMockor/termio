@@ -81,6 +81,13 @@ final class SubscriptionFactory extends Factory
         ]);
     }
 
+    public function withoutEndsAt(): static
+    {
+        return $this->state(fn (array $attributes): array => [
+            'ends_at' => null,
+        ]);
+    }
+
     public function pastDue(): static
     {
         return $this->state(fn (array $attributes): array => [

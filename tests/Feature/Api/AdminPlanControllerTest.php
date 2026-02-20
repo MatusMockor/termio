@@ -421,24 +421,21 @@ final class AdminPlanControllerTest extends TestCase
             'yearly_price' => 269.00,
         ]);
 
-        Subscription::factory()->count(3)->create([
+        Subscription::factory()->count(3)->withoutEndsAt()->create([
             'plan_id' => $plan1->id,
             'stripe_status' => 'active',
-            'ends_at' => null,
             'billing_cycle' => 'monthly',
         ]);
 
-        Subscription::factory()->count(2)->create([
+        Subscription::factory()->count(2)->withoutEndsAt()->create([
             'plan_id' => $plan2->id,
             'stripe_status' => 'active',
-            'ends_at' => null,
             'billing_cycle' => 'monthly',
         ]);
 
-        Subscription::factory()->create([
+        Subscription::factory()->withoutEndsAt()->create([
             'plan_id' => $plan1->id,
             'stripe_status' => 'trialing',
-            'ends_at' => null,
         ]);
 
         $response = $this->actingAs($this->adminUser)->getJson(route('admin.plans.statistics'));

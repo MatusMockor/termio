@@ -62,9 +62,7 @@ final class CanceledStateTest extends TestCase
 
     public function test_can_resume_returns_false_when_ends_at_is_null(): void
     {
-        $subscription = Subscription::factory()->create([
-            'ends_at' => null,
-        ]);
+        $subscription = Subscription::factory()->withoutEndsAt()->create();
         $state = new CanceledState($subscription);
 
         $this->assertFalse($state->canResume());
@@ -113,9 +111,7 @@ final class CanceledStateTest extends TestCase
 
     public function test_get_description_when_ends_at_is_null(): void
     {
-        $subscription = Subscription::factory()->create([
-            'ends_at' => null,
-        ]);
+        $subscription = Subscription::factory()->withoutEndsAt()->create();
         $state = new CanceledState($subscription);
 
         $this->assertSame('Subscription is canceled', $state->getDescription());
