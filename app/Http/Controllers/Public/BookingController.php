@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Public;
 
 use App\Actions\Booking\BookingPublicCreateAction;
+use App\Contracts\Services\BookingAvailability;
+use App\Contracts\Services\PublicBookingRead;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\PublicAvailabilityRequest;
 use App\Http\Requests\Booking\PublicAvailableDatesRequest;
 use App\Http\Requests\Booking\PublicCreateBookingRequest;
-use App\Services\Booking\BookingAvailabilityService;
-use App\Services\Booking\PublicBookingReadService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class BookingController extends Controller
 {
     public function __construct(
-        private readonly BookingAvailabilityService $bookingAvailabilityService,
-        private readonly PublicBookingReadService $bookingReadService,
+        private readonly BookingAvailability $bookingAvailabilityService,
+        private readonly PublicBookingRead $bookingReadService,
         private readonly BookingPublicCreateAction $bookingCreateAction,
     ) {}
 
@@ -36,7 +36,7 @@ final class BookingController extends Controller
 
     public function staff(Request $request, string $tenantSlug): JsonResponse
     {
-        $serviceId = $request->has('service_id') ? (int) $request->input('service_id') : null;
+        $serviceId = $request->integer('service_id') ?: null;
         $staff = $this->bookingReadService->getStaff($tenantSlug, $serviceId);
 
         return response()->json(['data' => $staff]);

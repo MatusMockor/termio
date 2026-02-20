@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Booking;
 
+use App\Contracts\Services\PublicBookingRead;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\Tenant;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection as SupportCollection;
 
-final class PublicBookingReadService
+final class PublicBookingReadService implements PublicBookingRead
 {
     public function getTenantBySlug(string $tenantSlug): Tenant
     {
@@ -96,6 +97,8 @@ final class PublicBookingReadService
     }
 
     /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
+     *
      * @return array<int, string>
      */
     public function getAvailableDates(
@@ -129,7 +132,7 @@ final class PublicBookingReadService
             $timeOffsByDate,
             $startDate,
             $endDate,
-            $today,
+            $today
         );
     }
 
@@ -171,6 +174,9 @@ final class PublicBookingReadService
             ->toArray();
     }
 
+    /**
+     * @param  array<int, int>  $staffIds
+     */
     private function getWorkingHoursMap(int $tenantId, array $staffIds): SupportCollection
     {
         return WorkingHours::withoutTenantScope()
@@ -181,6 +187,9 @@ final class PublicBookingReadService
             ->groupBy(static fn (WorkingHours $wh): string => $wh->staff_id.'_'.$wh->day_of_week);
     }
 
+    /**
+     * @param  array<int, int>  $staffIds
+     */
     private function getAllDayTimeOffsByDate(
         int $tenantId,
         array $staffIds,

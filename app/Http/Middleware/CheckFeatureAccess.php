@@ -37,7 +37,7 @@ final class CheckFeatureAccess
             $currentPlan = $this->subscriptionService->getCurrentPlan($tenant);
             $payload = $this->featureGate->buildUpgradeMessage($feature, $currentPlan->slug);
 
-            return response()->json($payload, 403);
+            return response()->json($payload->toArray(), 403);
         }
 
         return $next($request);

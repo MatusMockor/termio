@@ -7,6 +7,8 @@ namespace App\Services\Subscription;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\SubscriptionServiceContract;
+use App\DTOs\Subscription\RequiredPlanDTO;
+use App\DTOs\Subscription\UpgradeMessageDTO;
 use App\Enums\Feature;
 use App\Exceptions\FeatureNotAvailableException;
 use App\Models\Plan;
@@ -51,40 +53,27 @@ final class FeatureGateService implements FeatureGateServiceContract
         return $this->plans->findBySlug($requiredPlanSlug);
     }
 
-    /**
-     * Build feature access denial payload for API callers.
-     *
-     * @return array{
-     *     error: string,
-     *     message: string,
-     *     feature: string,
-     *     current_plan: string|null,
-     *     required_plan: array{name: string|null, slug: string, monthly_price: string|null},
-     *     upgrade_url: string
-     * }
-     */
-    public function buildUpgradeMessage(string $feature, ?string $currentPlan = null): array
+    public function buildUpgradeMessage(string $feature, ?string $currentPlan = null): UpgradeMessageDTO
     {
         $requiredPlan = $this->getRequiredPlan($feature);
         $featureEnum = Feature::tryFromString($feature);
 
         $featureLabel = $featureEnum ? $featureEnum->getLabel() : $feature;
         $requiredPlanName = $requiredPlan ? $requiredPlan->name : 'a higher';
-        $requiredPlanSlug = $requiredPlan ? $requiredPlan->slug : 'premium';
-        $requiredPlanPrice = $requiredPlan?->monthly_price;
+        $requiredPlanSlug = $requiredPlan?->slug ?? (string) config('billing.default_plan_slug', 'premium');
 
-        return [
-            'error' => 'feature_not_available',
-            'message' => "The '{$featureLabel}' feature requires {$requiredPlanName} plan or higher.",
-            'feature' => $feature,
-            'current_plan' => $currentPlan,
-            'required_plan' => [
-                'name' => $requiredPlan?->name,
-                'slug' => $requiredPlanSlug,
-                'monthly_price' => $requiredPlanPrice,
-            ],
-            'upgrade_url' => '/billing/upgrade',
-        ];
+        return new UpgradeMessageDTO(
+            error: 'feature_not_available',
+            message: "The '{$featureLabel}' feature requires {$requiredPlanName} plan or higher.",
+            feature: $feature,
+            currentPlan: $currentPlan,
+            requiredPlan: new RequiredPlanDTO(
+                name: $requiredPlan?->name,
+                slug: $requiredPlanSlug,
+                monthlyPrice: $requiredPlan?->monthly_price,
+            ),
+            upgradeUrl: (string) config('billing.upgrade_url', '/billing/upgrade'),
+        );
     }
 
     /**

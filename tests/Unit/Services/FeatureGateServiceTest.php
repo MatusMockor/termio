@@ -41,7 +41,6 @@ final class FeatureGateServiceTest extends TestCase
     public function test_can_access_returns_true_when_tenant_has_feature(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())
@@ -57,7 +56,6 @@ final class FeatureGateServiceTest extends TestCase
     public function test_can_access_returns_false_when_tenant_lacks_feature(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())
@@ -73,7 +71,6 @@ final class FeatureGateServiceTest extends TestCase
     public function test_can_access_feature_works_with_enum(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())
@@ -88,9 +85,10 @@ final class FeatureGateServiceTest extends TestCase
 
     public function test_get_required_plan_returns_plan_for_known_feature(): void
     {
-        $easyPlan = Plan::factory()->create();
-        $easyPlan->name = 'EASY';
-        $easyPlan->slug = 'easy';
+        $easyPlan = Plan::factory()->create([
+            'name' => 'EASY',
+            'slug' => 'easy',
+        ]);
 
         $this->planRepository
             ->expects($this->once())
@@ -114,7 +112,6 @@ final class FeatureGateServiceTest extends TestCase
     public function test_authorize_does_not_throw_when_feature_available(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())
@@ -131,7 +128,6 @@ final class FeatureGateServiceTest extends TestCase
     public function test_authorize_throws_when_feature_not_available(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())
@@ -146,10 +142,11 @@ final class FeatureGateServiceTest extends TestCase
 
     public function test_build_upgrade_message_returns_expected_payload(): void
     {
-        $easyPlan = Plan::factory()->create();
-        $easyPlan->name = 'EASY';
-        $easyPlan->slug = 'easy';
-        $easyPlan->monthly_price = '5.90';
+        $easyPlan = Plan::factory()->create([
+            'name' => 'EASY',
+            'slug' => 'easy',
+            'monthly_price' => '5.90',
+        ]);
 
         $this->planRepository
             ->expects($this->once())
@@ -159,17 +156,16 @@ final class FeatureGateServiceTest extends TestCase
 
         $payload = $this->service->buildUpgradeMessage('google_calendar_sync', 'free');
 
-        $this->assertEquals('feature_not_available', $payload['error']);
-        $this->assertEquals('google_calendar_sync', $payload['feature']);
-        $this->assertEquals('free', $payload['current_plan']);
-        $this->assertEquals('easy', $payload['required_plan']['slug']);
-        $this->assertEquals('/billing/upgrade', $payload['upgrade_url']);
+        $this->assertEquals('feature_not_available', $payload->error);
+        $this->assertEquals('google_calendar_sync', $payload->feature);
+        $this->assertEquals('free', $payload->currentPlan);
+        $this->assertEquals('easy', $payload->requiredPlan->slug);
+        $this->assertEquals('/billing/upgrade', $payload->upgradeUrl);
     }
 
     public function test_get_feature_value_returns_value_from_subscription_service(): void
     {
         $tenant = Tenant::factory()->create();
-        $tenant->id = 1;
 
         $this->subscriptionService
             ->expects($this->once())

@@ -42,6 +42,7 @@ return [
         'clients' => 100,
     ],
 
+    'unlimited' => -1,
     'usage_warning_threshold' => 0.8,
 
     /*

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\Booking;
 
+use App\Contracts\Services\BookingAvailability;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\StaffProfile;
@@ -14,7 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
-final class BookingAvailabilityService
+final class BookingAvailabilityService implements BookingAvailability
 {
     public function __construct(
         private readonly AvailabilitySlotService $availabilitySlotService,
@@ -64,12 +66,7 @@ final class BookingAvailabilityService
             return [];
         }
 
-        $workingHours = WorkingHours::withoutTenantScope()
-            ->where('tenant_id', $tenantId)
-            ->where('staff_id', $staffId)
-            ->where('day_of_week', $dayOfWeek)
-            ->where('is_active', true)
-            ->first();
+        $workingHours = $this->getWorkingHoursForStaff($tenantId, $staffId, $dayOfWeek);
 
         if (! $workingHours) {
             return [];
@@ -79,7 +76,7 @@ final class BookingAvailabilityService
             ->where('tenant_id', $tenantId)
             ->forDate($date)
             ->where('staff_id', $staffId)
-            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->whereNotIn('status', [AppointmentStatus::Cancelled->value, AppointmentStatus::NoShow->value])
             ->get();
 
         $timeOffPeriods = $this->getPartialTimeOffPeriods($tenantId, $date, $staffId);
@@ -94,6 +91,8 @@ final class BookingAvailabilityService
     }
 
     /**
+     * @SuppressWarnings(PHPMD.ExcessiveMethodLength)
+     *
      * @return array<int, array{time: string, available: bool, staff_id: int}>
      */
     private function getAvailabilityForAnyStaff(
@@ -112,14 +111,7 @@ final class BookingAvailabilityService
         $allSlots = [];
 
         foreach ($staffIds as $staffId) {
-            $this->appendAvailableStaffSlots(
-                allSlots: $allSlots,
-                tenantId: $tenantId,
-                staffId: $staffId,
-                service: $service,
-                date: $date,
-                dayOfWeek: $dayOfWeek,
-            );
+            $this->appendAvailableStaffSlots($allSlots, $tenantId, $staffId, $service, $date, $dayOfWeek);
         }
 
         ksort($allSlots);
@@ -208,7 +200,7 @@ final class BookingAvailabilityService
             ->where('tenant_id', $tenantId)
             ->forDate($date)
             ->where('staff_id', $staffId)
-            ->whereNotIn('status', ['cancelled', 'no_show'])
+            ->whereNotIn('status', [AppointmentStatus::Cancelled->value, AppointmentStatus::NoShow->value])
             ->get();
     }
 

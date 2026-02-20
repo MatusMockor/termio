@@ -41,9 +41,11 @@ final class UsageLimitServiceTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
 
-        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
-        $usageRecord->reservations_count = 10;
-        $usageRecord->reservations_limit = 100;
+        $usageRecord = UsageRecord::factory()->create([
+            'tenant_id' => $tenant->id,
+            'reservations_count' => 10,
+            'reservations_limit' => 100,
+        ]);
 
         $this->subscriptionService->method('isUnlimited')->willReturn(false);
         $this->subscriptionService->method('getLimit')->willReturn(100);
@@ -58,9 +60,11 @@ final class UsageLimitServiceTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
 
-        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
-        $usageRecord->reservations_count = 100;
-        $usageRecord->reservations_limit = 100;
+        $usageRecord = UsageRecord::factory()->create([
+            'tenant_id' => $tenant->id,
+            'reservations_count' => 100,
+            'reservations_limit' => 100,
+        ]);
 
         $this->subscriptionService->method('isUnlimited')->willReturn(false);
         $this->subscriptionService->method('getLimit')->willReturn(100);
@@ -86,9 +90,11 @@ final class UsageLimitServiceTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
 
-        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
-        $usageRecord->reservations_count = 10;
-        $usageRecord->reservations_limit = 100;
+        $usageRecord = UsageRecord::factory()->create([
+            'tenant_id' => $tenant->id,
+            'reservations_count' => 10,
+            'reservations_limit' => 100,
+        ]);
 
         $this->usageRecords->expects($this->once())
             ->method('incrementReservations')
@@ -102,9 +108,11 @@ final class UsageLimitServiceTest extends TestCase
     {
         $tenant = Tenant::factory()->create();
 
-        $usageRecord = UsageRecord::factory()->create(['tenant_id' => $tenant->id]);
-        $usageRecord->reservations_count = 10;
-        $usageRecord->reservations_limit = 100;
+        $usageRecord = UsageRecord::factory()->create([
+            'tenant_id' => $tenant->id,
+            'reservations_count' => 10,
+            'reservations_limit' => 100,
+        ]);
 
         $this->usageRecords->expects($this->once())
             ->method('decrementReservations')

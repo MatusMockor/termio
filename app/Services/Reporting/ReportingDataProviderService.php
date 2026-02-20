@@ -6,6 +6,7 @@ namespace App\Services\Reporting;
 
 use App\Contracts\Services\ReportingDataProvider;
 use App\DTOs\Reporting\DateRangeDTO;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\StaffProfile;
@@ -13,7 +14,7 @@ use App\Models\WorkingHours;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
-final class EloquentReportingDataProvider implements ReportingDataProvider
+final class ReportingDataProviderService implements ReportingDataProvider
 {
     /**
      * @return Collection<int, Appointment>
@@ -36,7 +37,11 @@ final class EloquentReportingDataProvider implements ReportingDataProvider
     public function getReturningClientCount(DateRangeDTO $range): int
     {
         $appointmentsInRange = Appointment::forDateRange($range->startDate, $range->endDate)
-            ->whereIn('status', ['completed', 'confirmed', 'pending'])
+            ->whereIn('status', [
+                AppointmentStatus::Completed->value,
+                AppointmentStatus::Confirmed->value,
+                AppointmentStatus::Pending->value,
+            ])
             ->pluck('client_id')
             ->unique();
 
@@ -52,9 +57,11 @@ final class EloquentReportingDataProvider implements ReportingDataProvider
     {
         $query = WorkingHours::active();
 
-        if ($staffId !== null) {
-            $query->where('staff_id', $staffId);
+        if (! $staffId) {
+            return collect($query->get()->groupBy('day_of_week'));
         }
+
+        $query->where('staff_id', $staffId);
 
         return collect($query->get()->groupBy('day_of_week'));
     }
@@ -65,7 +72,7 @@ final class EloquentReportingDataProvider implements ReportingDataProvider
      */
     public function getStaffProfilesByIds(array $staffIds): Collection
     {
-        if (empty($staffIds)) {
+        if (! $staffIds) {
             return collect();
         }
 

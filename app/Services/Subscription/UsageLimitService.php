@@ -23,7 +23,7 @@ final class UsageLimitService implements UsageLimitServiceContract
     {
         $limit = $this->resolveLimit($tenant, $resource);
 
-        if ($limit === -1) {
+        if ($this->isUnlimitedLimit($limit)) {
             return true;
         }
 
@@ -46,7 +46,7 @@ final class UsageLimitService implements UsageLimitServiceContract
 
             $stats[$resource->value] = [
                 'current' => $current,
-                'limit' => $limit === -1 ? 'unlimited' : $limit,
+                'limit' => $this->isUnlimitedLimit($limit) ? 'unlimited' : $limit,
                 'percentage' => $this->calculatePercentage($current, $limit),
             ];
         }
@@ -59,9 +59,10 @@ final class UsageLimitService implements UsageLimitServiceContract
      */
     public function getUsagePercentage(Tenant $tenant, UsageResource $resource): float
     {
-        $stats = $this->getUsageStats($tenant);
+        $limit = $this->resolveLimit($tenant, $resource);
+        $current = $this->getCurrentCount($tenant, $resource);
 
-        return $stats[$resource->value]['percentage'] ?? 0.0;
+        return $this->calculatePercentage($current, $limit);
     }
 
     /**
@@ -104,7 +105,7 @@ final class UsageLimitService implements UsageLimitServiceContract
     {
         try {
             if ($this->subscriptionService->isUnlimited($tenant, $resource->planLimitKey())) {
-                return -1;
+                return $this->unlimitedLimit();
             }
 
             return $this->subscriptionService->getLimit($tenant, $resource->planLimitKey());
@@ -135,7 +136,7 @@ final class UsageLimitService implements UsageLimitServiceContract
      */
     private function calculatePercentage(int $current, int $limit): float
     {
-        if ($limit === -1) {
+        if ($this->isUnlimitedLimit($limit)) {
             return 0.0;
         }
 
@@ -144,5 +145,15 @@ final class UsageLimitService implements UsageLimitServiceContract
         }
 
         return min(100.0, ($current / $limit) * 100);
+    }
+
+    private function isUnlimitedLimit(int $limit): bool
+    {
+        return $limit === $this->unlimitedLimit();
+    }
+
+    private function unlimitedLimit(): int
+    {
+        return (int) config('subscription.unlimited', -1);
     }
 }
