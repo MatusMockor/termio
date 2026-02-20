@@ -108,12 +108,9 @@ final class PaymentMethodService implements PaymentMethodServiceContract
 
     private function storeDefaultPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod
     {
-        $attached = false;
-
         try {
-            return DB::transaction(function () use ($tenant, $paymentMethodId, &$attached): PaymentMethod {
+            return DB::transaction(function () use ($tenant, $paymentMethodId): PaymentMethod {
                 $stripePaymentMethod = $this->stripeService->attachPaymentMethod($paymentMethodId, (string) $tenant->stripe_id);
-                $attached = true;
 
                 $this->stripeService->setDefaultPaymentMethod((string) $tenant->stripe_id, $paymentMethodId);
                 PaymentMethod::where('tenant_id', $tenant->id)->update(['is_default' => false]);
@@ -130,9 +127,7 @@ final class PaymentMethodService implements PaymentMethodServiceContract
                 ]);
             });
         } catch (Throwable $exception) {
-            if ($attached) {
-                $this->stripeService->detachPaymentMethod($paymentMethodId);
-            }
+            $this->detachPaymentMethodSafely($paymentMethodId);
 
             throw $exception;
         }
@@ -154,9 +149,18 @@ final class PaymentMethodService implements PaymentMethodServiceContract
                 'is_default' => false,
             ]);
         } catch (Throwable $exception) {
-            $this->stripeService->detachPaymentMethod($paymentMethodId);
+            $this->detachPaymentMethodSafely($paymentMethodId);
 
             throw $exception;
+        }
+    }
+
+    private function detachPaymentMethodSafely(string $paymentMethodId): void
+    {
+        try {
+            $this->stripeService->detachPaymentMethod($paymentMethodId);
+        } catch (Throwable) {
+            // Best-effort rollback: keep the original exception as the primary failure.
         }
     }
 }
