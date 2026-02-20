@@ -72,7 +72,7 @@ final class PaymentMethod extends Model
 
     public function isExpired(): bool
     {
-        if ($this->card_exp_month === null || $this->card_exp_year === null) {
+        if (! $this->hasCardExpiration()) {
             return false;
         }
 
@@ -84,7 +84,7 @@ final class PaymentMethod extends Model
 
     public function isExpiringSoon(): bool
     {
-        if ($this->card_exp_month === null || $this->card_exp_year === null) {
+        if (! $this->hasCardExpiration()) {
             return false;
         }
 
@@ -92,5 +92,10 @@ final class PaymentMethod extends Model
             ->endOfMonth();
 
         return $expiry->isBetween(now(), now()->addMonths(2));
+    }
+
+    public function hasCardExpiration(): bool
+    {
+        return (bool) ($this->card_exp_month && $this->card_exp_year);
     }
 }
