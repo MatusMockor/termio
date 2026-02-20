@@ -60,7 +60,9 @@ final class FeatureGateService implements FeatureGateServiceContract
 
         $featureLabel = $featureEnum ? $featureEnum->getLabel() : $feature;
         $requiredPlanName = $requiredPlan ? $requiredPlan->name : 'a higher';
-        $requiredPlanSlug = $requiredPlan?->slug ?? (string) config('billing.default_plan_slug', 'premium');
+        $requiredPlanSlug = $requiredPlan
+            ? $requiredPlan->slug
+            : (string) config('billing.default_plan_slug', 'premium');
 
         return new UpgradeMessageDTO(
             error: 'feature_not_available',
