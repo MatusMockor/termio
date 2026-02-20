@@ -29,7 +29,6 @@ final class RepositoryServiceProvider extends ServiceProvider
      */
     private array $services = [
         \App\Contracts\Services\ImageUploadService::class => \App\Services\Portfolio\ImageUploadService::class,
-        \App\Contracts\Services\ReportingDataProvider::class => \App\Services\Reporting\EloquentReportingDataProvider::class,
         \App\Contracts\Services\ReportingMetricsService::class => \App\Services\Reporting\ReportingMetricsService::class,
     ];
 

@@ -7,7 +7,10 @@ namespace App\Providers;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Repositories\OnboardingRepository;
 use App\Contracts\Services\BillingService as BillingServiceContract;
+use App\Contracts\Services\BookingAvailability;
 use App\Contracts\Services\PaymentMethodServiceContract;
+use App\Contracts\Services\PublicBookingRead;
+use App\Contracts\Services\ReportingDataProvider;
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Contracts\Services\VatService as VatServiceContract;
 use App\Models\Appointment;
@@ -17,6 +20,9 @@ use App\Repositories\Eloquent\EloquentOnboardingRepository;
 use App\Services\Billing\BillingService;
 use App\Services\Billing\PaymentMethodService;
 use App\Services\Billing\VatService;
+use App\Services\Booking\BookingAvailabilityService;
+use App\Services\Booking\PublicBookingReadService;
+use App\Services\Reporting\ReportingDataProviderService;
 use App\Services\Stripe\StripeService;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Support\ServiceProvider;
@@ -33,6 +39,9 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(VatServiceContract::class, VatService::class);
         $this->app->bind(BillingServiceContract::class, BillingService::class);
         $this->app->bind(PaymentMethodServiceContract::class, PaymentMethodService::class);
+        $this->app->bind(BookingAvailability::class, BookingAvailabilityService::class);
+        $this->app->bind(PublicBookingRead::class, PublicBookingReadService::class);
+        $this->app->bind(ReportingDataProvider::class, ReportingDataProviderService::class);
 
         // Onboarding bindings
         $this->app->bind(OnboardingRepository::class, EloquentOnboardingRepository::class);

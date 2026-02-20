@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
+use App\DTOs\Subscription\UpgradeMessageDTO;
 use App\Enums\Feature;
 use App\Models\Plan;
 use App\Models\Tenant;
@@ -27,17 +28,8 @@ interface FeatureGateServiceContract
 
     /**
      * Build feature access denial payload for API callers.
-     *
-     * @return array{
-     *     error: string,
-     *     message: string,
-     *     feature: string,
-     *     current_plan: string|null,
-     *     required_plan: array{name: string|null, slug: string, monthly_price: string|null},
-     *     upgrade_url: string
-     * }
      */
-    public function buildUpgradeMessage(string $feature, ?string $currentPlan = null): array;
+    public function buildUpgradeMessage(string $feature, ?string $currentPlan = null): UpgradeMessageDTO;
 
     /**
      * Authorize access to a feature, throwing an exception if not allowed.
