@@ -149,8 +149,12 @@ final class FeatureGateServiceTest extends TestCase
     {
         $feature = Feature::GoogleCalendarSync->value;
         $currentPlan = fake()->word();
+        $planName = fake()->word();
+        $planPrice = (string) fake()->randomFloat(2, 1, 100);
         $easyPlan = Plan::factory()->create([
+            'name' => $planName,
             'slug' => 'easy',
+            'monthly_price' => $planPrice,
         ]);
 
         $this->planRepository
@@ -164,7 +168,9 @@ final class FeatureGateServiceTest extends TestCase
         $this->assertEquals('feature_not_available', $payload->error);
         $this->assertEquals($feature, $payload->feature);
         $this->assertEquals($currentPlan, $payload->currentPlan);
+        $this->assertEquals($planName, $payload->requiredPlan->name);
         $this->assertEquals('easy', $payload->requiredPlan->slug);
+        $this->assertEquals($planPrice, $payload->requiredPlan->monthlyPrice);
         $this->assertEquals((string) config('billing.upgrade_url', '/billing/upgrade'), $payload->upgradeUrl);
     }
 
