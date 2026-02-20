@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
+use App\DTOs\Billing\PaymentMethodDTO;
 use App\Models\PaymentMethod;
 use App\Models\Tenant;
 use Illuminate\Support\Collection;
@@ -13,12 +14,12 @@ interface PaymentMethodServiceContract
     /**
      * Add a new payment method to tenant and set it as default.
      */
-    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethod;
+    public function addPaymentMethod(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO;
 
     /**
      * Add a new payment method to tenant without changing default.
      */
-    public function addPaymentMethodWithoutDefault(Tenant $tenant, string $paymentMethodId): PaymentMethod;
+    public function addPaymentMethodWithoutDefault(Tenant $tenant, string $paymentMethodId): PaymentMethodDTO;
 
     /**
      * Remove a payment method.
