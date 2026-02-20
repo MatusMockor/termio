@@ -41,14 +41,15 @@ final class FeatureGateServiceTest extends TestCase
     public function test_can_access_returns_true_when_tenant_has_feature(): void
     {
         $tenant = Tenant::factory()->create();
+        $feature = Feature::GoogleCalendarSync->value;
 
         $this->subscriptionService
             ->expects($this->once())
             ->method('hasFeature')
-            ->with($tenant, 'google_calendar_sync')
+            ->with($tenant, $feature)
             ->willReturn(true);
 
-        $result = $this->service->canAccess($tenant, 'google_calendar_sync');
+        $result = $this->service->canAccess($tenant, $feature);
 
         $this->assertTrue($result);
     }
@@ -56,14 +57,15 @@ final class FeatureGateServiceTest extends TestCase
     public function test_can_access_returns_false_when_tenant_lacks_feature(): void
     {
         $tenant = Tenant::factory()->create();
+        $feature = Feature::GoogleCalendarSync->value;
 
         $this->subscriptionService
             ->expects($this->once())
             ->method('hasFeature')
-            ->with($tenant, 'google_calendar_sync')
+            ->with($tenant, $feature)
             ->willReturn(false);
 
-        $result = $this->service->canAccess($tenant, 'google_calendar_sync');
+        $result = $this->service->canAccess($tenant, $feature);
 
         $this->assertFalse($result);
     }
@@ -85,6 +87,7 @@ final class FeatureGateServiceTest extends TestCase
 
     public function test_get_required_plan_returns_plan_for_known_feature(): void
     {
+        $feature = Feature::GoogleCalendarSync->value;
         $easyPlan = Plan::factory()->create([
             'name' => 'EASY',
             'slug' => 'easy',
@@ -96,7 +99,7 @@ final class FeatureGateServiceTest extends TestCase
             ->with('easy')
             ->willReturn($easyPlan);
 
-        $result = $this->service->getRequiredPlan('google_calendar_sync');
+        $result = $this->service->getRequiredPlan($feature);
 
         $this->assertNotNull($result);
         $this->assertEquals('easy', $result->slug);
@@ -112,15 +115,16 @@ final class FeatureGateServiceTest extends TestCase
     public function test_authorize_does_not_throw_when_feature_available(): void
     {
         $tenant = Tenant::factory()->create();
+        $feature = Feature::GoogleCalendarSync->value;
 
         $this->subscriptionService
             ->expects($this->once())
             ->method('hasFeature')
-            ->with($tenant, 'google_calendar_sync')
+            ->with($tenant, $feature)
             ->willReturn(true);
 
         // Should not throw
-        $this->service->authorize($tenant, 'google_calendar_sync');
+        $this->service->authorize($tenant, $feature);
 
         $this->assertTrue(true);
     }
@@ -128,24 +132,25 @@ final class FeatureGateServiceTest extends TestCase
     public function test_authorize_throws_when_feature_not_available(): void
     {
         $tenant = Tenant::factory()->create();
+        $feature = Feature::GoogleCalendarSync->value;
 
         $this->subscriptionService
             ->expects($this->once())
             ->method('hasFeature')
-            ->with($tenant, 'google_calendar_sync')
+            ->with($tenant, $feature)
             ->willReturn(false);
 
         $this->expectException(FeatureNotAvailableException::class);
 
-        $this->service->authorize($tenant, 'google_calendar_sync');
+        $this->service->authorize($tenant, $feature);
     }
 
     public function test_build_upgrade_message_returns_expected_payload(): void
     {
+        $feature = Feature::GoogleCalendarSync->value;
+        $currentPlan = fake()->word();
         $easyPlan = Plan::factory()->create([
-            'name' => 'EASY',
             'slug' => 'easy',
-            'monthly_price' => '5.90',
         ]);
 
         $this->planRepository
@@ -154,13 +159,13 @@ final class FeatureGateServiceTest extends TestCase
             ->with('easy')
             ->willReturn($easyPlan);
 
-        $payload = $this->service->buildUpgradeMessage('google_calendar_sync', 'free');
+        $payload = $this->service->buildUpgradeMessage($feature, $currentPlan);
 
         $this->assertEquals('feature_not_available', $payload->error);
-        $this->assertEquals('google_calendar_sync', $payload->feature);
-        $this->assertEquals('free', $payload->currentPlan);
+        $this->assertEquals($feature, $payload->feature);
+        $this->assertEquals($currentPlan, $payload->currentPlan);
         $this->assertEquals('easy', $payload->requiredPlan->slug);
-        $this->assertEquals('/billing/upgrade', $payload->upgradeUrl);
+        $this->assertEquals((string) config('billing.upgrade_url', '/billing/upgrade'), $payload->upgradeUrl);
     }
 
     public function test_get_feature_value_returns_value_from_subscription_service(): void
