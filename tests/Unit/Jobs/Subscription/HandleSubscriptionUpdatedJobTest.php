@@ -74,7 +74,8 @@ final class HandleSubscriptionUpdatedJobTest extends TestCase
         $subscription = Subscription::factory()
             ->forTenant($this->tenant)
             ->forPlan($this->smartPlan)
-            ->create(['ends_at' => null]);
+            ->withoutEndsAt()
+            ->create();
 
         $cancelAtTimestamp = now()->addMonth()->timestamp;
 
@@ -95,7 +96,8 @@ final class HandleSubscriptionUpdatedJobTest extends TestCase
         $subscription = Subscription::factory()
             ->forTenant($this->tenant)
             ->forPlan($this->smartPlan)
-            ->create(['ends_at' => null]);
+            ->withoutEndsAt()
+            ->create();
 
         $periodEndTimestamp = now()->addMonth()->timestamp;
 
