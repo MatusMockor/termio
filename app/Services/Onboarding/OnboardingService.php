@@ -11,6 +11,7 @@ use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Enums\BusinessType;
 use App\Exceptions\InvalidOnboardingDataException;
 use App\Models\Tenant;
+use App\Rules\EndTimeAfterStartTime;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
@@ -129,6 +130,9 @@ final class OnboardingService
             throw InvalidOnboardingDataException::forTenantWorkingHours($tenant->id);
         }
 
+        // Onboarding progress may store the step payload either directly as
+        // ['working_hours' => [...]] or nested under the step key as
+        // ['working_hours' => ['working_hours' => [...]]]. Normalize both.
         $hasNestedWorkingHours = array_key_exists('working_hours', $workingHoursStep);
         $workingHoursPayload = $workingHoursStep['working_hours'] ?? $workingHoursStep;
 
@@ -146,7 +150,7 @@ final class OnboardingService
                 'working_hours' => ['array'],
                 'working_hours.*.day_of_week' => ['required', 'integer', 'distinct', 'min:0', 'max:6'],
                 'working_hours.*.start_time' => ['required', 'date_format:H:i'],
-                'working_hours.*.end_time' => ['required', 'date_format:H:i', 'after:working_hours.*.start_time'],
+                'working_hours.*.end_time' => ['required', 'date_format:H:i', new EndTimeAfterStartTime],
                 'working_hours.*.is_active' => ['sometimes', 'boolean'],
             ],
         );

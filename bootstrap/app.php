@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\InvalidOnboardingDataException;
 use App\Http\Middleware\CheckFeatureAccess;
 use App\Http\Middleware\CheckReservationLimit;
 use App\Http\Middleware\CheckServiceLimit;
@@ -36,5 +37,10 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (InvalidOnboardingDataException $exception) {
+            return response()->json([
+                'message' => 'Invalid onboarding data',
+                'error' => $exception->getMessage(),
+            ], 422);
+        });
     })->create();

@@ -92,10 +92,10 @@ final class WorkingHoursBusinessService implements WorkingHoursBusiness
             return false;
         }
 
-        $startTime = $startsAt->format('H:i');
-        $endTime = $endsAt->format('H:i');
+        $businessStart = $startsAt->copy()->setTimeFromTimeString((string) $businessWorkingHours->start_time);
+        $businessEnd = $startsAt->copy()->setTimeFromTimeString((string) $businessWorkingHours->end_time);
 
-        return $startTime >= $businessWorkingHours->start_time
-            && $endTime <= $businessWorkingHours->end_time;
+        return $startsAt->greaterThanOrEqualTo($businessStart)
+            && $endsAt->lessThanOrEqualTo($businessEnd);
     }
 }

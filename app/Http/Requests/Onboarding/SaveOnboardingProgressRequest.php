@@ -6,6 +6,7 @@ namespace App\Http\Requests\Onboarding;
 
 use App\DTOs\Onboarding\SaveProgressDTO;
 use App\Enums\BusinessType;
+use App\Rules\EndTimeAfterStartTime;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -37,7 +38,7 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.working_hours' => ['sometimes', 'array'],
             'data.working_hours.*.day_of_week' => ['required_with:data.working_hours', 'integer', 'distinct', 'min:0', 'max:6'],
             'data.working_hours.*.start_time' => ['required_with:data.working_hours', 'date_format:H:i'],
-            'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', 'after:data.working_hours.*.start_time'],
+            'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', new EndTimeAfterStartTime],
             'data.working_hours.*.is_active' => ['sometimes', 'boolean'],
         ];
     }
