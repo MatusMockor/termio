@@ -32,8 +32,14 @@ final class BookingAvailabilityService implements BookingAvailability
         $parsedDate = Carbon::parse($date);
         $dayOfWeek = $parsedDate->dayOfWeek;
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id);
-        $businessWorkingHours = $this->workingHoursBusiness->getBusinessHoursForDay($activeBusinessHours, $dayOfWeek);
+
+        $activeBusinessHours = $hasConfiguredBusinessHours
+            ? $this->workingHoursBusiness->getActiveBusinessHours($tenant->id)
+            : new EloquentCollection;
+
+        $businessWorkingHours = $hasConfiguredBusinessHours
+            ? $this->workingHoursBusiness->getBusinessHoursForDay($activeBusinessHours, $dayOfWeek)
+            : null;
 
         $service = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)

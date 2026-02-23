@@ -251,8 +251,6 @@ final class OnboardingControllerTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'staff_id' => null,
             'day_of_week' => 1,
-            'start_time' => '09:00',
-            'end_time' => '17:00',
             'is_active' => true,
         ]);
 
@@ -260,10 +258,64 @@ final class OnboardingControllerTest extends TestCase
             'tenant_id' => $this->tenant->id,
             'staff_id' => null,
             'day_of_week' => 2,
-            'start_time' => '10:00',
-            'end_time' => '18:00',
             'is_active' => true,
         ]);
+
+        $mondayHours = WorkingHours::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->whereNull('staff_id')
+            ->where('day_of_week', 1)
+            ->first();
+
+        $this->assertNotNull($mondayHours);
+        $this->assertEquals('09:00', substr((string) $mondayHours->start_time, 0, 5));
+        $this->assertEquals('17:00', substr((string) $mondayHours->end_time, 0, 5));
+
+        $tuesdayHours = WorkingHours::query()
+            ->where('tenant_id', $this->tenant->id)
+            ->whereNull('staff_id')
+            ->where('day_of_week', 2)
+            ->first();
+
+        $this->assertNotNull($tuesdayHours);
+        $this->assertEquals('10:00', substr((string) $tuesdayHours->start_time, 0, 5));
+        $this->assertEquals('18:00', substr((string) $tuesdayHours->end_time, 0, 5));
+
+        $this->assertEquals(
+            2,
+            WorkingHours::query()
+                ->where('tenant_id', $this->tenant->id)
+                ->whereNull('staff_id')
+                ->count()
+        );
+    }
+
+    public function test_complete_onboarding_fails_for_invalid_working_hours_progress_data(): void
+    {
+        $this->tenant->update([
+            'business_type' => BusinessType::Salon,
+            'onboarding_step' => 'working_hours',
+            'onboarding_data' => [
+                'working_hours' => [
+                    'working_hours' => [
+                        [
+                            'day_of_week' => 1,
+                            'start_time' => 'invalid',
+                            'end_time' => '17:00',
+                            'is_active' => true,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson(route('onboarding.complete'));
+
+        $response->assertStatus(500);
+
+        $this->tenant->refresh();
+        $this->assertNull($this->tenant->onboarding_completed_at);
+        $this->assertNotNull($this->tenant->onboarding_data);
     }
 
     public function test_can_skip_onboarding(): void

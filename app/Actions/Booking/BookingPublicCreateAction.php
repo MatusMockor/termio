@@ -102,9 +102,14 @@ final class BookingPublicCreateAction
     private function ensureWithinBusinessWorkingHours(Tenant $tenant, Carbon $startsAt, Carbon $endsAt): void
     {
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id);
-        $businessWorkingHours = $this->workingHoursBusiness
-            ->getBusinessHoursForDay($activeBusinessHours, $startsAt->dayOfWeek);
+
+        $businessWorkingHours = null;
+
+        if ($hasConfiguredBusinessHours) {
+            $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id);
+            $businessWorkingHours = $this->workingHoursBusiness
+                ->getBusinessHoursForDay($activeBusinessHours, $startsAt->dayOfWeek);
+        }
 
         if ($this->workingHoursBusiness->isIntervalWithinBusinessHours(
             $startsAt,

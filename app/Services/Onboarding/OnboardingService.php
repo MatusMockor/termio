@@ -9,6 +9,7 @@ use App\Contracts\Repositories\WorkingHoursRepository;
 use App\DTOs\Onboarding\OnboardingStatusDTO;
 use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Enums\BusinessType;
+use App\Exceptions\InvalidOnboardingDataException;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -93,7 +94,7 @@ final class OnboardingService
     {
         $workingHours = $this->extractWorkingHoursFromProgress($tenant);
 
-        if ($workingHours === null) {
+        if (! $workingHours) {
             return;
         }
 
@@ -117,16 +118,26 @@ final class OnboardingService
     private function extractWorkingHoursFromProgress(Tenant $tenant): ?array
     {
         $onboardingData = $tenant->onboarding_data ?? [];
+        $hasWorkingHoursStep = array_key_exists('working_hours', $onboardingData);
         $workingHoursStep = $onboardingData['working_hours'] ?? null;
 
         if (! is_array($workingHoursStep)) {
-            return null;
+            if (! $hasWorkingHoursStep) {
+                return null;
+            }
+
+            throw InvalidOnboardingDataException::forTenantWorkingHours($tenant->id);
         }
 
+        $hasNestedWorkingHours = array_key_exists('working_hours', $workingHoursStep);
         $workingHoursPayload = $workingHoursStep['working_hours'] ?? $workingHoursStep;
 
         if (! is_array($workingHoursPayload)) {
-            return null;
+            if (! $hasNestedWorkingHours) {
+                return null;
+            }
+
+            throw InvalidOnboardingDataException::forTenantWorkingHours($tenant->id);
         }
 
         $validator = Validator::make(
@@ -141,11 +152,13 @@ final class OnboardingService
         );
 
         if ($validator->fails()) {
-            return null;
+            throw InvalidOnboardingDataException::forTenantWorkingHours(
+                $tenant->id,
+                $validator->errors()->toArray(),
+            );
         }
 
         $validated = $validator->validated();
-
         $workingHours = $validated['working_hours'] ?? null;
 
         if (! is_array($workingHours)) {
