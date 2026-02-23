@@ -124,8 +124,10 @@ final class PublicBookingReadService implements PublicBookingRead
         $today = Carbon::today();
         $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id)
-            ->keyBy('day_of_week');
+
+        $activeBusinessHours = $hasConfiguredBusinessHours
+            ? $this->workingHoursBusiness->getActiveBusinessHours($tenant->id)->keyBy('day_of_week')
+            : collect();
 
         if (empty($staffIds)) {
             return [];

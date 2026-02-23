@@ -16,6 +16,7 @@ final class WorkingHoursBusinessService implements WorkingHoursBusiness
         return WorkingHours::withoutTenantScope()
             ->where('tenant_id', $tenantId)
             ->whereNull('staff_id')
+            ->active()
             ->exists();
     }
 
@@ -27,7 +28,7 @@ final class WorkingHoursBusinessService implements WorkingHoursBusiness
         return WorkingHours::withoutTenantScope()
             ->where('tenant_id', $tenantId)
             ->whereNull('staff_id')
-            ->where('is_active', true)
+            ->active()
             ->get();
     }
 
