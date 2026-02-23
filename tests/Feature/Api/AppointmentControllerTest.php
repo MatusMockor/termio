@@ -128,7 +128,7 @@ final class AppointmentControllerTest extends TestCase
         $client = Client::factory()->forTenant($this->tenant)->create();
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
         $tomorrow = Carbon::tomorrow();
-        $startsAt = $tomorrow->format('Y-m-d') . 'T10:00';
+        $startsAt = $tomorrow->format('Y-m-d').'T10:00';
 
         $response = $this->postJson(route('appointments.store'), [
             'client_id' => $client->id,
