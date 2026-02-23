@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\WorkingHours;
 
+use App\Contracts\Services\WorkingHoursBusiness;
 use App\Models\WorkingHours;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 
-final class BusinessWorkingHoursService
+final class WorkingHoursBusinessService implements WorkingHoursBusiness
 {
     public function hasConfiguredBusinessHours(int $tenantId): bool
     {
@@ -83,6 +84,10 @@ final class BusinessWorkingHoursService
         }
 
         if (! $businessWorkingHours) {
+            return false;
+        }
+
+        if (! $startsAt->isSameDay($endsAt)) {
             return false;
         }
 

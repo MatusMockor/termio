@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Services\Booking;
 
 use App\Contracts\Services\PublicBookingRead;
+use App\Contracts\Services\WorkingHoursBusiness;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\Tenant;
 use App\Models\TimeOff;
 use App\Models\WorkingHours;
-use App\Services\WorkingHours\BusinessWorkingHoursService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,7 +19,7 @@ use Illuminate\Support\Collection as SupportCollection;
 final class PublicBookingReadService implements PublicBookingRead
 {
     public function __construct(
-        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
+        private readonly WorkingHoursBusiness $workingHoursBusiness,
     ) {}
 
     public function getTenantBySlug(string $tenantSlug): Tenant
@@ -123,8 +123,8 @@ final class PublicBookingReadService implements PublicBookingRead
         $endDate = $startDate->copy()->endOfMonth();
         $today = Carbon::today();
         $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
-        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id)
+        $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id)
             ->keyBy('day_of_week');
 
         if (empty($staffIds)) {
@@ -294,7 +294,7 @@ final class PublicBookingReadService implements PublicBookingRead
                 continue;
             }
 
-            $constrainedWorkingHours = $this->businessWorkingHoursService->constrainStaffHoursByBusinessHours(
+            $constrainedWorkingHours = $this->workingHoursBusiness->constrainStaffHoursByBusinessHours(
                 $staffWorkingHours,
                 $businessWorkingHours,
                 $hasConfiguredBusinessHours,

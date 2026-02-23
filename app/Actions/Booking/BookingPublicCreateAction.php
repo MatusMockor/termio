@@ -6,6 +6,7 @@ namespace App\Actions\Booking;
 
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Contracts\Repositories\ServiceRepository;
+use App\Contracts\Services\WorkingHoursBusiness;
 use App\DTOs\Booking\CreatePublicBookingDTO;
 use App\Models\Appointment;
 use App\Models\Client;
@@ -13,7 +14,6 @@ use App\Models\Tenant;
 use App\Notifications\BookingConfirmed;
 use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
-use App\Services\WorkingHours\BusinessWorkingHoursService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -24,7 +24,7 @@ final class BookingPublicCreateAction
         private readonly AppointmentRepository $appointmentRepository,
         private readonly ServiceRepository $serviceRepository,
         private readonly AppointmentDurationService $durationService,
-        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
+        private readonly WorkingHoursBusiness $workingHoursBusiness,
     ) {}
 
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
@@ -101,12 +101,12 @@ final class BookingPublicCreateAction
 
     private function ensureWithinBusinessWorkingHours(Tenant $tenant, Carbon $startsAt, Carbon $endsAt): void
     {
-        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id);
-        $businessWorkingHours = $this->businessWorkingHoursService
+        $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id);
+        $businessWorkingHours = $this->workingHoursBusiness
             ->getBusinessHoursForDay($activeBusinessHours, $startsAt->dayOfWeek);
 
-        if ($this->businessWorkingHoursService->isIntervalWithinBusinessHours(
+        if ($this->workingHoursBusiness->isIntervalWithinBusinessHours(
             $startsAt,
             $endsAt,
             $businessWorkingHours,

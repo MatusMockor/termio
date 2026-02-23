@@ -340,6 +340,31 @@ final class BookingControllerTest extends TestCase
             ->assertJsonValidationErrors(['starts_at']);
     }
 
+    public function test_create_booking_returns_validation_error_when_interval_crosses_midnight(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 120]);
+        $startsAt = Carbon::tomorrow()->setHour(23)->setMinute(30);
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => null,
+            'day_of_week' => $startsAt->dayOfWeek,
+            'start_time' => '00:00',
+            'end_time' => '23:59',
+            'is_active' => true,
+        ]);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => $startsAt->toIso8601String(),
+            'client_name' => fake()->name(),
+            'client_phone' => fake()->phoneNumber(),
+            'client_email' => fake()->safeEmail(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
+    }
+
     public function test_create_booking_uses_existing_client(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create();
