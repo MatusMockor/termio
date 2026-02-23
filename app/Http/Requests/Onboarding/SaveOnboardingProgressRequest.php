@@ -17,6 +17,9 @@ final class SaveOnboardingProgressRequest extends FormRequest
      */
     public function rules(): array
     {
+        $dayOfWeekMin = (int) config('working_hours.day_of_week.min');
+        $dayOfWeekMax = (int) config('working_hours.day_of_week.max');
+
         return [
             'step' => ['required', 'string', 'max:255'],
             'data' => ['required', 'array'],
@@ -36,7 +39,13 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.staff_members.*.last_name' => ['required_with:data.staff_members', 'string', 'max:100'],
             'data.staff_members.*.email' => ['required_with:data.staff_members', 'email', 'max:255'],
             'data.working_hours' => ['sometimes', 'array'],
-            'data.working_hours.*.day_of_week' => ['required_with:data.working_hours', 'integer', 'distinct', 'min:0', 'max:6'],
+            'data.working_hours.*.day_of_week' => [
+                'required_with:data.working_hours',
+                'integer',
+                'distinct',
+                'min:'.$dayOfWeekMin,
+                'max:'.$dayOfWeekMax,
+            ],
             'data.working_hours.*.start_time' => ['required_with:data.working_hours', 'date_format:H:i'],
             'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', new EndTimeAfterStartTime],
             'data.working_hours.*.is_active' => ['sometimes', 'boolean'],
