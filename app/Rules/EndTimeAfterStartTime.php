@@ -43,8 +43,18 @@ final class EndTimeAfterStartTime implements DataAwareRule, ValidationRule
             return;
         }
 
-        $normalizedStart = strtotime('1970-01-01 '.$startTime);
-        $normalizedEnd = strtotime('1970-01-01 '.$value);
+        $referenceDate = config('working_hours.time_reference_date');
+
+        if (! is_string($referenceDate) || $referenceDate === '') {
+            $referenceDate = config('working_hours.default_time_reference_date');
+        }
+
+        if (! is_string($referenceDate) || $referenceDate === '') {
+            return;
+        }
+
+        $normalizedStart = strtotime($referenceDate.' '.$startTime);
+        $normalizedEnd = strtotime($referenceDate.' '.$value);
 
         if ($normalizedStart === false || $normalizedEnd === false) {
             return;

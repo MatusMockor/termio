@@ -144,11 +144,14 @@ final class OnboardingService
             throw InvalidOnboardingDataException::forTenantWorkingHours($tenant->id);
         }
 
+        $dayOfWeekMin = (int) config('working_hours.day_of_week.min');
+        $dayOfWeekMax = (int) config('working_hours.day_of_week.max');
+
         $validator = Validator::make(
             ['working_hours' => $workingHoursPayload],
             [
                 'working_hours' => ['array'],
-                'working_hours.*.day_of_week' => ['required', 'integer', 'distinct', 'min:0', 'max:6'],
+                'working_hours.*.day_of_week' => ['required', 'integer', 'distinct', 'min:'.$dayOfWeekMin, 'max:'.$dayOfWeekMax],
                 'working_hours.*.start_time' => ['required', 'date_format:H:i'],
                 'working_hours.*.end_time' => ['required', 'date_format:H:i', new EndTimeAfterStartTime],
                 'working_hours.*.is_active' => ['sometimes', 'boolean'],
