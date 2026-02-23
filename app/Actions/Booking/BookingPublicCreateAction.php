@@ -13,7 +13,10 @@ use App\Models\Tenant;
 use App\Notifications\BookingConfirmed;
 use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
+use App\Services\WorkingHours\BusinessWorkingHoursService;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 final class BookingPublicCreateAction
 {
@@ -21,6 +24,7 @@ final class BookingPublicCreateAction
         private readonly AppointmentRepository $appointmentRepository,
         private readonly ServiceRepository $serviceRepository,
         private readonly AppointmentDurationService $durationService,
+        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
     ) {}
 
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
@@ -28,6 +32,7 @@ final class BookingPublicCreateAction
         $service = $this->serviceRepository->findByIdWithoutTenantScope($dto->serviceId, $tenant->id);
 
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
+        $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
 
         $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
             $client = $this->findOrCreateClient($dto, $tenant);
@@ -92,5 +97,26 @@ final class BookingPublicCreateAction
                 'email' => $dto->clientEmail,
             ],
         );
+    }
+
+    private function ensureWithinBusinessWorkingHours(Tenant $tenant, Carbon $startsAt, Carbon $endsAt): void
+    {
+        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id);
+        $businessWorkingHours = $this->businessWorkingHoursService
+            ->getBusinessHoursForDay($activeBusinessHours, $startsAt->dayOfWeek);
+
+        if ($this->businessWorkingHoursService->isIntervalWithinBusinessHours(
+            $startsAt,
+            $endsAt,
+            $businessWorkingHours,
+            $hasConfiguredBusinessHours,
+        )) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'starts_at' => 'Selected time is outside business opening hours.',
+        ]);
     }
 }

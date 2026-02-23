@@ -5,15 +5,18 @@ declare(strict_types=1);
 namespace App\Services\Onboarding;
 
 use App\Contracts\Repositories\OnboardingRepository;
+use App\Contracts\Repositories\WorkingHoursRepository;
 use App\DTOs\Onboarding\OnboardingStatusDTO;
 use App\Enums\BusinessType;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 final class OnboardingService
 {
     public function __construct(
         private readonly OnboardingRepository $repository,
+        private readonly WorkingHoursRepository $workingHoursRepository,
     ) {}
 
     /**
@@ -32,6 +35,7 @@ final class OnboardingService
     public function completeOnboarding(Tenant $tenant): void
     {
         DB::transaction(function () use ($tenant): void {
+            $this->syncBusinessWorkingHoursFromProgress($tenant);
             $this->repository->completeOnboarding($tenant);
         });
     }
@@ -82,5 +86,71 @@ final class OnboardingService
     public function resetOnboarding(Tenant $tenant): void
     {
         $this->repository->resetOnboarding($tenant);
+    }
+
+    private function syncBusinessWorkingHoursFromProgress(Tenant $tenant): void
+    {
+        $workingHours = $this->extractWorkingHoursFromProgress($tenant);
+
+        if ($workingHours === null) {
+            return;
+        }
+
+        $this->workingHoursRepository->deleteByTenantAndStaff($tenant->id, null);
+
+        foreach ($workingHours as $hours) {
+            $this->workingHoursRepository->create([
+                'tenant_id' => $tenant->id,
+                'staff_id' => null,
+                'day_of_week' => $hours['day_of_week'],
+                'start_time' => $hours['start_time'],
+                'end_time' => $hours['end_time'],
+                'is_active' => $hours['is_active'] ?? true,
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int, array{day_of_week: int, start_time: string, end_time: string, is_active?: bool}>|null
+     */
+    private function extractWorkingHoursFromProgress(Tenant $tenant): ?array
+    {
+        $onboardingData = $tenant->onboarding_data ?? [];
+        $workingHoursStep = $onboardingData['working_hours'] ?? null;
+
+        if (! is_array($workingHoursStep)) {
+            return null;
+        }
+
+        $workingHoursPayload = $workingHoursStep['working_hours'] ?? $workingHoursStep;
+
+        if (! is_array($workingHoursPayload)) {
+            return null;
+        }
+
+        $validator = Validator::make(
+            ['working_hours' => $workingHoursPayload],
+            [
+                'working_hours' => ['array'],
+                'working_hours.*.day_of_week' => ['required', 'integer', 'min:0', 'max:6'],
+                'working_hours.*.start_time' => ['required', 'date_format:H:i'],
+                'working_hours.*.end_time' => ['required', 'date_format:H:i', 'after:working_hours.*.start_time'],
+                'working_hours.*.is_active' => ['boolean'],
+            ],
+        );
+
+        if ($validator->fails()) {
+            return null;
+        }
+
+        $validated = $validator->validated();
+
+        $workingHours = $validated['working_hours'] ?? null;
+
+        if (! is_array($workingHours)) {
+            return null;
+        }
+
+        return $workingHours;
     }
 }

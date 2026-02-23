@@ -207,6 +207,48 @@ final class BookingControllerTest extends TestCase
         $this->assertCount(5, $slots);
     }
 
+    public function test_availability_respects_business_working_hours_window(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        $targetDate = Carbon::tomorrow();
+        $dayOfWeek = $targetDate->dayOfWeek;
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => null,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => '12:00',
+            'end_time' => '15:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.availability', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'staff_id' => $staff->id,
+            'date' => $targetDate->toDateString(),
+        ]));
+
+        $response->assertOk();
+
+        $times = collect($response->json('slots'))
+            ->pluck('time')
+            ->values()
+            ->all();
+
+        $this->assertSame(['12:00', '12:30', '13:00', '13:30', '14:00'], $times);
+    }
+
     public function test_availability_returns_empty_for_non_working_day(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create();
@@ -271,6 +313,31 @@ final class BookingControllerTest extends TestCase
             'status' => 'pending',
             'source' => 'online',
         ]);
+    }
+
+    public function test_create_booking_returns_validation_error_outside_business_working_hours(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $startsAt = Carbon::tomorrow()->setHour(10)->setMinute(0);
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => null,
+            'day_of_week' => $startsAt->dayOfWeek,
+            'start_time' => '12:00',
+            'end_time' => '18:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => $startsAt->toIso8601String(),
+            'client_name' => fake()->name(),
+            'client_phone' => fake()->phoneNumber(),
+            'client_email' => fake()->safeEmail(),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['starts_at']);
     }
 
     public function test_create_booking_uses_existing_client(): void
@@ -423,5 +490,42 @@ final class BookingControllerTest extends TestCase
 
         $availableDates = $response->json('available_dates');
         $this->assertIsArray($availableDates);
+    }
+
+    public function test_available_dates_excludes_days_without_business_working_hours(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        $targetDate = Carbon::tomorrow();
+        $staffDay = $targetDate->dayOfWeek;
+        $businessDay = ($staffDay + 1) % 7;
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => $staffDay,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => null,
+            'day_of_week' => $businessDay,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.available-dates', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'month' => $targetDate->month,
+            'year' => $targetDate->year,
+        ]));
+
+        $response->assertOk()
+            ->assertJsonPath('available_dates', []);
     }
 }
