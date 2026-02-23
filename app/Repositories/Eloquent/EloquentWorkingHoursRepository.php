@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\WorkingHoursRepository;
+use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Models\WorkingHours;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -20,11 +21,12 @@ final class EloquentWorkingHoursRepository implements WorkingHoursRepository
         return WorkingHours::findOrFail($id);
     }
 
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function create(array $data): WorkingHours
+    public function create(array|WorkingHoursDTO $data): WorkingHours
     {
+        if ($data instanceof WorkingHoursDTO) {
+            $data = $data->toArray();
+        }
+
         return WorkingHours::create($data);
     }
 

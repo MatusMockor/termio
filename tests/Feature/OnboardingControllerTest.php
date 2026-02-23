@@ -172,6 +172,32 @@ final class OnboardingControllerTest extends TestCase
             ->assertJsonValidationErrors(['data']);
     }
 
+    public function test_cannot_save_progress_with_duplicate_working_hours_days(): void
+    {
+        $response = $this->postJson(route('onboarding.save-progress'), [
+            'step' => 'working_hours',
+            'data' => [
+                'working_hours' => [
+                    [
+                        'day_of_week' => 1,
+                        'start_time' => '09:00',
+                        'end_time' => '17:00',
+                        'is_active' => true,
+                    ],
+                    [
+                        'day_of_week' => 1,
+                        'start_time' => '10:00',
+                        'end_time' => '18:00',
+                        'is_active' => true,
+                    ],
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['data.working_hours.1.day_of_week']);
+    }
+
     public function test_can_complete_onboarding(): void
     {
         $this->tenant->update([

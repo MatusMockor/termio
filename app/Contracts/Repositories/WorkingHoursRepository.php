@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Repositories;
 
+use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Models\WorkingHours;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -13,10 +14,7 @@ interface WorkingHoursRepository
 
     public function findOrFail(int $id): WorkingHours;
 
-    /**
-     * @param  array<string, mixed>  $data
-     */
-    public function create(array $data): WorkingHours;
+    public function create(array|WorkingHoursDTO $data): WorkingHours;
 
     /**
      * @param  array<string, mixed>  $data

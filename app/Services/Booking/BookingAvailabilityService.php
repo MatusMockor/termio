@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Booking;
 
 use App\Contracts\Services\BookingAvailability;
+use App\Contracts\Services\WorkingHoursBusiness;
 use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Service;
@@ -12,7 +13,6 @@ use App\Models\StaffProfile;
 use App\Models\Tenant;
 use App\Models\TimeOff;
 use App\Models\WorkingHours;
-use App\Services\WorkingHours\BusinessWorkingHoursService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -21,7 +21,7 @@ final class BookingAvailabilityService implements BookingAvailability
 {
     public function __construct(
         private readonly AvailabilitySlotService $availabilitySlotService,
-        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
+        private readonly WorkingHoursBusiness $workingHoursBusiness,
     ) {}
 
     /**
@@ -31,9 +31,9 @@ final class BookingAvailabilityService implements BookingAvailability
     {
         $parsedDate = Carbon::parse($date);
         $dayOfWeek = $parsedDate->dayOfWeek;
-        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
-        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id);
-        $businessWorkingHours = $this->businessWorkingHoursService->getBusinessHoursForDay($activeBusinessHours, $dayOfWeek);
+        $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->workingHoursBusiness->getActiveBusinessHours($tenant->id);
+        $businessWorkingHours = $this->workingHoursBusiness->getBusinessHoursForDay($activeBusinessHours, $dayOfWeek);
 
         $service = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)
@@ -232,7 +232,7 @@ final class BookingAvailabilityService implements BookingAvailability
             ->where('is_active', true)
             ->first();
 
-        return $this->businessWorkingHoursService->constrainStaffHoursByBusinessHours(
+        return $this->workingHoursBusiness->constrainStaffHoursByBusinessHours(
             $staffWorkingHours,
             $businessWorkingHours,
             $hasConfiguredBusinessHours,

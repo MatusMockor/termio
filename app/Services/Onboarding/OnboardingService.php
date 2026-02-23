@@ -7,6 +7,7 @@ namespace App\Services\Onboarding;
 use App\Contracts\Repositories\OnboardingRepository;
 use App\Contracts\Repositories\WorkingHoursRepository;
 use App\DTOs\Onboarding\OnboardingStatusDTO;
+use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Enums\BusinessType;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
@@ -99,14 +100,14 @@ final class OnboardingService
         $this->workingHoursRepository->deleteByTenantAndStaff($tenant->id, null);
 
         foreach ($workingHours as $hours) {
-            $this->workingHoursRepository->create([
-                'tenant_id' => $tenant->id,
-                'staff_id' => null,
-                'day_of_week' => $hours['day_of_week'],
-                'start_time' => $hours['start_time'],
-                'end_time' => $hours['end_time'],
-                'is_active' => $hours['is_active'] ?? true,
-            ]);
+            $this->workingHoursRepository->create(new WorkingHoursDTO(
+                tenantId: $tenant->id,
+                staffId: null,
+                dayOfWeek: $hours['day_of_week'],
+                startTime: $hours['start_time'],
+                endTime: $hours['end_time'],
+                activeFlag: ($hours['is_active'] ?? true) ? 1 : 0,
+            ));
         }
     }
 
@@ -132,10 +133,10 @@ final class OnboardingService
             ['working_hours' => $workingHoursPayload],
             [
                 'working_hours' => ['array'],
-                'working_hours.*.day_of_week' => ['required', 'integer', 'min:0', 'max:6'],
+                'working_hours.*.day_of_week' => ['required', 'integer', 'distinct', 'min:0', 'max:6'],
                 'working_hours.*.start_time' => ['required', 'date_format:H:i'],
                 'working_hours.*.end_time' => ['required', 'date_format:H:i', 'after:working_hours.*.start_time'],
-                'working_hours.*.is_active' => ['boolean'],
+                'working_hours.*.is_active' => ['sometimes', 'boolean'],
             ],
         );
 
