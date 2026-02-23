@@ -311,7 +311,9 @@ final class OnboardingControllerTest extends TestCase
 
         $response = $this->postJson(route('onboarding.complete'));
 
-        $response->assertStatus(500);
+        $response->assertUnprocessable()
+            ->assertJsonStructure(['message', 'error'])
+            ->assertJsonPath('message', 'Invalid onboarding data');
 
         $this->tenant->refresh();
         $this->assertNull($this->tenant->onboarding_completed_at);
