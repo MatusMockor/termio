@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Service;
@@ -126,9 +127,11 @@ final class AppointmentControllerTest extends TestCase
         $this->actingAsOwner();
 
         $client = Client::factory()->forTenant($this->tenant)->create();
-        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
-        $tomorrow = Carbon::tomorrow();
-        $startsAt = $tomorrow->format('Y-m-d').'T10:00';
+        $durationMinutes = fake()->randomElement([30, 45, 60, 75, 90]);
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => $durationMinutes]);
+        $tomorrow = fake()->dateTimeBetween('tomorrow', 'tomorrow');
+        $hour = fake()->numberBetween(8, 16);
+        $startsAt = Carbon::instance($tomorrow)->format('Y-m-d').sprintf('T%02d:00', $hour);
 
         $response = $this->postJson(route('appointments.store'), [
             'client_id' => $client->id,
@@ -139,11 +142,11 @@ final class AppointmentControllerTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.client_id', $client->id)
             ->assertJsonPath('data.service_id', $service->id)
-            ->assertJsonPath('data.status', 'confirmed');
+            ->assertJsonPath('data.status', AppointmentStatus::Confirmed->value);
 
-        $appointment = Appointment::query()->where('client_id', $client->id)->first();
-        $this->assertEquals(10, $appointment->starts_at->hour);
-        $this->assertEquals(11, $appointment->ends_at->hour);
+        $appointment = Appointment::query()->where('client_id', $client->id)->firstOrFail();
+        $this->assertEquals($hour, $appointment->starts_at->hour);
+        $this->assertEquals($durationMinutes, $appointment->starts_at->diffInMinutes($appointment->ends_at));
     }
 
     public function test_store_validates_required_fields(): void
