@@ -121,6 +121,31 @@ final class AppointmentControllerTest extends TestCase
         ]);
     }
 
+    public function test_store_creates_appointment_with_calendar_date_format(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create();
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $tomorrow = Carbon::tomorrow();
+        $startsAt = $tomorrow->format('Y-m-d') . 'T10:00';
+
+        $response = $this->postJson(route('appointments.store'), [
+            'client_id' => $client->id,
+            'service_id' => $service->id,
+            'starts_at' => $startsAt,
+        ]);
+
+        $response->assertCreated()
+            ->assertJsonPath('data.client_id', $client->id)
+            ->assertJsonPath('data.service_id', $service->id)
+            ->assertJsonPath('data.status', 'confirmed');
+
+        $appointment = Appointment::query()->where('client_id', $client->id)->first();
+        $this->assertEquals(10, $appointment->starts_at->hour);
+        $this->assertEquals(11, $appointment->ends_at->hour);
+    }
+
     public function test_store_validates_required_fields(): void
     {
         $this->actingAsOwner();
