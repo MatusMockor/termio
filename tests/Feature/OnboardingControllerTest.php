@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Enums\BusinessType;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WorkingHours;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -189,6 +190,54 @@ final class OnboardingControllerTest extends TestCase
         $this->assertNotNull($this->tenant->onboarding_completed_at);
         $this->assertNull($this->tenant->onboarding_step);
         $this->assertNull($this->tenant->onboarding_data);
+    }
+
+    public function test_complete_onboarding_syncs_business_working_hours_from_progress(): void
+    {
+        $this->tenant->update([
+            'business_type' => BusinessType::Salon,
+            'onboarding_step' => 'working_hours',
+            'onboarding_data' => [
+                'working_hours' => [
+                    'working_hours' => [
+                        [
+                            'day_of_week' => 1,
+                            'start_time' => '09:00',
+                            'end_time' => '17:00',
+                            'is_active' => true,
+                        ],
+                        [
+                            'day_of_week' => 2,
+                            'start_time' => '10:00',
+                            'end_time' => '18:00',
+                            'is_active' => true,
+                        ],
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson(route('onboarding.complete'));
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas(WorkingHours::class, [
+            'tenant_id' => $this->tenant->id,
+            'staff_id' => null,
+            'day_of_week' => 1,
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'is_active' => true,
+        ]);
+
+        $this->assertDatabaseHas(WorkingHours::class, [
+            'tenant_id' => $this->tenant->id,
+            'staff_id' => null,
+            'day_of_week' => 2,
+            'start_time' => '10:00',
+            'end_time' => '18:00',
+            'is_active' => true,
+        ]);
     }
 
     public function test_can_skip_onboarding(): void

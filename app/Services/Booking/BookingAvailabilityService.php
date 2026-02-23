@@ -12,6 +12,7 @@ use App\Models\StaffProfile;
 use App\Models\Tenant;
 use App\Models\TimeOff;
 use App\Models\WorkingHours;
+use App\Services\WorkingHours\BusinessWorkingHoursService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -20,6 +21,7 @@ final class BookingAvailabilityService implements BookingAvailability
 {
     public function __construct(
         private readonly AvailabilitySlotService $availabilitySlotService,
+        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
     ) {}
 
     /**
@@ -29,6 +31,9 @@ final class BookingAvailabilityService implements BookingAvailability
     {
         $parsedDate = Carbon::parse($date);
         $dayOfWeek = $parsedDate->dayOfWeek;
+        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id);
+        $businessWorkingHours = $this->businessWorkingHoursService->getBusinessHoursForDay($activeBusinessHours, $dayOfWeek);
 
         $service = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)
@@ -40,7 +45,9 @@ final class BookingAvailabilityService implements BookingAvailability
                 $staffId,
                 $service,
                 $parsedDate,
-                $dayOfWeek
+                $dayOfWeek,
+                $hasConfiguredBusinessHours,
+                $businessWorkingHours,
             );
         }
 
@@ -48,7 +55,9 @@ final class BookingAvailabilityService implements BookingAvailability
             $tenant->id,
             $service,
             $parsedDate,
-            $dayOfWeek
+            $dayOfWeek,
+            $hasConfiguredBusinessHours,
+            $businessWorkingHours,
         );
     }
 
@@ -60,13 +69,21 @@ final class BookingAvailabilityService implements BookingAvailability
         int $staffId,
         Service $service,
         Carbon $date,
-        int $dayOfWeek
+        int $dayOfWeek,
+        bool $hasConfiguredBusinessHours,
+        ?WorkingHours $businessWorkingHours
     ): array {
         if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return [];
         }
 
-        $workingHours = $this->getWorkingHoursForStaff($tenantId, $staffId, $dayOfWeek);
+        $workingHours = $this->getWorkingHoursForStaff(
+            $tenantId,
+            $staffId,
+            $dayOfWeek,
+            $hasConfiguredBusinessHours,
+            $businessWorkingHours,
+        );
 
         if (! $workingHours) {
             return [];
@@ -99,7 +116,9 @@ final class BookingAvailabilityService implements BookingAvailability
         int $tenantId,
         Service $service,
         Carbon $date,
-        int $dayOfWeek
+        int $dayOfWeek,
+        bool $hasConfiguredBusinessHours,
+        ?WorkingHours $businessWorkingHours
     ): array {
         $staffIds = $this->getBookableStaffIds($tenantId, $service->id);
 
@@ -111,7 +130,16 @@ final class BookingAvailabilityService implements BookingAvailability
         $allSlots = [];
 
         foreach ($staffIds as $staffId) {
-            $this->appendAvailableStaffSlots($allSlots, $tenantId, $staffId, $service, $date, $dayOfWeek);
+            $this->appendAvailableStaffSlots(
+                $allSlots,
+                $tenantId,
+                $staffId,
+                $service,
+                $date,
+                $dayOfWeek,
+                $hasConfiguredBusinessHours,
+                $businessWorkingHours,
+            );
         }
 
         ksort($allSlots);
@@ -141,13 +169,22 @@ final class BookingAvailabilityService implements BookingAvailability
         int $staffId,
         Service $service,
         Carbon $date,
-        int $dayOfWeek
+        int $dayOfWeek,
+        bool $hasConfiguredBusinessHours,
+        ?WorkingHours $businessWorkingHours
     ): void {
         if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return;
         }
 
-        $workingHours = $this->getWorkingHoursForStaff($tenantId, $staffId, $dayOfWeek);
+        $workingHours = $this->getWorkingHoursForStaff(
+            $tenantId,
+            $staffId,
+            $dayOfWeek,
+            $hasConfiguredBusinessHours,
+            $businessWorkingHours,
+        );
+
         if ($workingHours === null) {
             return;
         }
@@ -181,14 +218,25 @@ final class BookingAvailabilityService implements BookingAvailability
         }
     }
 
-    private function getWorkingHoursForStaff(int $tenantId, int $staffId, int $dayOfWeek): ?WorkingHours
-    {
-        return WorkingHours::withoutTenantScope()
+    private function getWorkingHoursForStaff(
+        int $tenantId,
+        int $staffId,
+        int $dayOfWeek,
+        bool $hasConfiguredBusinessHours,
+        ?WorkingHours $businessWorkingHours
+    ): ?WorkingHours {
+        $staffWorkingHours = WorkingHours::withoutTenantScope()
             ->where('tenant_id', $tenantId)
             ->where('staff_id', $staffId)
             ->where('day_of_week', $dayOfWeek)
             ->where('is_active', true)
             ->first();
+
+        return $this->businessWorkingHoursService->constrainStaffHoursByBusinessHours(
+            $staffWorkingHours,
+            $businessWorkingHours,
+            $hasConfiguredBusinessHours,
+        );
     }
 
     /**

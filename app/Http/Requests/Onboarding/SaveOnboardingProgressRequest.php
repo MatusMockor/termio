@@ -35,6 +35,10 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.staff_members.*.last_name' => ['required_with:data.staff_members', 'string', 'max:100'],
             'data.staff_members.*.email' => ['required_with:data.staff_members', 'email', 'max:255'],
             'data.working_hours' => ['sometimes', 'array'],
+            'data.working_hours.*.day_of_week' => ['required_with:data.working_hours', 'integer', 'min:0', 'max:6'],
+            'data.working_hours.*.start_time' => ['required_with:data.working_hours', 'date_format:H:i'],
+            'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', 'after:data.working_hours.*.start_time'],
+            'data.working_hours.*.is_active' => ['boolean'],
         ];
     }
 

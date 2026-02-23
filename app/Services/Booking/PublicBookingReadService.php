@@ -10,6 +10,7 @@ use App\Models\StaffProfile;
 use App\Models\Tenant;
 use App\Models\TimeOff;
 use App\Models\WorkingHours;
+use App\Services\WorkingHours\BusinessWorkingHoursService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -17,6 +18,10 @@ use Illuminate\Support\Collection as SupportCollection;
 
 final class PublicBookingReadService implements PublicBookingRead
 {
+    public function __construct(
+        private readonly BusinessWorkingHoursService $businessWorkingHoursService,
+    ) {}
+
     public function getTenantBySlug(string $tenantSlug): Tenant
     {
         return Tenant::where('slug', $tenantSlug)->firstOrFail();
@@ -118,6 +123,9 @@ final class PublicBookingReadService implements PublicBookingRead
         $endDate = $startDate->copy()->endOfMonth();
         $today = Carbon::today();
         $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
+        $hasConfiguredBusinessHours = $this->businessWorkingHoursService->hasConfiguredBusinessHours($tenant->id);
+        $activeBusinessHours = $this->businessWorkingHoursService->getActiveBusinessHours($tenant->id)
+            ->keyBy('day_of_week');
 
         if (empty($staffIds)) {
             return [];
@@ -132,7 +140,9 @@ final class PublicBookingReadService implements PublicBookingRead
             $timeOffsByDate,
             $startDate,
             $endDate,
-            $today
+            $today,
+            $hasConfiguredBusinessHours,
+            $activeBusinessHours,
         );
     }
 
@@ -220,7 +230,9 @@ final class PublicBookingReadService implements PublicBookingRead
         SupportCollection $timeOffsByDate,
         Carbon $startDate,
         Carbon $endDate,
-        Carbon $today
+        Carbon $today,
+        bool $hasConfiguredBusinessHours,
+        SupportCollection $activeBusinessHours,
     ): array {
         $availableDates = [];
         $currentDate = $startDate->copy();
@@ -233,7 +245,15 @@ final class PublicBookingReadService implements PublicBookingRead
             }
 
             $dateStr = $currentDate->toDateString();
-            if ($this->hasAvailabilityForDate($dateStr, $currentDate->dayOfWeek, $staffIds, $workingHoursMap, $timeOffsByDate)) {
+            if ($this->hasAvailabilityForDate(
+                $dateStr,
+                $currentDate->dayOfWeek,
+                $staffIds,
+                $workingHoursMap,
+                $timeOffsByDate,
+                $hasConfiguredBusinessHours,
+                $activeBusinessHours
+            )) {
                 $availableDates[] = $dateStr;
             }
 
@@ -251,16 +271,36 @@ final class PublicBookingReadService implements PublicBookingRead
         int $dayOfWeek,
         array $staffIds,
         SupportCollection $workingHoursMap,
-        SupportCollection $timeOffsByDate
+        SupportCollection $timeOffsByDate,
+        bool $hasConfiguredBusinessHours,
+        SupportCollection $activeBusinessHours
     ): bool {
+        if ($hasConfiguredBusinessHours && ! $activeBusinessHours->has($dayOfWeek)) {
+            return false;
+        }
+
         $dateTimeOffs = $timeOffsByDate->get($dateStr, collect());
+        $businessWorkingHours = $activeBusinessHours->get($dayOfWeek);
 
         foreach ($staffIds as $checkStaffId) {
             if ($this->isAllDayOffForStaff($dateTimeOffs, $checkStaffId)) {
                 continue;
             }
 
-            if ($workingHoursMap->has($checkStaffId.'_'.$dayOfWeek)) {
+            $staffWorkingHoursForDay = $workingHoursMap->get($checkStaffId.'_'.$dayOfWeek);
+            $staffWorkingHours = $staffWorkingHoursForDay?->first();
+
+            if (! $staffWorkingHours instanceof WorkingHours) {
+                continue;
+            }
+
+            $constrainedWorkingHours = $this->businessWorkingHoursService->constrainStaffHoursByBusinessHours(
+                $staffWorkingHours,
+                $businessWorkingHours,
+                $hasConfiguredBusinessHours,
+            );
+
+            if ($constrainedWorkingHours) {
                 return true;
             }
         }
