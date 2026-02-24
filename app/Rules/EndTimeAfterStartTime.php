@@ -42,13 +42,13 @@ final class EndTimeAfterStartTime implements DataAwareRule, ValidationRule
 
         $startTime = $this->resolveStartTime($attribute);
 
-        if ($startTime === null) {
+        if (! $startTime) {
             return false;
         }
 
         $referenceDate = $this->resolveReferenceDate();
 
-        if ($referenceDate === null) {
+        if (! $referenceDate) {
             return false;
         }
 
