@@ -19,6 +19,13 @@ final class SaveOnboardingProgressRequest extends FormRequest
     {
         $dayOfWeekMin = (int) config('working_hours.day_of_week.min');
         $dayOfWeekMax = (int) config('working_hours.day_of_week.max');
+        $leadTimeMin = (int) config('reservation.limits.lead_time_hours.min');
+        $leadTimeMax = (int) config('reservation.limits.lead_time_hours.max');
+        $maxDaysMin = (int) config('reservation.limits.max_days_in_advance.min');
+        $maxDaysMax = (int) config('reservation.limits.max_days_in_advance.max');
+        $slotIntervalMin = (int) config('reservation.limits.slot_interval_minutes.min');
+        $slotIntervalMax = (int) config('reservation.limits.slot_interval_minutes.max');
+        $slotIntervalMultipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
 
         return [
             'step' => ['required', 'string', 'max:255'],
@@ -49,6 +56,26 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.working_hours.*.start_time' => ['required_with:data.working_hours', 'date_format:H:i'],
             'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', new EndTimeAfterStartTime],
             'data.working_hours.*.is_active' => ['sometimes', 'boolean'],
+            'data.reservation_settings' => ['sometimes', 'array'],
+            'data.reservation_settings.lead_time_hours' => [
+                'required_with:data.reservation_settings',
+                'integer',
+                'min:'.$leadTimeMin,
+                'max:'.$leadTimeMax,
+            ],
+            'data.reservation_settings.max_days_in_advance' => [
+                'required_with:data.reservation_settings',
+                'integer',
+                'min:'.$maxDaysMin,
+                'max:'.$maxDaysMax,
+            ],
+            'data.reservation_settings.slot_interval_minutes' => [
+                'required_with:data.reservation_settings',
+                'integer',
+                'min:'.$slotIntervalMin,
+                'max:'.$slotIntervalMax,
+                'multiple_of:'.$slotIntervalMultipleOf,
+            ],
         ];
     }
 

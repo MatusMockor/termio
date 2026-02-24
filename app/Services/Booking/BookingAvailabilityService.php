@@ -30,8 +30,15 @@ final class BookingAvailabilityService implements BookingAvailability
     public function getAvailability(Tenant $tenant, int $serviceId, string $date, ?int $staffId = null): array
     {
         $parsedDate = Carbon::parse($date);
+
+        if (! $this->isDateWithinReservationWindow($tenant, $parsedDate)) {
+            return [];
+        }
+
         $dayOfWeek = $parsedDate->dayOfWeek;
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
+        $slotIntervalMinutes = $tenant->getReservationSlotIntervalMinutes();
+        $minimumAllowedStartAt = $this->getMinimumAllowedStartAt($tenant, $parsedDate);
 
         $activeBusinessHours = $hasConfiguredBusinessHours
             ? $this->workingHoursBusiness->getActiveBusinessHours($tenant->id)
@@ -54,6 +61,8 @@ final class BookingAvailabilityService implements BookingAvailability
                 $dayOfWeek,
                 $hasConfiguredBusinessHours,
                 $businessWorkingHours,
+                $slotIntervalMinutes,
+                $minimumAllowedStartAt,
             );
         }
 
@@ -61,9 +70,10 @@ final class BookingAvailabilityService implements BookingAvailability
             $tenant->id,
             $service,
             $parsedDate,
-            $dayOfWeek,
             $hasConfiguredBusinessHours,
             $businessWorkingHours,
+            $slotIntervalMinutes,
+            $minimumAllowedStartAt,
         );
     }
 
@@ -77,7 +87,9 @@ final class BookingAvailabilityService implements BookingAvailability
         Carbon $date,
         int $dayOfWeek,
         bool $hasConfiguredBusinessHours,
-        ?WorkingHours $businessWorkingHours
+        ?WorkingHours $businessWorkingHours,
+        int $slotIntervalMinutes,
+        Carbon $minimumAllowedStartAt,
     ): array {
         if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return [];
@@ -110,6 +122,8 @@ final class BookingAvailabilityService implements BookingAvailability
             $timeOffPeriods,
             $service->duration_minutes,
             $date,
+            $slotIntervalMinutes,
+            $minimumAllowedStartAt,
         );
     }
 
@@ -122,9 +136,10 @@ final class BookingAvailabilityService implements BookingAvailability
         int $tenantId,
         Service $service,
         Carbon $date,
-        int $dayOfWeek,
         bool $hasConfiguredBusinessHours,
-        ?WorkingHours $businessWorkingHours
+        ?WorkingHours $businessWorkingHours,
+        int $slotIntervalMinutes,
+        Carbon $minimumAllowedStartAt,
     ): array {
         $staffIds = $this->getBookableStaffIds($tenantId, $service->id);
 
@@ -142,9 +157,10 @@ final class BookingAvailabilityService implements BookingAvailability
                 $staffId,
                 $service,
                 $date,
-                $dayOfWeek,
                 $hasConfiguredBusinessHours,
                 $businessWorkingHours,
+                $slotIntervalMinutes,
+                $minimumAllowedStartAt,
             );
         }
 
@@ -175,9 +191,10 @@ final class BookingAvailabilityService implements BookingAvailability
         int $staffId,
         Service $service,
         Carbon $date,
-        int $dayOfWeek,
         bool $hasConfiguredBusinessHours,
-        ?WorkingHours $businessWorkingHours
+        ?WorkingHours $businessWorkingHours,
+        int $slotIntervalMinutes,
+        Carbon $minimumAllowedStartAt,
     ): void {
         if ($this->hasAllDayTimeOff($tenantId, $date, $staffId)) {
             return;
@@ -186,7 +203,7 @@ final class BookingAvailabilityService implements BookingAvailability
         $workingHours = $this->getWorkingHoursForStaff(
             $tenantId,
             $staffId,
-            $dayOfWeek,
+            $date->dayOfWeek,
             $hasConfiguredBusinessHours,
             $businessWorkingHours,
         );
@@ -204,6 +221,8 @@ final class BookingAvailabilityService implements BookingAvailability
             $timeOffPeriods,
             $service->duration_minutes,
             $date,
+            $slotIntervalMinutes,
+            $minimumAllowedStartAt,
         );
 
         foreach ($staffSlots as $slot) {
@@ -287,5 +306,31 @@ final class BookingAvailabilityService implements BookingAvailability
             ->whereNotNull('start_time')
             ->whereNotNull('end_time')
             ->get();
+    }
+
+    private function isDateWithinReservationWindow(Tenant $tenant, Carbon $date): bool
+    {
+        $today = now()->startOfDay();
+        $latestBookableDate = $today->copy()->addDays($tenant->getReservationMaxDaysInAdvance())->endOfDay();
+        $selectedDate = $date->copy()->endOfDay();
+
+        if ($selectedDate->lt($today)) {
+            return false;
+        }
+
+        return $selectedDate->lte($latestBookableDate);
+    }
+
+    private function getMinimumAllowedStartAt(Tenant $tenant, Carbon $selectedDate): Carbon
+    {
+        $leadTimeHours = $tenant->getReservationLeadTimeHours();
+        $minimumAllowedStartAt = now()->addHours($leadTimeHours);
+        $selectedDateStart = $selectedDate->copy()->startOfDay();
+
+        if ($minimumAllowedStartAt->gt($selectedDateStart)) {
+            return $minimumAllowedStartAt;
+        }
+
+        return $selectedDateStart;
     }
 }

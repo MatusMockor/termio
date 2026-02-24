@@ -32,6 +32,7 @@ final class BookingPublicCreateAction
         $service = $this->serviceRepository->findByIdWithoutTenantScope($dto->serviceId, $tenant->id);
 
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
+        $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
         $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
 
         $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
@@ -122,6 +123,30 @@ final class BookingPublicCreateAction
 
         throw ValidationException::withMessages([
             'starts_at' => 'Selected time is outside business opening hours.',
+        ]);
+    }
+
+    private function ensureWithinReservationWindow(Tenant $tenant, Carbon $startsAt): void
+    {
+        $now = now();
+        $minimumAllowedStartAt = $now->copy()->addHours($tenant->getReservationLeadTimeHours());
+
+        if ($startsAt->lt($minimumAllowedStartAt)) {
+            throw ValidationException::withMessages([
+                'starts_at' => 'Selected time is too soon. Please choose a later time.',
+            ]);
+        }
+
+        $latestAllowedStartAt = $now->copy()->startOfDay()
+            ->addDays($tenant->getReservationMaxDaysInAdvance())
+            ->endOfDay();
+
+        if ($startsAt->lte($latestAllowedStartAt)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'starts_at' => 'Selected time is too far in the future.',
         ]);
     }
 }
