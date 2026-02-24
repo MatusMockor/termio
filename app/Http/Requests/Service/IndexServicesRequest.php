@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Service;
 
+use App\DTOs\Service\IndexServicesDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class IndexServicesRequest extends FormRequest
@@ -35,5 +36,17 @@ final class IndexServicesRequest extends FormRequest
         }
 
         return (int) $value;
+    }
+
+    public function getPage(): int
+    {
+        return (int) ($this->validated('page') ?? 1);
+    }
+
+    public function toDTO(): IndexServicesDTO
+    {
+        return new IndexServicesDTO(
+            perPage: $this->getPerPage(),
+        );
     }
 }

@@ -110,6 +110,18 @@ final class AppointmentControllerTest extends TestCase
             ->assertJsonValidationErrors(['status', 'end_date']);
     }
 
+    public function test_index_requires_start_date_when_end_date_is_provided(): void
+    {
+        $this->actingAsOwner();
+
+        $response = $this->getJson(route('appointments.index', [
+            'end_date' => Carbon::tomorrow()->toDateString(),
+        ]));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['start_date']);
+    }
+
     public function test_index_supports_pagination(): void
     {
         $this->actingAsOwner();
@@ -219,6 +231,22 @@ final class AppointmentControllerTest extends TestCase
         $this->assertCount($remaining, $secondPayload['appointments']);
         $this->assertFalse($secondPayload['pagination']['has_more']);
         $this->assertSame($totalAppointments, $secondPayload['pagination']['next_offset']);
+    }
+
+    public function test_calendar_validates_max_date_range(): void
+    {
+        $this->actingAsOwner();
+
+        $startDate = Carbon::today();
+        $endDate = $startDate->copy()->addDays(((int) config('appointments.calendar.max_range_days')) + 1);
+
+        $response = $this->getJson(route('appointments.calendar', [
+            'start_date' => $startDate->toDateString(),
+            'end_date' => $endDate->toDateString(),
+        ]));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['end_date']);
     }
 
     public function test_store_creates_appointment(): void
@@ -402,6 +430,28 @@ final class AppointmentControllerTest extends TestCase
 
         $appointment->refresh();
         $this->assertStringContainsString($reason, $appointment->notes);
+    }
+
+    public function test_cancel_validates_reason_length(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create();
+        $service = Service::factory()->forTenant($this->tenant)->create();
+
+        $appointment = Appointment::factory()
+            ->forTenant($this->tenant)
+            ->forClient($client)
+            ->forService($service)
+            ->confirmed()
+            ->create();
+
+        $response = $this->postJson(route('appointments.cancel', $appointment), [
+            'reason' => str_repeat('a', 1001),
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['reason']);
     }
 
     public function test_endpoints_require_authentication(): void

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\Enums\AppointmentStatus;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class IndexAppointmentsRequest extends FormRequest
 {
@@ -15,7 +17,7 @@ final class IndexAppointmentsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -23,10 +25,10 @@ final class IndexAppointmentsRequest extends FormRequest
 
         return [
             'date' => ['nullable', 'date'],
-            'start_date' => ['nullable', 'date'],
-            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'start_date' => ['nullable', 'date', 'required_with:end_date'],
+            'end_date' => ['nullable', 'date', 'required_with:start_date', 'after_or_equal:start_date'],
             'staff_id' => ['nullable', 'integer', 'exists:staff_profiles,id'],
-            'status' => ['nullable', 'in:pending,confirmed,in_progress,completed,cancelled,no_show'],
+            'status' => ['nullable', Rule::in(AppointmentStatus::values())],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', "max:{$maximum}"],
         ];
@@ -60,9 +62,15 @@ final class IndexAppointmentsRequest extends FormRequest
         return $staffId ? (int) $staffId : null;
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): ?AppointmentStatus
     {
-        return $this->validated('status');
+        $status = $this->validated('status');
+
+        if (! is_string($status)) {
+            return null;
+        }
+
+        return AppointmentStatus::tryFrom($status);
     }
 
     public function getPerPage(): int

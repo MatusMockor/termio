@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\ClientStatus;
 use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -76,7 +77,7 @@ final class Client extends Model
      */
     public function scopeActive(Builder $query): Builder
     {
-        return $query->where('status', 'active');
+        return $query->where('status', ClientStatus::Active->value);
     }
 
     /**
@@ -85,7 +86,7 @@ final class Client extends Model
      */
     public function scopeVip(Builder $query): Builder
     {
-        return $query->where('status', 'vip');
+        return $query->where('status', ClientStatus::Vip->value);
     }
 
     /**

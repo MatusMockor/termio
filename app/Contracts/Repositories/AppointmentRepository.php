@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Repositories;
 
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -31,7 +32,7 @@ interface AppointmentRepository
         ?Carbon $startDate,
         ?Carbon $endDate,
         ?int $staffId,
-        ?string $status,
+        ?AppointmentStatus $status,
         int $perPage,
         array $relations = []
     ): LengthAwarePaginator;
@@ -43,9 +44,9 @@ interface AppointmentRepository
     public function findCalendarByDateRange(
         Carbon $startDate,
         Carbon $endDate,
+        int $perDay,
         ?int $staffId = null,
-        ?string $status = null,
-        int $perDay = 4,
+        ?AppointmentStatus $status = null,
         array $relations = []
     ): Collection;
 
@@ -56,7 +57,7 @@ interface AppointmentRepository
         Carbon $startDate,
         Carbon $endDate,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): array;
 
     /**
@@ -65,16 +66,16 @@ interface AppointmentRepository
      */
     public function findForDatePaginated(
         Carbon $date,
+        int $limit,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
         int $offset = 0,
-        int $limit = 4,
         array $relations = []
     ): Collection;
 
     public function countForDate(
         Carbon $date,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): int;
 }

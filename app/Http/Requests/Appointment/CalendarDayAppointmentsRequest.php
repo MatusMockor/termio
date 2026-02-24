@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\DTOs\Appointment\GetCalendarDayAppointmentsDTO;
+use App\Enums\AppointmentStatus;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class CalendarDayAppointmentsRequest extends FormRequest
 {
@@ -15,7 +18,7 @@ final class CalendarDayAppointmentsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -24,7 +27,7 @@ final class CalendarDayAppointmentsRequest extends FormRequest
         return [
             'date' => ['required', 'date'],
             'staff_id' => ['nullable', 'integer', 'exists:staff_profiles,id'],
-            'status' => ['nullable', 'in:pending,confirmed,in_progress,completed,cancelled,no_show'],
+            'status' => ['nullable', Rule::in(AppointmentStatus::values())],
             'offset' => ['nullable', 'integer', 'min:0'],
             'limit' => ['nullable', 'integer', 'min:1', "max:{$maxPerDay}"],
         ];
@@ -46,9 +49,15 @@ final class CalendarDayAppointmentsRequest extends FormRequest
         return (int) $staffId;
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): ?AppointmentStatus
     {
-        return $this->validated('status');
+        $status = $this->validated('status');
+
+        if (! is_string($status)) {
+            return null;
+        }
+
+        return AppointmentStatus::tryFrom($status);
     }
 
     public function getOffset(): int
@@ -65,5 +74,17 @@ final class CalendarDayAppointmentsRequest extends FormRequest
         }
 
         return (int) $limit;
+    }
+
+    public function toDTO(): GetCalendarDayAppointmentsDTO
+    {
+        return new GetCalendarDayAppointmentsDTO(
+            date: $this->getDate(),
+            staffId: $this->getStaffId(),
+            status: $this->getStatus(),
+            offset: $this->getOffset(),
+            limit: $this->getLimit(),
+            relations: ['client', 'service', 'staff'],
+        );
     }
 }

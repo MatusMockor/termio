@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\AppointmentRepository;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use Carbon\Carbon;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -49,30 +50,30 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         ?Carbon $startDate,
         ?Carbon $endDate,
         ?int $staffId,
-        ?string $status,
+        ?AppointmentStatus $status,
         int $perPage,
         array $relations = []
     ): LengthAwarePaginator {
         $query = Appointment::query();
 
-        if (count($relations) > 0) {
+        if ($relations) {
             $query->with($relations);
         }
 
         if ($date !== null) {
-            $query->forDate($date);
+            $this->applyDateFilters($query, $date, $staffId, $status);
         }
 
-        if ($startDate !== null && $endDate !== null) {
-            $query->forDateRange($startDate, $endDate);
+        if ($date === null && $startDate !== null && $endDate !== null) {
+            $this->applyDateRangeFilters($query, $startDate, $endDate, $staffId, $status);
         }
 
-        if ($staffId !== null) {
+        if ($date === null && ! ($startDate !== null && $endDate !== null) && $staffId !== null) {
             $query->forStaff($staffId);
         }
 
-        if ($status !== null) {
-            $query->withStatus($status);
+        if ($date === null && ! ($startDate !== null && $endDate !== null) && $status !== null) {
+            $query->withStatus($status->value);
         }
 
         return $query->orderBy('starts_at')->paginate($perPage);
@@ -85,9 +86,9 @@ final class EloquentAppointmentRepository implements AppointmentRepository
     public function findCalendarByDateRange(
         Carbon $startDate,
         Carbon $endDate,
+        int $perDay,
         ?int $staffId = null,
-        ?string $status = null,
-        int $perDay = 4,
+        ?AppointmentStatus $status = null,
         array $relations = []
     ): Collection {
         $baseQuery = Appointment::query()
@@ -116,7 +117,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         Carbon $startDate,
         Carbon $endDate,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): array {
         $query = Appointment::query()
             ->selectRaw('DATE(starts_at) as calendar_date')
@@ -127,8 +128,8 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         /** @var \Illuminate\Support\Collection<int, object{calendar_date: string, total_count: int|string}> $rows */
         $rows = $query
             ->toBase()
-            ->groupBy('calendar_date')
-            ->orderBy('calendar_date')
+            ->groupByRaw('DATE(starts_at)')
+            ->orderByRaw('DATE(starts_at)')
             ->get();
 
         $counts = [];
@@ -146,10 +147,10 @@ final class EloquentAppointmentRepository implements AppointmentRepository
      */
     public function findForDatePaginated(
         Carbon $date,
+        int $limit,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
         int $offset = 0,
-        int $limit = 4,
         array $relations = []
     ): Collection {
         $query = Appointment::query();
@@ -170,7 +171,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
     public function countForDate(
         Carbon $date,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): int {
         $query = Appointment::query();
 
@@ -188,7 +189,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         Carbon $startDate,
         Carbon $endDate,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): Builder {
         $query->forDateRange($startDate->copy(), $endDate->copy());
 
@@ -197,7 +198,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         }
 
         if ($status !== null) {
-            $query->withStatus($status);
+            $query->withStatus($status->value);
         }
 
         return $query;
@@ -211,7 +212,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         Builder $query,
         Carbon $date,
         ?int $staffId = null,
-        ?string $status = null,
+        ?AppointmentStatus $status = null,
     ): Builder {
         $query->forDate($date->copy());
 
@@ -220,7 +221,7 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         }
 
         if ($status !== null) {
-            $query->withStatus($status);
+            $query->withStatus($status->value);
         }
 
         return $query;
