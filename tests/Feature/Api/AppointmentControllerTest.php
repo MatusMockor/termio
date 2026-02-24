@@ -96,6 +96,131 @@ final class AppointmentControllerTest extends TestCase
             ->assertJsonCount(1, 'data');
     }
 
+    public function test_index_validates_filters(): void
+    {
+        $this->actingAsOwner();
+
+        $response = $this->getJson(route('appointments.index', [
+            'status' => 'invalid-status',
+            'start_date' => '2026-02-25',
+            'end_date' => '2026-02-24',
+        ]));
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['status', 'end_date']);
+    }
+
+    public function test_index_supports_pagination(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create();
+        $service = Service::factory()->forTenant($this->tenant)->create();
+
+        Appointment::factory()
+            ->forTenant($this->tenant)
+            ->forClient($client)
+            ->forService($service)
+            ->count(3)
+            ->create();
+
+        $response = $this->getJson(route('appointments.index', ['per_page' => 2]));
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3);
+    }
+
+    public function test_calendar_returns_limited_appointments_per_day_with_pagination_meta(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create();
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
+        $targetDate = Carbon::tomorrow()->startOfDay()->setHour(8);
+        $perDay = (int) config('appointments.calendar.per_day.default');
+        $totalAppointments = $perDay + 2;
+
+        for ($index = 0; $index < $totalAppointments; $index++) {
+            Appointment::factory()
+                ->forTenant($this->tenant)
+                ->forClient($client)
+                ->forService($service)
+                ->at($targetDate->copy()->addMinutes($index * 30))
+                ->create();
+        }
+
+        $response = $this->getJson(route('appointments.calendar', [
+            'start_date' => $targetDate->toDateString(),
+            'end_date' => $targetDate->toDateString(),
+            'per_day' => $perDay,
+        ]));
+
+        $response->assertOk();
+
+        $dateKey = $targetDate->toDateString();
+        /** @var array<string, mixed> $payload */
+        $payload = $response->json('data');
+        /** @var array<string, mixed> $dayPayload */
+        $dayPayload = $payload['days'][$dateKey];
+
+        $this->assertCount($perDay, $dayPayload['appointments']);
+        $this->assertSame($totalAppointments, $dayPayload['pagination']['total']);
+        $this->assertTrue($dayPayload['pagination']['has_more']);
+        $this->assertSame($perDay, $dayPayload['pagination']['next_offset']);
+    }
+
+    public function test_calendar_day_returns_next_batch_for_specific_day(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create();
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
+        $targetDate = Carbon::tomorrow()->startOfDay()->setHour(8);
+        $limit = (int) config('appointments.calendar.per_day.default');
+        $offset = $limit;
+        $totalAppointments = ($limit * 2) + 1;
+
+        for ($index = 0; $index < $totalAppointments; $index++) {
+            Appointment::factory()
+                ->forTenant($this->tenant)
+                ->forClient($client)
+                ->forService($service)
+                ->at($targetDate->copy()->addMinutes($index * 30))
+                ->create();
+        }
+
+        $firstResponse = $this->getJson(route('appointments.calendar.day', [
+            'date' => $targetDate->toDateString(),
+            'offset' => $offset,
+            'limit' => $limit,
+        ]));
+
+        $firstResponse->assertOk();
+        $firstPayload = $firstResponse->json('data');
+
+        $this->assertCount($limit, $firstPayload['appointments']);
+        $this->assertSame($totalAppointments, $firstPayload['pagination']['total']);
+        $this->assertTrue($firstPayload['pagination']['has_more']);
+        $this->assertSame($offset + $limit, $firstPayload['pagination']['next_offset']);
+
+        $secondResponse = $this->getJson(route('appointments.calendar.day', [
+            'date' => $targetDate->toDateString(),
+            'offset' => $offset + $limit,
+            'limit' => $limit,
+        ]));
+
+        $secondResponse->assertOk();
+        $secondPayload = $secondResponse->json('data');
+
+        $remaining = $totalAppointments - ($offset + $limit);
+
+        $this->assertCount($remaining, $secondPayload['appointments']);
+        $this->assertFalse($secondPayload['pagination']['has_more']);
+        $this->assertSame($totalAppointments, $secondPayload['pagination']['next_offset']);
+    }
+
     public function test_store_creates_appointment(): void
     {
         $this->actingAsOwner();

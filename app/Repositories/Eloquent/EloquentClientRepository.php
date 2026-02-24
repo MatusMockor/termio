@@ -47,7 +47,7 @@ final class EloquentClientRepository implements ClientRepository
     /**
      * @return LengthAwarePaginator<int, Client>
      */
-    public function paginate(?string $status = null, int $perPage = 25): LengthAwarePaginator
+    public function paginate(?string $status, int $perPage): LengthAwarePaginator
     {
         $query = Client::query();
 

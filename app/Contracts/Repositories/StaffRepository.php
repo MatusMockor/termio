@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Contracts\Repositories;
 
 use App\Models\StaffProfile;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 interface StaffRepository
@@ -38,4 +39,9 @@ interface StaffRepository
      * @return Collection<int, StaffProfile>
      */
     public function getAllOrdered(): Collection;
+
+    /**
+     * @return LengthAwarePaginator<int, StaffProfile>
+     */
+    public function paginateOrdered(int $perPage): LengthAwarePaginator;
 }

@@ -6,6 +6,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\ServiceRepository;
 use App\Models\Service;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 final class EloquentServiceRepository implements ServiceRepository
@@ -53,6 +54,14 @@ final class EloquentServiceRepository implements ServiceRepository
     public function getAllOrdered(): Collection
     {
         return Service::ordered()->get();
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, Service>
+     */
+    public function paginateOrdered(int $perPage): LengthAwarePaginator
+    {
+        return Service::ordered()->paginate($perPage);
     }
 
     public function findByIdWithoutTenantScope(int $id, int $tenantId): Service

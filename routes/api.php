@@ -74,6 +74,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/dashboard/report', [DashboardController::class, 'report'])->name('dashboard.report');
 
     // Appointments - check reservation limit on creation
+    Route::get('/appointments/calendar', [AppointmentController::class, 'calendar'])->name('appointments.calendar');
+    Route::get('/appointments/calendar/day', [AppointmentController::class, 'calendarDay'])->name('appointments.calendar.day');
     Route::apiResource('appointments', AppointmentController::class)->except(['store']);
     Route::post('/appointments', [AppointmentController::class, 'store'])
         ->middleware('check.reservation.limit')
