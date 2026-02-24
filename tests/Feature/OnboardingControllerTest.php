@@ -347,9 +347,26 @@ final class OnboardingControllerTest extends TestCase
 
     public function test_complete_onboarding_syncs_reservation_settings_from_progress(): void
     {
-        $leadTime = (int) config('reservation.defaults.lead_time_hours');
-        $maxDays = (int) config('reservation.defaults.max_days_in_advance');
-        $slotInterval = (int) config('reservation.defaults.slot_interval_minutes');
+        $leadTimeDefault = (int) config('reservation.defaults.lead_time_hours');
+        $leadTime = $this->resolveNonDefaultValue(
+            $leadTimeDefault,
+            (int) config('reservation.limits.lead_time_hours.min'),
+            (int) config('reservation.limits.lead_time_hours.max'),
+        );
+
+        $maxDaysDefault = (int) config('reservation.defaults.max_days_in_advance');
+        $maxDays = $this->resolveNonDefaultValue(
+            $maxDaysDefault,
+            (int) config('reservation.limits.max_days_in_advance.min'),
+            (int) config('reservation.limits.max_days_in_advance.max'),
+        );
+
+        $slotIntervalDefault = (int) config('reservation.defaults.slot_interval_minutes');
+        $slotInterval = $this->resolveNonDefaultSlotInterval($slotIntervalDefault);
+
+        $this->assertNotSame($leadTimeDefault, $leadTime);
+        $this->assertNotSame($maxDaysDefault, $maxDays);
+        $this->assertNotSame($slotIntervalDefault, $slotInterval);
 
         $this->tenant->update([
             'business_type' => BusinessType::Salon,
@@ -469,5 +486,39 @@ final class OnboardingControllerTest extends TestCase
         }
 
         return $invalidValue;
+    }
+
+    private function resolveNonDefaultValue(int $defaultValue, int $minimum, int $maximum): int
+    {
+        if ($defaultValue !== $minimum) {
+            return $minimum;
+        }
+
+        if ($defaultValue !== $maximum) {
+            return $maximum;
+        }
+
+        return $defaultValue;
+    }
+
+    private function resolveNonDefaultSlotInterval(int $defaultValue): int
+    {
+        $minimum = (int) config('reservation.limits.slot_interval_minutes.min');
+        $maximum = (int) config('reservation.limits.slot_interval_minutes.max');
+        $multipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+
+        for ($candidate = $minimum; $candidate <= $maximum; $candidate++) {
+            if ($candidate === $defaultValue) {
+                continue;
+            }
+
+            if ($candidate % $multipleOf !== 0) {
+                continue;
+            }
+
+            return $candidate;
+        }
+
+        return $defaultValue;
     }
 }
