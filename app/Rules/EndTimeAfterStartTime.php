@@ -25,6 +25,9 @@ final class EndTimeAfterStartTime implements DataAwareRule, ValidationRule
         return $this;
     }
 
+    /**
+     * @SuppressWarnings(PHPMD.NPathComplexity)
+     */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! $this->shouldFailValidation($attribute, $value)) {

@@ -17,16 +17,18 @@ final class SaveOnboardingProgressRequest extends FormRequest
      */
     public function rules(): array
     {
-        $dayOfWeekMin = (int) config('working_hours.day_of_week.min');
-        $dayOfWeekMax = (int) config('working_hours.day_of_week.max');
-        $leadTimeMin = (int) config('reservation.limits.lead_time_hours.min');
-        $leadTimeMax = (int) config('reservation.limits.lead_time_hours.max');
-        $maxDaysMin = (int) config('reservation.limits.max_days_in_advance.min');
-        $maxDaysMax = (int) config('reservation.limits.max_days_in_advance.max');
-        $slotIntervalMin = (int) config('reservation.limits.slot_interval_minutes.min');
-        $slotIntervalMax = (int) config('reservation.limits.slot_interval_minutes.max');
-        $slotIntervalMultipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+        return array_merge(
+            $this->baseRules(),
+            $this->workingHoursRules(),
+            $this->reservationSettingsRules(),
+        );
+    }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function baseRules(): array
+    {
         return [
             'step' => ['required', 'string', 'max:255'],
             'data' => ['required', 'array'],
@@ -45,6 +47,18 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.staff_members.*.first_name' => ['required_with:data.staff_members', 'string', 'max:100'],
             'data.staff_members.*.last_name' => ['required_with:data.staff_members', 'string', 'max:100'],
             'data.staff_members.*.email' => ['required_with:data.staff_members', 'email', 'max:255'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function workingHoursRules(): array
+    {
+        $dayOfWeekMin = (int) config('working_hours.day_of_week.min');
+        $dayOfWeekMax = (int) config('working_hours.day_of_week.max');
+
+        return [
             'data.working_hours' => ['sometimes', 'array'],
             'data.working_hours.*.day_of_week' => [
                 'required_with:data.working_hours',
@@ -56,6 +70,23 @@ final class SaveOnboardingProgressRequest extends FormRequest
             'data.working_hours.*.start_time' => ['required_with:data.working_hours', 'date_format:H:i'],
             'data.working_hours.*.end_time' => ['required_with:data.working_hours', 'date_format:H:i', new EndTimeAfterStartTime],
             'data.working_hours.*.is_active' => ['sometimes', 'boolean'],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function reservationSettingsRules(): array
+    {
+        $leadTimeMin = (int) config('reservation.limits.lead_time_hours.min');
+        $leadTimeMax = (int) config('reservation.limits.lead_time_hours.max');
+        $maxDaysMin = (int) config('reservation.limits.max_days_in_advance.min');
+        $maxDaysMax = (int) config('reservation.limits.max_days_in_advance.max');
+        $slotIntervalMin = (int) config('reservation.limits.slot_interval_minutes.min');
+        $slotIntervalMax = (int) config('reservation.limits.slot_interval_minutes.max');
+        $slotIntervalMultipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+
+        return [
             'data.reservation_settings' => ['sometimes', 'array'],
             'data.reservation_settings.lead_time_hours' => [
                 'required_with:data.reservation_settings',
