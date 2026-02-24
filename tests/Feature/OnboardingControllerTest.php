@@ -202,7 +202,7 @@ final class OnboardingControllerTest extends TestCase
     {
         $invalidLeadTime = (int) config('reservation.limits.lead_time_hours.min') - 1;
         $invalidMaxDays = (int) config('reservation.limits.max_days_in_advance.min') - 1;
-        $invalidSlotInterval = (int) config('reservation.limits.slot_interval_minutes.min') + 1;
+        $invalidSlotInterval = $this->resolveInvalidSlotInterval();
 
         $response = $this->postJson(route('onboarding.save-progress'), [
             'step' => 'reservation_settings',
@@ -381,20 +381,21 @@ final class OnboardingControllerTest extends TestCase
     {
         $invalidLeadTime = (int) config('reservation.limits.lead_time_hours.min') - 1;
         $invalidMaxDays = (int) config('reservation.limits.max_days_in_advance.min') - 1;
-        $invalidSlotInterval = (int) config('reservation.limits.slot_interval_minutes.min') + 1;
+        $invalidSlotInterval = $this->resolveInvalidSlotInterval();
+        $originalOnboardingData = [
+            'reservation_settings' => [
+                'reservation_settings' => [
+                    'lead_time_hours' => $invalidLeadTime,
+                    'max_days_in_advance' => $invalidMaxDays,
+                    'slot_interval_minutes' => $invalidSlotInterval,
+                ],
+            ],
+        ];
 
         $this->tenant->update([
             'business_type' => BusinessType::Salon,
             'onboarding_step' => 'reservation_settings',
-            'onboarding_data' => [
-                'reservation_settings' => [
-                    'reservation_settings' => [
-                        'lead_time_hours' => $invalidLeadTime,
-                        'max_days_in_advance' => $invalidMaxDays,
-                        'slot_interval_minutes' => $invalidSlotInterval,
-                    ],
-                ],
-            ],
+            'onboarding_data' => $originalOnboardingData,
         ]);
 
         $response = $this->postJson(route('onboarding.complete'));
@@ -405,6 +406,7 @@ final class OnboardingControllerTest extends TestCase
 
         $this->tenant->refresh();
         $this->assertNull($this->tenant->onboarding_completed_at);
+        $this->assertSame($originalOnboardingData, $this->tenant->onboarding_data);
     }
 
     public function test_can_skip_onboarding(): void
@@ -448,5 +450,24 @@ final class OnboardingControllerTest extends TestCase
         $this->postJson(route('onboarding.save-progress'))->assertUnauthorized();
         $this->postJson(route('onboarding.complete'))->assertUnauthorized();
         $this->postJson(route('onboarding.skip'))->assertUnauthorized();
+    }
+
+    private function resolveInvalidSlotInterval(): int
+    {
+        $minimum = (int) config('reservation.limits.slot_interval_minutes.min');
+        $maximum = (int) config('reservation.limits.slot_interval_minutes.max');
+        $multipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+
+        if ($multipleOf <= 1) {
+            return $maximum + 1;
+        }
+
+        $invalidValue = $minimum + 1;
+
+        if ($invalidValue % $multipleOf === 0) {
+            $invalidValue++;
+        }
+
+        return $invalidValue;
     }
 }
