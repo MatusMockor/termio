@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\ClientRepository;
+use App\Enums\ClientStatus;
 use App\Models\Client;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -47,12 +48,12 @@ final class EloquentClientRepository implements ClientRepository
     /**
      * @return LengthAwarePaginator<int, Client>
      */
-    public function paginate(?string $status, int $perPage): LengthAwarePaginator
+    public function paginate(?ClientStatus $status, int $perPage): LengthAwarePaginator
     {
         $query = Client::query();
 
         if ($status !== null) {
-            $query->where('status', $status);
+            $query->where('status', $status->value);
         }
 
         return $query->orderBy('name')->paginate($perPage);

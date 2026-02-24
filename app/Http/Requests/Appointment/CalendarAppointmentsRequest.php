@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\DTOs\Appointment\GetCalendarAppointmentsDTO;
+use App\Enums\AppointmentStatus;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
+use Throwable;
 
 final class CalendarAppointmentsRequest extends FormRequest
 {
@@ -15,7 +20,7 @@ final class CalendarAppointmentsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -25,9 +30,35 @@ final class CalendarAppointmentsRequest extends FormRequest
             'start_date' => ['required', 'date'],
             'end_date' => ['required', 'date', 'after_or_equal:start_date'],
             'staff_id' => ['nullable', 'integer', 'exists:staff_profiles,id'],
-            'status' => ['nullable', 'in:pending,confirmed,in_progress,completed,cancelled,no_show'],
+            'status' => ['nullable', Rule::in(AppointmentStatus::values())],
             'per_day' => ['nullable', 'integer', 'min:1', "max:{$maxPerDay}"],
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $maxRangeDays = (int) config('appointments.calendar.max_range_days');
+            $startDate = $this->input('start_date');
+            $endDate = $this->input('end_date');
+
+            if (! is_string($startDate) || ! is_string($endDate)) {
+                return;
+            }
+
+            try {
+                $parsedStartDate = Carbon::parse($startDate);
+                $parsedEndDate = Carbon::parse($endDate);
+            } catch (Throwable) {
+                return;
+            }
+
+            if ($parsedStartDate->diffInDays($parsedEndDate) <= $maxRangeDays) {
+                return;
+            }
+
+            $validator->errors()->add('end_date', "Date range cannot exceed {$maxRangeDays} days.");
+        });
     }
 
     public function getStartDate(): Carbon
@@ -51,9 +82,15 @@ final class CalendarAppointmentsRequest extends FormRequest
         return (int) $staffId;
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): ?AppointmentStatus
     {
-        return $this->validated('status');
+        $status = $this->validated('status');
+
+        if (! is_string($status)) {
+            return null;
+        }
+
+        return AppointmentStatus::tryFrom($status);
     }
 
     public function getPerDay(): int
@@ -65,5 +102,17 @@ final class CalendarAppointmentsRequest extends FormRequest
         }
 
         return (int) $perDay;
+    }
+
+    public function toDTO(): GetCalendarAppointmentsDTO
+    {
+        return new GetCalendarAppointmentsDTO(
+            startDate: $this->getStartDate(),
+            endDate: $this->getEndDate(),
+            staffId: $this->getStaffId(),
+            status: $this->getStatus(),
+            perDay: $this->getPerDay(),
+            relations: ['client', 'service', 'staff'],
+        );
     }
 }

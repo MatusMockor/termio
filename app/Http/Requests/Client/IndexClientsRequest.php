@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Client;
 
+use App\Enums\ClientStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class IndexClientsRequest extends FormRequest
 {
@@ -14,22 +16,33 @@ final class IndexClientsRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
         $maximum = (int) config('pagination.clients.max');
 
         return [
-            'status' => ['nullable', 'in:active,inactive,vip'],
+            'status' => ['nullable', Rule::enum(ClientStatus::class)],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', "max:{$maximum}"],
         ];
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): ?ClientStatus
     {
-        return $this->validated('status');
+        $status = $this->validated('status');
+
+        if (! is_string($status)) {
+            return null;
+        }
+
+        return ClientStatus::tryFrom($status);
+    }
+
+    public function getPage(): int
+    {
+        return (int) ($this->validated('page') ?? 1);
     }
 
     public function getPerPage(): int

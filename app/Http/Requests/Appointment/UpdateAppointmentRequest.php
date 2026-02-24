@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests\Appointment;
 
 use App\DTOs\Appointment\UpdateAppointmentDTO;
+use App\Enums\AppointmentStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class UpdateAppointmentRequest extends FormRequest
 {
@@ -15,7 +17,7 @@ final class UpdateAppointmentRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -25,7 +27,7 @@ final class UpdateAppointmentRequest extends FormRequest
             'staff_id' => ['nullable', 'exists:staff_profiles,id'],
             'starts_at' => ['sometimes', 'date'],
             'notes' => ['nullable', 'string'],
-            'status' => ['sometimes', 'in:pending,confirmed,in_progress,completed,cancelled,no_show'],
+            'status' => ['sometimes', Rule::in(AppointmentStatus::values())],
         ];
     }
 

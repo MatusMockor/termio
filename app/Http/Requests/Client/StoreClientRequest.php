@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests\Client;
 
 use App\DTOs\Client\CreateClientDTO;
+use App\Enums\ClientStatus;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class StoreClientRequest extends FormRequest
 {
@@ -15,7 +17,7 @@ final class StoreClientRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -24,7 +26,7 @@ final class StoreClientRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'email' => ['nullable', 'string', 'email', 'max:255'],
             'notes' => ['nullable', 'string'],
-            'status' => ['sometimes', 'in:active,inactive,vip'],
+            'status' => ['sometimes', Rule::enum(ClientStatus::class)],
         ];
     }
 
@@ -50,7 +52,7 @@ final class StoreClientRequest extends FormRequest
 
     public function getStatus(): string
     {
-        return $this->validated('status') ?? 'active';
+        return $this->validated('status') ?? ClientStatus::Active->value;
     }
 
     public function toDTO(): CreateClientDTO

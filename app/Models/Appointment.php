@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\AppointmentStatus;
 use App\Models\Traits\BelongsToTenant;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -109,7 +110,11 @@ final class Appointment extends Model
     public function scopeUpcoming(Builder $query): Builder
     {
         return $query->where('starts_at', '>=', now())
-            ->whereNotIn('status', ['cancelled', 'completed', 'no_show'])
+            ->whereNotIn('status', [
+                AppointmentStatus::Cancelled->value,
+                AppointmentStatus::Completed->value,
+                AppointmentStatus::NoShow->value,
+            ])
             ->orderBy('starts_at');
     }
 
@@ -143,21 +148,21 @@ final class Appointment extends Model
 
     public function isPending(): bool
     {
-        return $this->status === 'pending';
+        return $this->status === AppointmentStatus::Pending->value;
     }
 
     public function isConfirmed(): bool
     {
-        return $this->status === 'confirmed';
+        return $this->status === AppointmentStatus::Confirmed->value;
     }
 
     public function isCompleted(): bool
     {
-        return $this->status === 'completed';
+        return $this->status === AppointmentStatus::Completed->value;
     }
 
     public function isCancelled(): bool
     {
-        return $this->status === 'cancelled';
+        return $this->status === AppointmentStatus::Cancelled->value;
     }
 }

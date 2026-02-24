@@ -8,10 +8,13 @@ use App\Actions\Appointment\AppointmentCancelAction;
 use App\Actions\Appointment\AppointmentCompleteAction;
 use App\Actions\Appointment\AppointmentCreateAction;
 use App\Actions\Appointment\AppointmentUpdateAction;
+use App\Actions\Appointment\GetCalendarAppointmentsAction;
+use App\Actions\Appointment\GetCalendarDayAppointmentsAction;
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Appointment\CalendarAppointmentsRequest;
 use App\Http\Requests\Appointment\CalendarDayAppointmentsRequest;
+use App\Http\Requests\Appointment\CancelAppointmentRequest;
 use App\Http\Requests\Appointment\IndexAppointmentsRequest;
 use App\Http\Requests\Appointment\StoreAppointmentRequest;
 use App\Http\Requests\Appointment\UpdateAppointmentRequest;
@@ -19,7 +22,6 @@ use App\Http\Resources\AppointmentCollection;
 use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 final class AppointmentController extends Controller
@@ -43,49 +45,14 @@ final class AppointmentController extends Controller
         return new AppointmentCollection($appointments);
     }
 
-    public function calendar(CalendarAppointmentsRequest $request): JsonResponse
-    {
-        $appointments = $this->appointmentRepository->findCalendarByDateRange(
-            startDate: $request->getStartDate(),
-            endDate: $request->getEndDate(),
-            staffId: $request->getStaffId(),
-            status: $request->getStatus(),
-            perDay: $request->getPerDay(),
-            relations: ['client', 'service', 'staff'],
-        );
-
-        $countsByDate = $this->appointmentRepository->countCalendarByDateRange(
-            startDate: $request->getStartDate(),
-            endDate: $request->getEndDate(),
-            staffId: $request->getStaffId(),
-            status: $request->getStatus(),
-        );
-
-        $days = [];
-        $grouped = $appointments->groupBy(static fn (Appointment $appointment): string => $appointment->starts_at->toDateString());
-
-        foreach ($grouped as $dateKey => $dayAppointments) {
-            $loaded = $dayAppointments->count();
-            $total = $countsByDate[$dateKey] ?? $loaded;
-
-            $days[$dateKey] = [
-                'appointments' => AppointmentResource::collection($dayAppointments)->resolve(),
-                'pagination' => [
-                    'total' => $total,
-                    'loaded' => $loaded,
-                    'per_day' => $request->getPerDay(),
-                    'has_more' => $total > $loaded,
-                    'next_offset' => $loaded,
-                ],
-            ];
-        }
-
-        ksort($days);
+    public function calendar(
+        CalendarAppointmentsRequest $request,
+        GetCalendarAppointmentsAction $action
+    ): JsonResponse {
+        $calendar = $action->handle($request->toDTO());
 
         return response()->json([
-            'data' => [
-                'days' => $days,
-            ],
+            'data' => $calendar,
             'meta' => [
                 'start_date' => $request->getStartDate()->toDateString(),
                 'end_date' => $request->getEndDate()->toDateString(),
@@ -94,39 +61,14 @@ final class AppointmentController extends Controller
         ]);
     }
 
-    public function calendarDay(CalendarDayAppointmentsRequest $request): JsonResponse
-    {
-        $appointments = $this->appointmentRepository->findForDatePaginated(
-            date: $request->getDate(),
-            staffId: $request->getStaffId(),
-            status: $request->getStatus(),
-            offset: $request->getOffset(),
-            limit: $request->getLimit(),
-            relations: ['client', 'service', 'staff'],
-        );
-
-        $total = $this->appointmentRepository->countForDate(
-            date: $request->getDate(),
-            staffId: $request->getStaffId(),
-            status: $request->getStatus(),
-        );
-
-        $returned = $appointments->count();
-        $nextOffset = $request->getOffset() + $returned;
+    public function calendarDay(
+        CalendarDayAppointmentsRequest $request,
+        GetCalendarDayAppointmentsAction $action
+    ): JsonResponse {
+        $dayPayload = $action->handle($request->toDTO());
 
         return response()->json([
-            'data' => [
-                'date' => $request->getDate()->toDateString(),
-                'appointments' => AppointmentResource::collection($appointments)->resolve(),
-                'pagination' => [
-                    'total' => $total,
-                    'offset' => $request->getOffset(),
-                    'limit' => $request->getLimit(),
-                    'returned' => $returned,
-                    'has_more' => $nextOffset < $total,
-                    'next_offset' => $nextOffset,
-                ],
-            ],
+            'data' => $dayPayload,
         ]);
     }
 
@@ -171,9 +113,12 @@ final class AppointmentController extends Controller
         return new AppointmentResource($appointment);
     }
 
-    public function cancel(Request $request, Appointment $appointment, AppointmentCancelAction $action): AppointmentResource
-    {
-        $appointment = $action->handle($appointment, $request->input('reason'));
+    public function cancel(
+        CancelAppointmentRequest $request,
+        Appointment $appointment,
+        AppointmentCancelAction $action
+    ): AppointmentResource {
+        $appointment = $action->handle($appointment, $request->getReason());
 
         return new AppointmentResource($appointment);
     }

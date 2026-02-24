@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Repositories;
 
+use App\Enums\ClientStatus;
 use App\Models\Client;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
@@ -29,7 +30,7 @@ interface ClientRepository
     /**
      * @return LengthAwarePaginator<int, Client>
      */
-    public function paginate(?string $status, int $perPage): LengthAwarePaginator;
+    public function paginate(?ClientStatus $status, int $perPage): LengthAwarePaginator;
 
     /**
      * @return Collection<int, Client>

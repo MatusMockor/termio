@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Service\IndexServicesAction;
 use App\Actions\Service\ServiceCreateAction;
 use App\Actions\Service\ServiceReorderAction;
 use App\Actions\Service\ServiceUpdateAction;
@@ -24,9 +25,9 @@ final class ServiceController extends Controller
         private readonly ServiceRepository $serviceRepository,
     ) {}
 
-    public function index(IndexServicesRequest $request): AnonymousResourceCollection
+    public function index(IndexServicesRequest $request, IndexServicesAction $action): AnonymousResourceCollection
     {
-        $services = $this->serviceRepository->paginateOrdered($request->getPerPage());
+        $services = $action->handle($request->toDTO());
 
         return ServiceResource::collection($services);
     }
