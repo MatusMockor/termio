@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use App\Exceptions\InvalidOnboardingDataException;
 use App\Http\Middleware\CheckFeatureAccess;
 use App\Http\Middleware\CheckReservationLimit;
