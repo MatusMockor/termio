@@ -31,39 +31,89 @@ final class EndTimeAfterStartTime implements DataAwareRule, ValidationRule
             return;
         }
 
+        $startTime = $this->resolveStartTime($attribute);
+
+        if ($startTime === null) {
+            return;
+        }
+
+        $referenceDate = $this->resolveReferenceDate();
+
+        if ($referenceDate === null) {
+            return;
+        }
+
+        if ($this->isEndTimeAfterStartTime($referenceDate, $startTime, $value)) {
+            return;
+        }
+
+        $fail('The :attribute must be after start time.');
+    }
+
+    private function resolveStartTime(string $attribute): ?string
+    {
         $startAttribute = preg_replace('/\.end_time$/', '.start_time', $attribute);
 
         if (! is_string($startAttribute)) {
-            return;
+            return null;
         }
 
         $startTime = data_get($this->data, $startAttribute);
 
         if (! is_string($startTime)) {
-            return;
+            return null;
         }
 
+        return $startTime;
+    }
+
+    private function resolveReferenceDate(): ?string
+    {
         $referenceDate = config('working_hours.time_reference_date');
 
-        if (! is_string($referenceDate) || $referenceDate === '') {
-            $referenceDate = config('working_hours.default_time_reference_date');
+        if ($this->isNonEmptyString($referenceDate)) {
+            return $referenceDate;
         }
 
-        if (! is_string($referenceDate) || $referenceDate === '') {
-            return;
+        $defaultReferenceDate = config('working_hours.default_time_reference_date');
+
+        if (! $this->isNonEmptyString($defaultReferenceDate)) {
+            return null;
         }
 
-        $normalizedStart = strtotime($referenceDate.' '.$startTime);
-        $normalizedEnd = strtotime($referenceDate.' '.$value);
+        return $defaultReferenceDate;
+    }
 
-        if ($normalizedStart === false || $normalizedEnd === false) {
-            return;
+    private function isEndTimeAfterStartTime(string $referenceDate, string $startTime, string $endTime): bool
+    {
+        $normalizedStart = $this->normalizeTime($referenceDate, $startTime);
+
+        if ($normalizedStart === null) {
+            return true;
         }
 
-        if ($normalizedEnd > $normalizedStart) {
-            return;
+        $normalizedEnd = $this->normalizeTime($referenceDate, $endTime);
+
+        if ($normalizedEnd === null) {
+            return true;
         }
 
-        $fail('The :attribute must be after start time.');
+        return $normalizedEnd > $normalizedStart;
+    }
+
+    private function normalizeTime(string $referenceDate, string $time): ?int
+    {
+        $normalizedTime = strtotime($referenceDate.' '.$time);
+
+        if ($normalizedTime === false) {
+            return null;
+        }
+
+        return $normalizedTime;
+    }
+
+    private function isNonEmptyString(mixed $value): bool
+    {
+        return is_string($value) && $value !== '';
     }
 }
