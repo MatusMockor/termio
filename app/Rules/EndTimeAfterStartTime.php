@@ -27,27 +27,32 @@ final class EndTimeAfterStartTime implements DataAwareRule, ValidationRule
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if (! is_string($value)) {
+        if (! $this->shouldFailValidation($attribute, $value)) {
             return;
+        }
+
+        $fail('The :attribute must be after start time.');
+    }
+
+    private function shouldFailValidation(string $attribute, mixed $value): bool
+    {
+        if (! is_string($value)) {
+            return false;
         }
 
         $startTime = $this->resolveStartTime($attribute);
 
         if ($startTime === null) {
-            return;
+            return false;
         }
 
         $referenceDate = $this->resolveReferenceDate();
 
         if ($referenceDate === null) {
-            return;
+            return false;
         }
 
-        if ($this->isEndTimeAfterStartTime($referenceDate, $startTime, $value)) {
-            return;
-        }
-
-        $fail('The :attribute must be after start time.');
+        return ! $this->isEndTimeAfterStartTime($referenceDate, $startTime, $value);
     }
 
     private function resolveStartTime(string $attribute): ?string
