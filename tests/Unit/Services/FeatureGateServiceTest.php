@@ -150,7 +150,7 @@ final class FeatureGateServiceTest extends TestCase
         $feature = Feature::GoogleCalendarSync->value;
         $currentPlan = fake()->word();
         $planName = fake()->word();
-        $planPrice = (string) fake()->randomFloat(2, 1, 100);
+        $planPrice = number_format(fake()->randomFloat(2, 1, 100), 2, '.', '');
         $easyPlan = Plan::factory()->create([
             'name' => $planName,
             'slug' => 'easy',
