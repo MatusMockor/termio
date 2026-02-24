@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Contracts\Repositories;
 
 use App\Models\Service;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 interface ServiceRepository
@@ -27,6 +28,11 @@ interface ServiceRepository
      * @return Collection<int, Service>
      */
     public function getAllOrdered(): Collection;
+
+    /**
+     * @return LengthAwarePaginator<int, Service>
+     */
+    public function paginateOrdered(int $perPage): LengthAwarePaginator;
 
     /**
      * Find a service by ID without tenant scope (for public booking).

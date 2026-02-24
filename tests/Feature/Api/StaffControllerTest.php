@@ -48,6 +48,23 @@ final class StaffControllerTest extends TestCase
         $response->assertUnauthorized();
     }
 
+    public function test_index_supports_pagination(): void
+    {
+        $this->actingAsOwner();
+
+        StaffProfile::factory()
+            ->forTenant($this->tenant)
+            ->count(3)
+            ->create();
+
+        $response = $this->getJson(route('staff.index', ['per_page' => 2]));
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3);
+    }
+
     public function test_store_creates_staff(): void
     {
         $this->actingAsOwner();

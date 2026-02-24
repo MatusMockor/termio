@@ -6,6 +6,7 @@ namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\StaffRepository;
 use App\Models\StaffProfile;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Collection;
 
 final class EloquentStaffRepository implements StaffRepository
@@ -69,5 +70,15 @@ final class EloquentStaffRepository implements StaffRepository
         return StaffProfile::with('services:id,name')
             ->ordered()
             ->get();
+    }
+
+    /**
+     * @return LengthAwarePaginator<int, StaffProfile>
+     */
+    public function paginateOrdered(int $perPage): LengthAwarePaginator
+    {
+        return StaffProfile::with('services:id,name')
+            ->ordered()
+            ->paginate($perPage);
     }
 }

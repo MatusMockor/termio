@@ -8,12 +8,15 @@ use App\Actions\Client\ClientCreateAction;
 use App\Actions\Client\ClientUpdateAction;
 use App\Contracts\Repositories\ClientRepository;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Client\IndexClientsRequest;
 use App\Http\Requests\Client\StoreClientRequest;
 use App\Http\Requests\Client\UpdateClientRequest;
+use App\Http\Resources\ClientResource;
 use App\Models\Client;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ClientController extends Controller
 {
@@ -21,12 +24,14 @@ final class ClientController extends Controller
         private readonly ClientRepository $clientRepository,
     ) {}
 
-    public function index(Request $request): JsonResponse
+    public function index(IndexClientsRequest $request): AnonymousResourceCollection
     {
-        $status = $request->has('status') ? $request->input('status') : null;
-        $clients = $this->clientRepository->paginate($status);
+        $clients = $this->clientRepository->paginate(
+            status: $request->getStatus(),
+            perPage: $request->getPerPage(),
+        );
 
-        return response()->json($clients);
+        return ClientResource::collection($clients);
     }
 
     public function store(StoreClientRequest $request, ClientCreateAction $action): JsonResponse

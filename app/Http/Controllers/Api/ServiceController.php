@@ -9,11 +9,14 @@ use App\Actions\Service\ServiceReorderAction;
 use App\Actions\Service\ServiceUpdateAction;
 use App\Contracts\Repositories\ServiceRepository;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Service\IndexServicesRequest;
 use App\Http\Requests\Service\ReorderServicesRequest;
 use App\Http\Requests\Service\StoreServiceRequest;
 use App\Http\Requests\Service\UpdateServiceRequest;
+use App\Http\Resources\ServiceResource;
 use App\Models\Service;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ServiceController extends Controller
 {
@@ -21,11 +24,11 @@ final class ServiceController extends Controller
         private readonly ServiceRepository $serviceRepository,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(IndexServicesRequest $request): AnonymousResourceCollection
     {
-        $services = $this->serviceRepository->getAllOrdered();
+        $services = $this->serviceRepository->paginateOrdered($request->getPerPage());
 
-        return response()->json(['data' => $services]);
+        return ServiceResource::collection($services);
     }
 
     public function store(StoreServiceRequest $request, ServiceCreateAction $action): JsonResponse

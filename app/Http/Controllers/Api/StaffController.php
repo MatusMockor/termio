@@ -11,12 +11,15 @@ use App\Actions\Staff\StaffWorkingHoursUpdateAction;
 use App\Contracts\Repositories\StaffRepository;
 use App\Contracts\Repositories\WorkingHoursRepository;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Staff\IndexStaffRequest;
 use App\Http\Requests\Staff\ReorderStaffRequest;
 use App\Http\Requests\Staff\StoreStaffRequest;
 use App\Http\Requests\Staff\UpdateStaffRequest;
 use App\Http\Requests\Staff\UpdateStaffWorkingHoursRequest;
+use App\Http\Resources\StaffProfileResource;
 use App\Models\StaffProfile;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class StaffController extends Controller
 {
@@ -25,11 +28,11 @@ final class StaffController extends Controller
         private readonly WorkingHoursRepository $workingHoursRepository,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(IndexStaffRequest $request): AnonymousResourceCollection
     {
-        $staff = $this->staffRepository->getAllOrdered();
+        $staff = $this->staffRepository->paginateOrdered($request->getPerPage());
 
-        return response()->json(['data' => $staff]);
+        return StaffProfileResource::collection($staff);
     }
 
     public function store(StoreStaffRequest $request, StaffCreateAction $action): JsonResponse

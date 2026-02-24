@@ -58,6 +58,20 @@ final class ServiceControllerTest extends TestCase
         ]);
     }
 
+    public function test_index_supports_pagination(): void
+    {
+        $this->actingAsOwner();
+
+        Service::factory()->forTenant($this->tenant)->count(3)->create();
+
+        $response = $this->getJson(route('services.index', ['per_page' => 2]));
+
+        $response->assertOk()
+            ->assertJsonCount(2, 'data')
+            ->assertJsonPath('meta.per_page', 2)
+            ->assertJsonPath('meta.total', 3);
+    }
+
     public function test_store_validates_required_fields(): void
     {
         $this->actingAsOwner();
