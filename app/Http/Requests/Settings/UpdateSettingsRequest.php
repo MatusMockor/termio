@@ -76,7 +76,7 @@ final class UpdateSettingsRequest extends FormRequest
     {
         $value = $this->validated('reservation_lead_time_hours');
 
-        if ($value === null) {
+        if (! $value) {
             return null;
         }
 
@@ -87,7 +87,7 @@ final class UpdateSettingsRequest extends FormRequest
     {
         $value = $this->validated('reservation_max_days_in_advance');
 
-        if ($value === null) {
+        if (! $value) {
             return null;
         }
 
@@ -98,7 +98,7 @@ final class UpdateSettingsRequest extends FormRequest
     {
         $value = $this->validated('reservation_slot_interval_minutes');
 
-        if ($value === null) {
+        if (! $value) {
             return null;
         }
 

@@ -121,8 +121,6 @@ final class PublicBookingReadService implements PublicBookingRead
 
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
-        $today = Carbon::today();
-        $latestBookableDate = $today->copy()->addDays($tenant->getReservationMaxDaysInAdvance())->endOfDay();
         $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
 
@@ -138,13 +136,13 @@ final class PublicBookingReadService implements PublicBookingRead
         $timeOffsByDate = $this->getAllDayTimeOffsByDate($tenant->id, $staffIds, $startDate, $endDate);
 
         return $this->collectAvailableDates(
+            $tenant,
             $staffIds,
             $workingHoursMap,
             $timeOffsByDate,
+            $service->duration_minutes,
             $startDate,
             $endDate,
-            $today,
-            $latestBookableDate,
             $hasConfiguredBusinessHours,
             $activeBusinessHours,
         );
@@ -229,18 +227,20 @@ final class PublicBookingReadService implements PublicBookingRead
      * @return array<int, string>
      */
     private function collectAvailableDates(
+        Tenant $tenant,
         array $staffIds,
         SupportCollection $workingHoursMap,
         SupportCollection $timeOffsByDate,
+        int $serviceDurationMinutes,
         Carbon $startDate,
         Carbon $endDate,
-        Carbon $today,
-        Carbon $latestBookableDate,
         bool $hasConfiguredBusinessHours,
         SupportCollection $activeBusinessHours,
     ): array {
         $availableDates = [];
         $currentDate = $startDate->copy();
+        $today = Carbon::today();
+        $latestBookableDate = $today->copy()->addDays($tenant->getReservationMaxDaysInAdvance())->endOfDay();
 
         while ($currentDate <= $endDate) {
             if ($currentDate < $today) {
@@ -257,11 +257,13 @@ final class PublicBookingReadService implements PublicBookingRead
 
             $dateStr = $currentDate->toDateString();
             if ($this->hasAvailabilityForDate(
+                $tenant,
                 $dateStr,
                 $currentDate->dayOfWeek,
                 $staffIds,
                 $workingHoursMap,
                 $timeOffsByDate,
+                $serviceDurationMinutes,
                 $hasConfiguredBusinessHours,
                 $activeBusinessHours
             )) {
@@ -278,11 +280,13 @@ final class PublicBookingReadService implements PublicBookingRead
      * @param  array<int, int>  $staffIds
      */
     private function hasAvailabilityForDate(
+        Tenant $tenant,
         string $dateStr,
         int $dayOfWeek,
         array $staffIds,
         SupportCollection $workingHoursMap,
         SupportCollection $timeOffsByDate,
+        int $serviceDurationMinutes,
         bool $hasConfiguredBusinessHours,
         SupportCollection $activeBusinessHours
     ): bool {
@@ -292,6 +296,9 @@ final class PublicBookingReadService implements PublicBookingRead
 
         $dateTimeOffs = $timeOffsByDate->get($dateStr, collect());
         $businessWorkingHours = $activeBusinessHours->get($dayOfWeek);
+        $date = Carbon::parse($dateStr);
+        $minimumAllowedStartAt = now()->addHours($tenant->getReservationLeadTimeHours());
+        $slotIntervalMinutes = $tenant->getReservationSlotIntervalMinutes();
 
         foreach ($staffIds as $checkStaffId) {
             if ($this->isAllDayOffForStaff($dateTimeOffs, $checkStaffId)) {
@@ -311,7 +318,17 @@ final class PublicBookingReadService implements PublicBookingRead
                 $hasConfiguredBusinessHours,
             );
 
-            if ($constrainedWorkingHours) {
+            if (! $constrainedWorkingHours) {
+                continue;
+            }
+
+            if ($this->hasBookableSlotAfterLeadTime(
+                $constrainedWorkingHours,
+                $date,
+                $serviceDurationMinutes,
+                $slotIntervalMinutes,
+                $minimumAllowedStartAt,
+            )) {
                 return true;
             }
         }
@@ -324,5 +341,27 @@ final class PublicBookingReadService implements PublicBookingRead
         return $dateTimeOffs->contains(
             static fn (TimeOff $timeOff): bool => $timeOff->staff_id === null || $timeOff->staff_id === $staffId
         );
+    }
+
+    private function hasBookableSlotAfterLeadTime(
+        WorkingHours $workingHours,
+        Carbon $date,
+        int $serviceDurationMinutes,
+        int $slotIntervalMinutes,
+        Carbon $minimumAllowedStartAt,
+    ): bool {
+        $startTime = Carbon::parse($date->format('Y-m-d').' '.$workingHours->start_time);
+        $endTime = Carbon::parse($date->format('Y-m-d').' '.$workingHours->end_time);
+        $current = $startTime->copy();
+
+        while ($current->copy()->addMinutes($serviceDurationMinutes)->lte($endTime)) {
+            if ($current->gte($minimumAllowedStartAt)) {
+                return true;
+            }
+
+            $current->addMinutes($slotIntervalMinutes);
+        }
+
+        return false;
     }
 }

@@ -200,13 +200,17 @@ final class OnboardingControllerTest extends TestCase
 
     public function test_cannot_save_progress_with_invalid_reservation_settings(): void
     {
+        $invalidLeadTime = (int) config('reservation.limits.lead_time_hours.min') - 1;
+        $invalidMaxDays = (int) config('reservation.limits.max_days_in_advance.min') - 1;
+        $invalidSlotInterval = (int) config('reservation.limits.slot_interval_minutes.min') + 1;
+
         $response = $this->postJson(route('onboarding.save-progress'), [
             'step' => 'reservation_settings',
             'data' => [
                 'reservation_settings' => [
-                    'lead_time_hours' => -1,
-                    'max_days_in_advance' => 0,
-                    'slot_interval_minutes' => 7,
+                    'lead_time_hours' => $invalidLeadTime,
+                    'max_days_in_advance' => $invalidMaxDays,
+                    'slot_interval_minutes' => $invalidSlotInterval,
                 ],
             ],
         ]);
@@ -343,15 +347,19 @@ final class OnboardingControllerTest extends TestCase
 
     public function test_complete_onboarding_syncs_reservation_settings_from_progress(): void
     {
+        $leadTime = (int) config('reservation.defaults.lead_time_hours');
+        $maxDays = (int) config('reservation.defaults.max_days_in_advance');
+        $slotInterval = (int) config('reservation.defaults.slot_interval_minutes');
+
         $this->tenant->update([
             'business_type' => BusinessType::Salon,
             'onboarding_step' => 'reservation_settings',
             'onboarding_data' => [
                 'reservation_settings' => [
                     'reservation_settings' => [
-                        'lead_time_hours' => 4,
-                        'max_days_in_advance' => 45,
-                        'slot_interval_minutes' => 15,
+                        'lead_time_hours' => $leadTime,
+                        'max_days_in_advance' => $maxDays,
+                        'slot_interval_minutes' => $slotInterval,
                     ],
                 ],
             ],
@@ -363,23 +371,27 @@ final class OnboardingControllerTest extends TestCase
 
         $this->assertDatabaseHas(Tenant::class, [
             'id' => $this->tenant->id,
-            'reservation_lead_time_hours' => 4,
-            'reservation_max_days_in_advance' => 45,
-            'reservation_slot_interval_minutes' => 15,
+            'reservation_lead_time_hours' => $leadTime,
+            'reservation_max_days_in_advance' => $maxDays,
+            'reservation_slot_interval_minutes' => $slotInterval,
         ]);
     }
 
     public function test_complete_onboarding_fails_for_invalid_reservation_settings_progress_data(): void
     {
+        $invalidLeadTime = (int) config('reservation.limits.lead_time_hours.min') - 1;
+        $invalidMaxDays = (int) config('reservation.limits.max_days_in_advance.min') - 1;
+        $invalidSlotInterval = (int) config('reservation.limits.slot_interval_minutes.min') + 1;
+
         $this->tenant->update([
             'business_type' => BusinessType::Salon,
             'onboarding_step' => 'reservation_settings',
             'onboarding_data' => [
                 'reservation_settings' => [
                     'reservation_settings' => [
-                        'lead_time_hours' => -1,
-                        'max_days_in_advance' => 0,
-                        'slot_interval_minutes' => 7,
+                        'lead_time_hours' => $invalidLeadTime,
+                        'max_days_in_advance' => $invalidMaxDays,
+                        'slot_interval_minutes' => $invalidSlotInterval,
                     ],
                 ],
             ],

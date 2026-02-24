@@ -22,6 +22,7 @@ final class RepositoryServiceProvider extends ServiceProvider
         \App\Contracts\Repositories\StaffRepository::class => \App\Repositories\Eloquent\EloquentStaffRepository::class,
         \App\Contracts\Repositories\PortfolioImageRepository::class => \App\Repositories\Eloquent\EloquentPortfolioImageRepository::class,
         \App\Contracts\Repositories\PortfolioTagRepository::class => \App\Repositories\Eloquent\EloquentPortfolioTagRepository::class,
+        \App\Contracts\Repositories\OnboardingRepository::class => \App\Repositories\Eloquent\EloquentOnboardingRepository::class,
     ];
 
     /**
@@ -30,6 +31,7 @@ final class RepositoryServiceProvider extends ServiceProvider
     private array $services = [
         \App\Contracts\Services\ImageUploadService::class => \App\Services\Portfolio\ImageUploadService::class,
         \App\Contracts\Services\ReportingMetricsService::class => \App\Services\Reporting\ReportingMetricsService::class,
+        \App\Contracts\Services\OnboardingProgressValidationServiceContract::class => \App\Services\Onboarding\OnboardingProgressValidationService::class,
     ];
 
     public function register(): void
