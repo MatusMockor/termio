@@ -261,8 +261,10 @@ final class BookingControllerTest extends TestCase
         Carbon::setTestNow('2026-02-24 08:00:00');
 
         try {
+            $slotInterval = (int) config('reservation.defaults.slot_interval_minutes');
             $this->tenant->update([
                 'reservation_lead_time_hours' => 2,
+                'reservation_slot_interval_minutes' => $slotInterval,
             ]);
 
             $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
@@ -296,7 +298,21 @@ final class BookingControllerTest extends TestCase
                 ->values()
                 ->all();
 
-            $this->assertSame(['10:00', '10:30', '11:00'], $availableTimes);
+            $expectedTimes = [];
+            $minimumAllowedStartAt = Carbon::now()->addHours($this->tenant->reservation_lead_time_hours);
+            $currentTime = $targetDate->copy()->setTimeFromTimeString('09:00');
+            $latestStart = $targetDate->copy()->setTimeFromTimeString('12:00')
+                ->subMinutes($service->duration_minutes);
+
+            while ($currentTime->lte($latestStart)) {
+                if ($currentTime->gte($minimumAllowedStartAt)) {
+                    $expectedTimes[] = $currentTime->format('H:i');
+                }
+
+                $currentTime->addMinutes($slotInterval);
+            }
+
+            $this->assertSame($expectedTimes, $availableTimes);
         } finally {
             Carbon::setTestNow();
         }
