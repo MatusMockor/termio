@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Repositories\InvoiceRepository;
-use App\Contracts\Repositories\OnboardingRepository;
 use App\Contracts\Services\BillingService as BillingServiceContract;
 use App\Contracts\Services\BookingAvailability;
 use App\Contracts\Services\PaymentMethodServiceContract;
@@ -17,7 +16,6 @@ use App\Contracts\Services\WorkingHoursBusiness;
 use App\Models\Appointment;
 use App\Observers\AppointmentObserver;
 use App\Repositories\Eloquent\EloquentInvoiceRepository;
-use App\Repositories\Eloquent\EloquentOnboardingRepository;
 use App\Services\Billing\BillingService;
 use App\Services\Billing\PaymentMethodService;
 use App\Services\Billing\VatService;
@@ -45,9 +43,6 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(PublicBookingRead::class, PublicBookingReadService::class);
         $this->app->bind(ReportingDataProvider::class, ReportingDataProviderService::class);
         $this->app->bind(WorkingHoursBusiness::class, WorkingHoursBusinessService::class);
-
-        // Onboarding bindings
-        $this->app->bind(OnboardingRepository::class, EloquentOnboardingRepository::class);
     }
 
     public function boot(): void

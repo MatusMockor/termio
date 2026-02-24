@@ -209,8 +209,10 @@ final class BookingControllerTest extends TestCase
 
     public function test_availability_uses_configured_slot_interval_minutes(): void
     {
+        $slotInterval = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+
         $this->tenant->update([
-            'reservation_slot_interval_minutes' => 15,
+            'reservation_slot_interval_minutes' => $slotInterval,
         ]);
 
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
@@ -242,7 +244,16 @@ final class BookingControllerTest extends TestCase
             ->values()
             ->all();
 
-        $this->assertSame(['09:00', '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00'], $times);
+        $expectedTimes = [];
+        $currentTime = Carbon::createFromTime(9, 0);
+        $latestStart = Carbon::createFromTime(12, 0)->subMinutes($service->duration_minutes);
+
+        while ($currentTime->lte($latestStart)) {
+            $expectedTimes[] = $currentTime->format('H:i');
+            $currentTime->addMinutes($slotInterval);
+        }
+
+        $this->assertSame($expectedTimes, $times);
     }
 
     public function test_availability_filters_slots_before_lead_time(): void
@@ -707,5 +718,43 @@ final class BookingControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('available_dates', []);
+    }
+
+    public function test_available_dates_excludes_day_fully_blocked_by_lead_time(): void
+    {
+        Carbon::setTestNow('2026-02-24 18:00:00');
+
+        try {
+            $this->tenant->update([
+                'reservation_lead_time_hours' => 2,
+            ]);
+
+            $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+            $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+            $staff->services()->attach($service->id);
+
+            $today = Carbon::today();
+
+            WorkingHours::factory()->forTenant($this->tenant)->create([
+                'staff_id' => $staff->id,
+                'day_of_week' => $today->dayOfWeek,
+                'start_time' => '09:00',
+                'end_time' => '12:00',
+                'is_active' => true,
+            ]);
+
+            $response = $this->getJson(route('booking.available-dates', [
+                'tenantSlug' => $this->tenant->slug,
+                'service_id' => $service->id,
+                'month' => $today->month,
+                'year' => $today->year,
+            ]));
+
+            $response->assertOk();
+
+            $this->assertNotContains($today->toDateString(), $response->json('available_dates'));
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 }

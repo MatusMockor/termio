@@ -40,33 +40,51 @@ final class SettingsReservationSettingsTest extends TestCase
 
     public function test_owner_can_update_reservation_settings(): void
     {
+        $leadTimeMin = (int) config('reservation.limits.lead_time_hours.min');
+        $leadTimeMax = (int) config('reservation.limits.lead_time_hours.max');
+        $leadTime = min($leadTimeMax, $leadTimeMin + 1);
+        $maxDaysMin = (int) config('reservation.limits.max_days_in_advance.min');
+        $maxDaysMax = (int) config('reservation.limits.max_days_in_advance.max');
+        $maxDays = min($maxDaysMax, $maxDaysMin + 10);
+        $slotIntervalMultipleOf = (int) config('reservation.limits.slot_interval_minutes.multiple_of');
+        $slotIntervalMax = (int) config('reservation.limits.slot_interval_minutes.max');
+        $slotInterval = intdiv($slotIntervalMax, $slotIntervalMultipleOf) * $slotIntervalMultipleOf;
+
+        if (! $slotInterval) {
+            $slotInterval = $slotIntervalMultipleOf;
+        }
+
         $response = $this->actingAs($this->owner)
             ->putJson(route('settings.update'), [
-                'reservation_lead_time_hours' => 2,
-                'reservation_max_days_in_advance' => 60,
-                'reservation_slot_interval_minutes' => 15,
+                'reservation_lead_time_hours' => $leadTime,
+                'reservation_max_days_in_advance' => $maxDays,
+                'reservation_slot_interval_minutes' => $slotInterval,
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('reservation_settings.lead_time_hours', 2)
-            ->assertJsonPath('reservation_settings.max_days_in_advance', 60)
-            ->assertJsonPath('reservation_settings.slot_interval_minutes', 15);
+            ->assertJsonPath('reservation_settings.lead_time_hours', $leadTime)
+            ->assertJsonPath('reservation_settings.max_days_in_advance', $maxDays)
+            ->assertJsonPath('reservation_settings.slot_interval_minutes', $slotInterval);
 
         $this->assertDatabaseHas(Tenant::class, [
             'id' => $this->tenant->id,
-            'reservation_lead_time_hours' => 2,
-            'reservation_max_days_in_advance' => 60,
-            'reservation_slot_interval_minutes' => 15,
+            'reservation_lead_time_hours' => $leadTime,
+            'reservation_max_days_in_advance' => $maxDays,
+            'reservation_slot_interval_minutes' => $slotInterval,
         ]);
     }
 
     public function test_update_reservation_settings_validates_input_values(): void
     {
+        $invalidLeadTime = (int) config('reservation.limits.lead_time_hours.min') - 1;
+        $invalidMaxDays = (int) config('reservation.limits.max_days_in_advance.min') - 1;
+        $invalidSlotInterval = (int) config('reservation.limits.slot_interval_minutes.min') + 1;
+
         $response = $this->actingAs($this->owner)
             ->putJson(route('settings.update'), [
-                'reservation_lead_time_hours' => -1,
-                'reservation_max_days_in_advance' => 0,
-                'reservation_slot_interval_minutes' => 7,
+                'reservation_lead_time_hours' => $invalidLeadTime,
+                'reservation_max_days_in_advance' => $invalidMaxDays,
+                'reservation_slot_interval_minutes' => $invalidSlotInterval,
             ]);
 
         $response->assertUnprocessable()

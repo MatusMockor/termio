@@ -10,7 +10,7 @@ return [
     ],
     'limits' => [
         'lead_time_hours' => [
-            'min' => 0,
+            'min' => 1,
             'max' => 720,
         ],
         'max_days_in_advance' => [

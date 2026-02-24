@@ -6,6 +6,7 @@ namespace App\Services\Onboarding;
 
 use App\Contracts\Repositories\OnboardingRepository;
 use App\Contracts\Repositories\WorkingHoursRepository;
+use App\Contracts\Services\OnboardingProgressValidationServiceContract;
 use App\DTOs\Onboarding\OnboardingStatusDTO;
 use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Enums\BusinessType;
@@ -17,7 +18,7 @@ final class OnboardingService
     public function __construct(
         private readonly OnboardingRepository $repository,
         private readonly WorkingHoursRepository $workingHoursRepository,
-        private readonly OnboardingProgressValidationService $progressValidationService,
+        private readonly OnboardingProgressValidationServiceContract $progressValidationService,
     ) {}
 
     /**

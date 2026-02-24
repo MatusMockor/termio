@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\Onboarding;
 
+use App\Contracts\Services\OnboardingProgressValidationServiceContract;
 use App\Exceptions\InvalidOnboardingDataException;
 use App\Models\Tenant;
 use App\Rules\EndTimeAfterStartTime;
 use Illuminate\Support\Facades\Validator;
 
-final class OnboardingProgressValidationService
+final class OnboardingProgressValidationService implements OnboardingProgressValidationServiceContract
 {
     /**
      * @return array<int, array{day_of_week: int, start_time: string, end_time: string, is_active?: bool}>|null
@@ -18,7 +19,7 @@ final class OnboardingProgressValidationService
     {
         $workingHoursPayload = $this->resolveStepPayload($tenant, 'working_hours');
 
-        if ($workingHoursPayload === null) {
+        if (! $workingHoursPayload) {
             return null;
         }
 
@@ -57,7 +58,7 @@ final class OnboardingProgressValidationService
     {
         $reservationSettingsPayload = $this->resolveStepPayload($tenant, 'reservation_settings');
 
-        if ($reservationSettingsPayload === null) {
+        if (! $reservationSettingsPayload) {
             return null;
         }
 
@@ -123,15 +124,19 @@ final class OnboardingProgressValidationService
         $hasNestedStep = array_key_exists($stepKey, $stepData);
         $payload = $stepData[$stepKey] ?? $stepData;
 
-        if (is_array($payload)) {
-            return $payload;
+        if (! is_array($payload)) {
+            if (! $hasNestedStep) {
+                return null;
+            }
+
+            $this->throwInvalidStepPayload($stepKey, $tenant->id);
         }
 
-        if (! $hasNestedStep) {
+        if (! $payload) {
             return null;
         }
 
-        $this->throwInvalidStepPayload($stepKey, $tenant->id);
+        return $payload;
     }
 
     /**
