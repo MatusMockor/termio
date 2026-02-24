@@ -122,6 +122,7 @@ final class PublicBookingReadService implements PublicBookingRead
         $startDate = Carbon::create($year, $month, 1)->startOfMonth();
         $endDate = $startDate->copy()->endOfMonth();
         $today = Carbon::today();
+        $latestBookableDate = $today->copy()->addDays($tenant->getReservationMaxDaysInAdvance())->endOfDay();
         $staffIds = $this->resolveStaffIds($tenant->id, $service->id, $staffId);
         $hasConfiguredBusinessHours = $this->workingHoursBusiness->hasConfiguredBusinessHours($tenant->id);
 
@@ -143,6 +144,7 @@ final class PublicBookingReadService implements PublicBookingRead
             $startDate,
             $endDate,
             $today,
+            $latestBookableDate,
             $hasConfiguredBusinessHours,
             $activeBusinessHours,
         );
@@ -233,6 +235,7 @@ final class PublicBookingReadService implements PublicBookingRead
         Carbon $startDate,
         Carbon $endDate,
         Carbon $today,
+        Carbon $latestBookableDate,
         bool $hasConfiguredBusinessHours,
         SupportCollection $activeBusinessHours,
     ): array {
@@ -241,6 +244,12 @@ final class PublicBookingReadService implements PublicBookingRead
 
         while ($currentDate <= $endDate) {
             if ($currentDate < $today) {
+                $currentDate->addDay();
+
+                continue;
+            }
+
+            if ($currentDate->gt($latestBookableDate)) {
                 $currentDate->addDay();
 
                 continue;

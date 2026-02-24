@@ -28,6 +28,9 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property string|null $vat_id
  * @property Carbon|null $vat_id_verified_at
  * @property string $timezone
+ * @property int $reservation_lead_time_hours
+ * @property int $reservation_max_days_in_advance
+ * @property int $reservation_slot_interval_minutes
  * @property array<string, mixed> $settings
  * @property string $status
  * @property string|null $stripe_id
@@ -68,6 +71,9 @@ final class Tenant extends Model
         'vat_id',
         'vat_id_verified_at',
         'timezone',
+        'reservation_lead_time_hours',
+        'reservation_max_days_in_advance',
+        'reservation_slot_interval_minutes',
         'settings',
         'status',
         'stripe_id',
@@ -91,6 +97,9 @@ final class Tenant extends Model
             'vat_id_verified_at' => 'datetime',
             'onboarding_completed_at' => 'datetime',
             'onboarding_data' => 'array',
+            'reservation_lead_time_hours' => 'integer',
+            'reservation_max_days_in_advance' => 'integer',
+            'reservation_slot_interval_minutes' => 'integer',
         ];
     }
 
@@ -250,6 +259,39 @@ final class Tenant extends Model
             'data' => $this->onboarding_data ?? [],
             'completed_at' => $this->onboarding_completed_at?->toIso8601String(),
         ];
+    }
+
+    public function getReservationLeadTimeHours(): int
+    {
+        $configuredValue = $this->getAttribute('reservation_lead_time_hours');
+
+        if (is_int($configuredValue)) {
+            return $configuredValue;
+        }
+
+        return (int) config('reservation.defaults.lead_time_hours');
+    }
+
+    public function getReservationMaxDaysInAdvance(): int
+    {
+        $configuredValue = $this->getAttribute('reservation_max_days_in_advance');
+
+        if (is_int($configuredValue)) {
+            return $configuredValue;
+        }
+
+        return (int) config('reservation.defaults.max_days_in_advance');
+    }
+
+    public function getReservationSlotIntervalMinutes(): int
+    {
+        $configuredValue = $this->getAttribute('reservation_slot_interval_minutes');
+
+        if (is_int($configuredValue)) {
+            return $configuredValue;
+        }
+
+        return (int) config('reservation.defaults.slot_interval_minutes');
     }
 
     /**

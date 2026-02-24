@@ -12,8 +12,6 @@ use Illuminate\Database\Eloquent\Collection;
 
 final class AvailabilitySlotService
 {
-    private const int SLOT_INTERVAL_MINUTES = 30;
-
     /**
      * Generate available time slots for a given date based on working hours and existing appointments.
      *
@@ -27,6 +25,8 @@ final class AvailabilitySlotService
         Collection $timeOffPeriods,
         int $serviceDurationMinutes,
         Carbon $date,
+        int $slotIntervalMinutes,
+        Carbon $minimumAllowedStartAt,
     ): array {
         $slots = [];
 
@@ -44,6 +44,7 @@ final class AvailabilitySlotService
                 $date,
                 $existingAppointments,
                 $timeOffPeriods,
+                $minimumAllowedStartAt,
             );
 
             $slots[] = [
@@ -51,7 +52,7 @@ final class AvailabilitySlotService
                 'available' => $isAvailable,
             ];
 
-            $current->addMinutes(self::SLOT_INTERVAL_MINUTES);
+            $current->addMinutes($slotIntervalMinutes);
         }
 
         return $slots;
@@ -69,8 +70,9 @@ final class AvailabilitySlotService
         Carbon $date,
         Collection $appointments,
         Collection $timeOffPeriods,
+        Carbon $minimumAllowedStartAt,
     ): bool {
-        if ($slotStart->lt(now())) {
+        if ($slotStart->lt($minimumAllowedStartAt)) {
             return false;
         }
 

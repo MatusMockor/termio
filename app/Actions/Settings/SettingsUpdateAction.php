@@ -22,6 +22,9 @@ final class SettingsUpdateAction
             'address' => $dto->address,
             'phone' => $dto->phone,
             'timezone' => $dto->timezone,
+            'reservation_lead_time_hours' => $dto->reservationLeadTimeHours,
+            'reservation_max_days_in_advance' => $dto->reservationMaxDaysInAdvance,
+            'reservation_slot_interval_minutes' => $dto->reservationSlotIntervalMinutes,
             'settings' => $dto->settings,
         ], static fn (mixed $value): bool => $value !== null);
 

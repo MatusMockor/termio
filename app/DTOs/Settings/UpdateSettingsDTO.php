@@ -15,6 +15,9 @@ final readonly class UpdateSettingsDTO
         public ?string $address,
         public ?string $phone,
         public ?string $timezone,
+        public ?int $reservationLeadTimeHours,
+        public ?int $reservationMaxDaysInAdvance,
+        public ?int $reservationSlotIntervalMinutes,
         public ?array $settings,
     ) {}
 }

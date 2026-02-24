@@ -198,6 +198,27 @@ final class OnboardingControllerTest extends TestCase
             ->assertJsonValidationErrors(['data.working_hours.1.day_of_week']);
     }
 
+    public function test_cannot_save_progress_with_invalid_reservation_settings(): void
+    {
+        $response = $this->postJson(route('onboarding.save-progress'), [
+            'step' => 'reservation_settings',
+            'data' => [
+                'reservation_settings' => [
+                    'lead_time_hours' => -1,
+                    'max_days_in_advance' => 0,
+                    'slot_interval_minutes' => 7,
+                ],
+            ],
+        ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'data.reservation_settings.lead_time_hours',
+                'data.reservation_settings.max_days_in_advance',
+                'data.reservation_settings.slot_interval_minutes',
+            ]);
+    }
+
     public function test_can_complete_onboarding(): void
     {
         $this->tenant->update([
@@ -318,6 +339,60 @@ final class OnboardingControllerTest extends TestCase
         $this->tenant->refresh();
         $this->assertNull($this->tenant->onboarding_completed_at);
         $this->assertNotNull($this->tenant->onboarding_data);
+    }
+
+    public function test_complete_onboarding_syncs_reservation_settings_from_progress(): void
+    {
+        $this->tenant->update([
+            'business_type' => BusinessType::Salon,
+            'onboarding_step' => 'reservation_settings',
+            'onboarding_data' => [
+                'reservation_settings' => [
+                    'reservation_settings' => [
+                        'lead_time_hours' => 4,
+                        'max_days_in_advance' => 45,
+                        'slot_interval_minutes' => 15,
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson(route('onboarding.complete'));
+
+        $response->assertOk();
+
+        $this->assertDatabaseHas(Tenant::class, [
+            'id' => $this->tenant->id,
+            'reservation_lead_time_hours' => 4,
+            'reservation_max_days_in_advance' => 45,
+            'reservation_slot_interval_minutes' => 15,
+        ]);
+    }
+
+    public function test_complete_onboarding_fails_for_invalid_reservation_settings_progress_data(): void
+    {
+        $this->tenant->update([
+            'business_type' => BusinessType::Salon,
+            'onboarding_step' => 'reservation_settings',
+            'onboarding_data' => [
+                'reservation_settings' => [
+                    'reservation_settings' => [
+                        'lead_time_hours' => -1,
+                        'max_days_in_advance' => 0,
+                        'slot_interval_minutes' => 7,
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson(route('onboarding.complete'));
+
+        $response->assertUnprocessable()
+            ->assertJsonStructure(['message', 'error'])
+            ->assertJsonPath('message', 'Invalid onboarding data');
+
+        $this->tenant->refresh();
+        $this->assertNull($this->tenant->onboarding_completed_at);
     }
 
     public function test_can_skip_onboarding(): void

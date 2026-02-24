@@ -207,6 +207,109 @@ final class BookingControllerTest extends TestCase
         $this->assertCount(5, $slots);
     }
 
+    public function test_availability_uses_configured_slot_interval_minutes(): void
+    {
+        $this->tenant->update([
+            'reservation_slot_interval_minutes' => 15,
+        ]);
+
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+        $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+        $staff->services()->attach($service->id);
+
+        $targetDate = Carbon::tomorrow();
+        $dayOfWeek = $targetDate->dayOfWeek;
+
+        WorkingHours::factory()->forTenant($this->tenant)->create([
+            'staff_id' => $staff->id,
+            'day_of_week' => $dayOfWeek,
+            'start_time' => '09:00',
+            'end_time' => '12:00',
+            'is_active' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.availability', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'staff_id' => $staff->id,
+            'date' => $targetDate->toDateString(),
+        ]));
+
+        $response->assertOk();
+
+        $times = collect($response->json('slots'))
+            ->pluck('time')
+            ->values()
+            ->all();
+
+        $this->assertSame(['09:00', '09:15', '09:30', '09:45', '10:00', '10:15', '10:30', '10:45', '11:00'], $times);
+    }
+
+    public function test_availability_filters_slots_before_lead_time(): void
+    {
+        Carbon::setTestNow('2026-02-24 08:00:00');
+
+        try {
+            $this->tenant->update([
+                'reservation_lead_time_hours' => 2,
+            ]);
+
+            $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
+            $staff = StaffProfile::factory()->forTenant($this->tenant)->bookable()->create();
+            $staff->services()->attach($service->id);
+
+            $targetDate = Carbon::today();
+
+            WorkingHours::factory()->forTenant($this->tenant)->create([
+                'staff_id' => $staff->id,
+                'day_of_week' => $targetDate->dayOfWeek,
+                'start_time' => '09:00',
+                'end_time' => '12:00',
+                'is_active' => true,
+            ]);
+
+            $response = $this->getJson(route('booking.availability', [
+                'tenantSlug' => $this->tenant->slug,
+                'service_id' => $service->id,
+                'staff_id' => $staff->id,
+                'date' => $targetDate->toDateString(),
+            ]));
+
+            $response->assertOk();
+
+            $slots = collect($response->json('slots'));
+
+            $availableTimes = $slots
+                ->filter(static fn (array $slot): bool => $slot['available'])
+                ->pluck('time')
+                ->values()
+                ->all();
+
+            $this->assertSame(['10:00', '10:30', '11:00'], $availableTimes);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_availability_returns_empty_when_date_exceeds_max_days_in_advance(): void
+    {
+        $this->tenant->update([
+            'reservation_max_days_in_advance' => 7,
+        ]);
+
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        $targetDate = Carbon::today()->addDays(8);
+
+        $response = $this->getJson(route('booking.availability', [
+            'tenantSlug' => $this->tenant->slug,
+            'service_id' => $service->id,
+            'date' => $targetDate->toDateString(),
+        ]));
+
+        $response->assertOk()
+            ->assertJsonPath('slots', []);
+    }
+
     public function test_availability_respects_business_working_hours_window(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 60]);
@@ -407,6 +510,58 @@ final class BookingControllerTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['starts_at']);
+    }
+
+    public function test_create_booking_returns_validation_error_when_before_lead_time(): void
+    {
+        Carbon::setTestNow('2026-02-24 08:00:00');
+
+        try {
+            $this->tenant->update([
+                'reservation_lead_time_hours' => 2,
+            ]);
+
+            $service = Service::factory()->forTenant($this->tenant)->create();
+
+            $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+                'service_id' => $service->id,
+                'starts_at' => Carbon::now()->addHour()->toIso8601String(),
+                'client_name' => fake()->name(),
+                'client_phone' => fake()->phoneNumber(),
+                'client_email' => fake()->safeEmail(),
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['starts_at']);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_create_booking_returns_validation_error_when_exceeds_max_days_in_advance(): void
+    {
+        Carbon::setTestNow('2026-02-24 08:00:00');
+
+        try {
+            $this->tenant->update([
+                'reservation_max_days_in_advance' => 7,
+            ]);
+
+            $service = Service::factory()->forTenant($this->tenant)->create();
+
+            $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+                'service_id' => $service->id,
+                'starts_at' => Carbon::now()->addDays(8)->setHour(10)->setMinute(0)->toIso8601String(),
+                'client_name' => fake()->name(),
+                'client_phone' => fake()->phoneNumber(),
+                'client_email' => fake()->safeEmail(),
+            ]);
+
+            $response->assertUnprocessable()
+                ->assertJsonValidationErrors(['starts_at']);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_create_booking_sends_confirmation_email_to_client(): void
