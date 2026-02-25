@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Appointment\AppointmentCalendarDayGetAction;
+use App\Actions\Appointment\AppointmentCalendarGetAction;
 use App\Actions\Appointment\AppointmentCancelAction;
 use App\Actions\Appointment\AppointmentCompleteAction;
 use App\Actions\Appointment\AppointmentCreateAction;
+use App\Actions\Appointment\AppointmentIndexGetAction;
 use App\Actions\Appointment\AppointmentUpdateAction;
-use App\Actions\Appointment\GetCalendarAppointmentsAction;
-use App\Actions\Appointment\GetCalendarDayAppointmentsAction;
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Appointment\CalendarAppointmentsRequest;
@@ -30,24 +31,16 @@ final class AppointmentController extends Controller
         private readonly AppointmentRepository $appointmentRepository,
     ) {}
 
-    public function index(IndexAppointmentsRequest $request): AppointmentCollection
+    public function index(IndexAppointmentsRequest $request, AppointmentIndexGetAction $action): AppointmentCollection
     {
-        $appointments = $this->appointmentRepository->findFiltered(
-            date: $request->getDate(),
-            startDate: $request->getStartDate(),
-            endDate: $request->getEndDate(),
-            staffId: $request->getStaffId(),
-            status: $request->getStatus(),
-            perPage: $request->getPerPage(),
-            relations: ['client', 'service', 'staff']
-        );
+        $appointments = $action->handle($request->toDTO());
 
         return new AppointmentCollection($appointments);
     }
 
     public function calendar(
         CalendarAppointmentsRequest $request,
-        GetCalendarAppointmentsAction $action
+        AppointmentCalendarGetAction $action
     ): JsonResponse {
         $calendar = $action->handle($request->toDTO());
 
@@ -63,7 +56,7 @@ final class AppointmentController extends Controller
 
     public function calendarDay(
         CalendarDayAppointmentsRequest $request,
-        GetCalendarDayAppointmentsAction $action
+        AppointmentCalendarDayGetAction $action
     ): JsonResponse {
         $dayPayload = $action->handle($request->toDTO());
 

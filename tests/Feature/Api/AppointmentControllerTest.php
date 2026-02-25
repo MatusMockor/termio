@@ -100,10 +100,14 @@ final class AppointmentControllerTest extends TestCase
     {
         $this->actingAsOwner();
 
+        $invalidStatus = fake()->uuid();
+        $startDate = Carbon::instance(fake()->dateTimeBetween('2026-02-20', '2026-02-24'))->startOfDay();
+        $endDate = $startDate->copy()->subDay();
+
         $response = $this->getJson(route('appointments.index', [
-            'status' => 'invalid-status',
-            'start_date' => '2026-02-25',
-            'end_date' => '2026-02-24',
+            'status' => $invalidStatus,
+            'start_date' => $startDate->toDateString(),
+            'end_date' => $endDate->toDateString(),
         ]));
 
         $response->assertUnprocessable()
@@ -113,9 +117,10 @@ final class AppointmentControllerTest extends TestCase
     public function test_index_requires_start_date_when_end_date_is_provided(): void
     {
         $this->actingAsOwner();
+        $endDate = Carbon::instance(fake()->dateTimeBetween('tomorrow', '+5 days'))->toDateString();
 
         $response = $this->getJson(route('appointments.index', [
-            'end_date' => Carbon::tomorrow()->toDateString(),
+            'end_date' => $endDate,
         ]));
 
         $response->assertUnprocessable()
@@ -149,8 +154,9 @@ final class AppointmentControllerTest extends TestCase
         $this->actingAsOwner();
 
         $client = Client::factory()->forTenant($this->tenant)->create();
-        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
-        $targetDate = Carbon::tomorrow()->startOfDay()->setHour(8);
+        $slotMinutes = fake()->randomElement([30, 45, 60]);
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => $slotMinutes]);
+        $targetDate = Carbon::instance(fake()->dateTimeBetween('tomorrow', '+7 days'))->startOfDay()->setHour(fake()->numberBetween(7, 10));
         $perDay = (int) config('appointments.calendar.per_day.default');
         $totalAppointments = $perDay + 2;
 
@@ -159,7 +165,7 @@ final class AppointmentControllerTest extends TestCase
                 ->forTenant($this->tenant)
                 ->forClient($client)
                 ->forService($service)
-                ->at($targetDate->copy()->addMinutes($index * 30))
+                ->at($targetDate->copy()->addMinutes($index * $slotMinutes))
                 ->create();
         }
 
@@ -188,8 +194,9 @@ final class AppointmentControllerTest extends TestCase
         $this->actingAsOwner();
 
         $client = Client::factory()->forTenant($this->tenant)->create();
-        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => 30]);
-        $targetDate = Carbon::tomorrow()->startOfDay()->setHour(8);
+        $slotMinutes = fake()->randomElement([30, 45, 60]);
+        $service = Service::factory()->forTenant($this->tenant)->create(['duration_minutes' => $slotMinutes]);
+        $targetDate = Carbon::instance(fake()->dateTimeBetween('tomorrow', '+7 days'))->startOfDay()->setHour(fake()->numberBetween(7, 10));
         $limit = (int) config('appointments.calendar.per_day.default');
         $offset = $limit;
         $totalAppointments = ($limit * 2) + 1;
@@ -199,7 +206,7 @@ final class AppointmentControllerTest extends TestCase
                 ->forTenant($this->tenant)
                 ->forClient($client)
                 ->forService($service)
-                ->at($targetDate->copy()->addMinutes($index * 30))
+                ->at($targetDate->copy()->addMinutes($index * $slotMinutes))
                 ->create();
         }
 
@@ -447,7 +454,7 @@ final class AppointmentControllerTest extends TestCase
             ->create();
 
         $response = $this->postJson(route('appointments.cancel', $appointment), [
-            'reason' => str_repeat('a', 1001),
+            'reason' => str_repeat(fake()->randomLetter(), 1001),
         ]);
 
         $response->assertUnprocessable()

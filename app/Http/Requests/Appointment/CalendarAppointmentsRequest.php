@@ -38,9 +38,13 @@ final class CalendarAppointmentsRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
             $maxRangeDays = (int) config('appointments.calendar.max_range_days');
-            $startDate = $this->input('start_date');
-            $endDate = $this->input('end_date');
+            $startDate = $this->validated('start_date');
+            $endDate = $this->validated('end_date');
 
             if (! is_string($startDate) || ! is_string($endDate)) {
                 return;
