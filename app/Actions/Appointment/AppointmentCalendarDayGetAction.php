@@ -8,7 +8,7 @@ use App\Contracts\Repositories\AppointmentRepository;
 use App\DTOs\Appointment\GetCalendarDayAppointmentsDTO;
 use App\Http\Resources\AppointmentResource;
 
-final class GetCalendarDayAppointmentsAction
+final class AppointmentCalendarDayGetAction
 {
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,

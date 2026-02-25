@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Appointment;
 
+use App\DTOs\Appointment\AppointmentIndexDTO;
 use App\Enums\AppointmentStatus;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
@@ -82,5 +83,23 @@ final class IndexAppointmentsRequest extends FormRequest
         }
 
         return (int) $value;
+    }
+
+    public function getPage(): int
+    {
+        return (int) ($this->validated('page') ?? 1);
+    }
+
+    public function toDTO(): AppointmentIndexDTO
+    {
+        return new AppointmentIndexDTO(
+            date: $this->getDate(),
+            startDate: $this->getStartDate(),
+            endDate: $this->getEndDate(),
+            staffId: $this->getStaffId(),
+            status: $this->getStatus(),
+            perPage: $this->getPerPage(),
+            relations: ['client', 'service', 'staff'],
+        );
     }
 }

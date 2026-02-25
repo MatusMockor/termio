@@ -10,7 +10,7 @@ use App\Http\Resources\AppointmentResource;
 use App\Models\Appointment;
 use Illuminate\Support\Facades\Log;
 
-final class GetCalendarAppointmentsAction
+final class AppointmentCalendarGetAction
 {
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,
