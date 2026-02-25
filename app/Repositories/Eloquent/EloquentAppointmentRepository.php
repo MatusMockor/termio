@@ -56,25 +56,8 @@ final class EloquentAppointmentRepository implements AppointmentRepository
     ): LengthAwarePaginator {
         $query = Appointment::query();
 
-        if ($relations) {
-            $query->with($relations);
-        }
-
-        if ($date !== null) {
-            $this->applyDateFilters($query, $date, $staffId, $status);
-        }
-
-        if ($date === null && $startDate !== null && $endDate !== null) {
-            $this->applyDateRangeFilters($query, $startDate, $endDate, $staffId, $status);
-        }
-
-        if ($date === null && ! ($startDate !== null && $endDate !== null) && $staffId !== null) {
-            $query->forStaff($staffId);
-        }
-
-        if ($date === null && ! ($startDate !== null && $endDate !== null) && $status !== null) {
-            $query->withStatus($status->value);
-        }
+        $this->applyRelations($query, $relations);
+        $this->applyFindFilteredConstraints($query, $date, $startDate, $endDate, $staffId, $status);
 
         return $query->orderBy('starts_at')->paginate($perPage);
     }
@@ -202,6 +185,60 @@ final class EloquentAppointmentRepository implements AppointmentRepository
         }
 
         return $query;
+    }
+
+    /**
+     * @param  Builder<Appointment>  $query
+     * @param  array<string>  $relations
+     */
+    private function applyRelations(Builder $query, array $relations): void
+    {
+        if ($relations) {
+            $query->with($relations);
+        }
+    }
+
+    /**
+     * @param  Builder<Appointment>  $query
+     */
+    private function applyFindFilteredConstraints(
+        Builder $query,
+        ?Carbon $date,
+        ?Carbon $startDate,
+        ?Carbon $endDate,
+        ?int $staffId,
+        ?AppointmentStatus $status,
+    ): void {
+        if ($date !== null) {
+            $this->applyDateFilters($query, $date, $staffId, $status);
+
+            return;
+        }
+
+        if ($startDate !== null && $endDate !== null) {
+            $this->applyDateRangeFilters($query, $startDate, $endDate, $staffId, $status);
+
+            return;
+        }
+
+        $this->applyOptionalStaffAndStatus($query, $staffId, $status);
+    }
+
+    /**
+     * @param  Builder<Appointment>  $query
+     */
+    private function applyOptionalStaffAndStatus(
+        Builder $query,
+        ?int $staffId,
+        ?AppointmentStatus $status,
+    ): void {
+        if ($staffId !== null) {
+            $query->forStaff($staffId);
+        }
+
+        if ($status !== null) {
+            $query->withStatus($status->value);
+        }
     }
 
     /**
