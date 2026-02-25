@@ -7,6 +7,7 @@ namespace App\Actions\Appointment;
 use App\Contracts\Repositories\AppointmentRepository;
 use App\DTOs\Appointment\GetCalendarDayAppointmentsDTO;
 use App\Http\Resources\AppointmentResource;
+use Illuminate\Support\Facades\Log;
 
 final class AppointmentCalendarDayGetAction
 {
@@ -36,6 +37,15 @@ final class AppointmentCalendarDayGetAction
 
         $returned = $appointments->count();
         $nextOffset = $dto->offset + $returned;
+        $hasMore = $returned > 0 && $nextOffset < $total;
+
+        if ($returned === 0 && $dto->offset < $total) {
+            Log::warning('Calendar day pagination mismatch for date.', [
+                'date' => $dto->date->toDateString(),
+                'offset' => $dto->offset,
+                'total' => $total,
+            ]);
+        }
 
         return [
             'date' => $dto->date->toDateString(),
@@ -45,8 +55,8 @@ final class AppointmentCalendarDayGetAction
                 'offset' => $dto->offset,
                 'limit' => $dto->limit,
                 'returned' => $returned,
-                'has_more' => $nextOffset < $total,
-                'next_offset' => $nextOffset,
+                'has_more' => $hasMore,
+                'next_offset' => $returned > 0 ? $nextOffset : null,
             ],
         ];
     }
