@@ -17,6 +17,8 @@ final class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(PlanSeeder::class);
+
         // Create tenant
         $tenant = Tenant::create([
             'name' => 'Demo Barbershop',
