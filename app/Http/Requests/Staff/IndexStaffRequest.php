@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Staff;
 
+use App\DTOs\Staff\IndexStaffDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class IndexStaffRequest extends FormRequest
@@ -35,5 +36,12 @@ final class IndexStaffRequest extends FormRequest
         }
 
         return (int) $value;
+    }
+
+    public function toDTO(): IndexStaffDTO
+    {
+        return new IndexStaffDTO(
+            perPage: $this->getPerPage(),
+        );
     }
 }
