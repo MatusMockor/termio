@@ -363,6 +363,49 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertForbidden();
     }
 
+    public function test_free_subscription_upgrade_requires_default_payment_method(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->freePlan->id,
+            'stripe_status' => 'active',
+            'stripe_id' => 'free_'.$this->tenant->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+    }
+
+    public function test_free_subscription_upgrade_fails_when_target_plan_has_no_price_id(): void
+    {
+        $this->easyPlan->update([
+            'stripe_monthly_price_id' => null,
+            'stripe_yearly_price_id' => null,
+        ]);
+
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->freePlan->id,
+            'stripe_status' => 'active',
+            'stripe_id' => 'free_'.$this->tenant->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error', 'Stripe error: No Stripe price ID configured for this plan.');
+    }
+
     // ==========================================
     // Downgrade Subscription Tests (Validation & Auth)
     // ==========================================

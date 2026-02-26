@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DashboardSubscriptionController;
 use App\Http\Controllers\Api\GoogleCalendarController;
 use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PlanController;
@@ -72,6 +73,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
     Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
     Route::get('/dashboard/report', [DashboardController::class, 'report'])->name('dashboard.report');
+    Route::middleware('owner')->get('/dashboard/subscription', [DashboardSubscriptionController::class, 'show'])->name('dashboard.subscription');
 
     // Appointments - check reservation limit on creation
     Route::get('/appointments/calendar', [AppointmentController::class, 'calendar'])->name('appointments.calendar');
