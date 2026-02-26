@@ -162,10 +162,18 @@ final class ClientControllerTest extends TestCase
     {
         $this->actingAsOwner();
 
-        $client = Client::factory()->forTenant($this->tenant)->create(['name' => 'John Doe']);
-        Client::factory()->forTenant($this->tenant)->create(['name' => 'Jane Smith']);
+        Client::factory()->forTenant($this->tenant)->create([
+            'name' => 'John Doe',
+            'email' => 'john.doe@example.com',
+            'phone' => '+421900111111',
+        ]);
+        Client::factory()->forTenant($this->tenant)->create([
+            'name' => 'Jane Smith',
+            'email' => 'jane.smith@example.com',
+            'phone' => '+421900222222',
+        ]);
 
-        $response = $this->getJson(route('clients.search', ['q' => 'John']));
+        $response = $this->getJson(route('clients.search', ['q' => 'John Doe']));
 
         $response->assertOk()
             ->assertJsonCount(1, 'data')

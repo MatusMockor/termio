@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Staff\IndexStaffAction;
 use App\Actions\Staff\StaffCreateAction;
 use App\Actions\Staff\StaffReorderAction;
 use App\Actions\Staff\StaffUpdateAction;
@@ -28,9 +29,9 @@ final class StaffController extends Controller
         private readonly WorkingHoursRepository $workingHoursRepository,
     ) {}
 
-    public function index(IndexStaffRequest $request): AnonymousResourceCollection
+    public function index(IndexStaffRequest $request, IndexStaffAction $action): AnonymousResourceCollection
     {
-        $staff = $this->staffRepository->paginateOrdered($request->getPerPage());
+        $staff = $action->handle($request->toDTO());
 
         return StaffProfileResource::collection($staff);
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Client;
 
+use App\DTOs\Client\IndexClientsDTO;
 use App\Enums\ClientStatus;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -54,5 +55,13 @@ final class IndexClientsRequest extends FormRequest
         }
 
         return (int) $value;
+    }
+
+    public function toDTO(): IndexClientsDTO
+    {
+        return new IndexClientsDTO(
+            status: $this->getStatus(),
+            perPage: $this->getPerPage(),
+        );
     }
 }

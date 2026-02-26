@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Client\ClientCreateAction;
 use App\Actions\Client\ClientUpdateAction;
+use App\Actions\Client\IndexClientsAction;
 use App\Contracts\Repositories\ClientRepository;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Client\IndexClientsRequest;
@@ -24,12 +25,9 @@ final class ClientController extends Controller
         private readonly ClientRepository $clientRepository,
     ) {}
 
-    public function index(IndexClientsRequest $request): AnonymousResourceCollection
+    public function index(IndexClientsRequest $request, IndexClientsAction $action): AnonymousResourceCollection
     {
-        $clients = $this->clientRepository->paginate(
-            status: $request->getStatus(),
-            perPage: $request->getPerPage(),
-        );
+        $clients = $action->handle($request->toDTO());
 
         return ClientResource::collection($clients);
     }
