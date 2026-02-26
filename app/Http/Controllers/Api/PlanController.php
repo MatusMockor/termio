@@ -10,12 +10,9 @@ use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use App\Services\Subscription\PlanComparisonService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Cache;
 
 final class PlanController extends Controller
 {
-    private const int CACHE_TTL_MINUTES = 60;
-
     public function __construct(
         private readonly PlanRepository $plans,
         private readonly PlanComparisonService $comparisonService,
@@ -26,14 +23,8 @@ final class PlanController extends Controller
      */
     public function index(): JsonResponse
     {
-        $plans = Cache::remember(
-            'public_plans_list',
-            now()->addMinutes(self::CACHE_TTL_MINUTES),
-            fn () => $this->plans->getPublic()
-        );
-
         return response()->json([
-            'data' => PlanResource::collection($plans),
+            'data' => PlanResource::collection($this->plans->getPublic()),
         ]);
     }
 
