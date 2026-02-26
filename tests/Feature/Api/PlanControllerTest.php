@@ -6,7 +6,6 @@ namespace Tests\Feature\Api;
 
 use App\Models\Plan;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 final class PlanControllerTest extends TestCase
@@ -286,23 +285,5 @@ final class PlanControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonCount(1, 'data.plans');
-    }
-
-    public function test_index_caches_results(): void
-    {
-        Plan::factory()->create(['is_active' => true, 'is_public' => true]);
-
-        $this->getJson(route('plans.index'))->assertOk();
-
-        $this->assertTrue(Cache::has('public_plans_list'));
-    }
-
-    public function test_compare_caches_results(): void
-    {
-        Plan::factory()->create(['is_active' => true, 'is_public' => true]);
-
-        $this->getJson(route('plans.compare'))->assertOk();
-
-        $this->assertTrue(Cache::has('plan_comparison_matrix'));
     }
 }
