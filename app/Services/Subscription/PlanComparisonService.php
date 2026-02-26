@@ -8,12 +8,9 @@ use App\Contracts\Repositories\PlanRepository;
 use App\Enums\Feature;
 use App\Models\Plan;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Cache;
 
 final class PlanComparisonService
 {
-    private const int CACHE_TTL_MINUTES = 60;
-
     public function __construct(
         private readonly PlanRepository $plans,
     ) {}
@@ -25,19 +22,13 @@ final class PlanComparisonService
      */
     public function getComparisonMatrix(): array
     {
-        return Cache::remember(
-            'plan_comparison_matrix',
-            now()->addMinutes(self::CACHE_TTL_MINUTES),
-            function (): array {
-                $plans = $this->plans->getPublic();
-                $features = $this->buildFeatureMatrix($plans);
+        $plans = $this->plans->getPublic();
+        $features = $this->buildFeatureMatrix($plans);
 
-                return [
-                    'plans' => $plans,
-                    'features' => $features,
-                ];
-            }
-        );
+        return [
+            'plans' => $plans,
+            'features' => $features,
+        ];
     }
 
     /**
