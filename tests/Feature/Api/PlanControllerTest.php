@@ -12,12 +12,6 @@ final class PlanControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-        Cache::flush();
-    }
-
     public function test_index_returns_public_active_plans(): void
     {
         Plan::factory()->create([

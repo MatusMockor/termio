@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
-use App\Contracts\Repositories\PlanRepository;
+use App\Actions\Plan\GetPublicPlansAction;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\PlanResource;
 use App\Models\Plan;
@@ -14,7 +14,7 @@ use Illuminate\Http\JsonResponse;
 final class PlanController extends Controller
 {
     public function __construct(
-        private readonly PlanRepository $plans,
+        private readonly GetPublicPlansAction $getPublicPlansAction,
         private readonly PlanComparisonService $comparisonService,
     ) {}
 
@@ -24,7 +24,7 @@ final class PlanController extends Controller
     public function index(): JsonResponse
     {
         return response()->json([
-            'data' => PlanResource::collection($this->plans->getPublic()),
+            'data' => PlanResource::collection($this->getPublicPlansAction->handle()),
         ]);
     }
 
@@ -54,8 +54,8 @@ final class PlanController extends Controller
 
         return response()->json([
             'data' => [
-                'plans' => PlanResource::collection($matrix['plans']),
-                'features' => $matrix['features'],
+                'plans' => PlanResource::collection($matrix->plans),
+                'features' => $matrix->features,
             ],
         ]);
     }
