@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Subscription;
 
 use App\Contracts\Repositories\PlanRepository;
+use App\DTOs\Subscription\PlanComparisonMatrixDTO;
 use App\Enums\Feature;
 use App\Models\Plan;
 use Illuminate\Support\Collection;
@@ -17,18 +18,16 @@ final class PlanComparisonService
 
     /**
      * Get full comparison matrix of all public plans with features.
-     *
-     * @return array{plans: Collection<int, Plan>, features: array<string, array{label: string, category: string, availability: array<string, bool|string>}>}
      */
-    public function getComparisonMatrix(): array
+    public function getComparisonMatrix(): PlanComparisonMatrixDTO
     {
         $plans = $this->plans->getPublic();
         $features = $this->buildFeatureMatrix($plans);
 
-        return [
-            'plans' => $plans,
-            'features' => $features,
-        ];
+        return new PlanComparisonMatrixDTO(
+            plans: $plans,
+            features: $features,
+        );
     }
 
     /**
