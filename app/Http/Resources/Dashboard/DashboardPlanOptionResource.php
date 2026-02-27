@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Dashboard;
 
+use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -34,7 +35,7 @@ final class DashboardPlanOptionResource extends JsonResource
                     'currency' => 'EUR',
                 ],
             ],
-            'is_popular' => $this->slug === 'smart',
+            'is_popular' => $this->slug === PlanSlug::Smart->value,
         ];
     }
 }

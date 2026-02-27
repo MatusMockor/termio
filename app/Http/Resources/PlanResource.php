@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -41,7 +42,7 @@ final class PlanResource extends JsonResource
             ],
             'features' => $this->features,
             'limits' => $this->formatLimits(),
-            'is_popular' => $this->slug === 'smart',
+            'is_popular' => $this->slug === PlanSlug::Smart->value,
         ];
     }
 

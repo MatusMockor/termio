@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -41,7 +42,7 @@ final class PlanFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'name' => 'FREE',
-            'slug' => 'free',
+            'slug' => PlanSlug::Free->value,
             'monthly_price' => 0.00,
             'yearly_price' => 0.00,
             'limits' => [
@@ -58,7 +59,7 @@ final class PlanFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'name' => 'PREMIUM',
-            'slug' => 'premium',
+            'slug' => PlanSlug::Premium->value,
             'monthly_price' => 49.90,
             'yearly_price' => 449.00,
             'features' => array_merge($this->defaultFeatures(), [

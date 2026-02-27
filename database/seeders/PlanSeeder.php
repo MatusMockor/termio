@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Database\Seeder;
 
@@ -14,7 +15,7 @@ final class PlanSeeder extends Seeder
         $plans = [
             [
                 'name' => 'FREE',
-                'slug' => 'free',
+                'slug' => PlanSlug::Free->value,
                 'description' => 'Perfect for trying out Termio',
                 'monthly_price' => 0.00,
                 'yearly_price' => 0.00,
@@ -54,7 +55,7 @@ final class PlanSeeder extends Seeder
             ],
             [
                 'name' => 'EASY',
-                'slug' => 'easy',
+                'slug' => PlanSlug::Easy->value,
                 'description' => 'For solo practitioners getting started',
                 'monthly_price' => 5.90,
                 'yearly_price' => 49.00,
@@ -94,7 +95,7 @@ final class PlanSeeder extends Seeder
             ],
             [
                 'name' => 'SMART',
-                'slug' => 'smart',
+                'slug' => PlanSlug::Smart->value,
                 'description' => 'Best value for growing businesses',
                 'monthly_price' => 11.90,
                 'yearly_price' => 99.00,
@@ -134,7 +135,7 @@ final class PlanSeeder extends Seeder
             ],
             [
                 'name' => 'STANDARD',
-                'slug' => 'standard',
+                'slug' => PlanSlug::Standard->value,
                 'description' => 'For established businesses with teams',
                 'monthly_price' => 24.90,
                 'yearly_price' => 199.00,
@@ -174,7 +175,7 @@ final class PlanSeeder extends Seeder
             ],
             [
                 'name' => 'PREMIUM',
-                'slug' => 'premium',
+                'slug' => PlanSlug::Premium->value,
                 'description' => 'Enterprise features with priority support',
                 'monthly_price' => 49.90,
                 'yearly_price' => 449.00,
