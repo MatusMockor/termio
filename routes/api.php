@@ -142,6 +142,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::get('/', [SubscriptionController::class, 'show'])->name('show');
         Route::get('/usage', [SubscriptionController::class, 'usage'])->name('usage');
         Route::post('/upgrade', [SubscriptionController::class, 'upgrade'])->name('upgrade');
+        Route::post('/upgrade/immediate', [SubscriptionController::class, 'upgradeImmediate'])->name('upgrade-immediate');
         Route::post('/downgrade', [SubscriptionController::class, 'downgrade'])->name('downgrade');
         Route::post('/cancel', [SubscriptionController::class, 'cancel'])->name('cancel');
         Route::post('/resume', [SubscriptionController::class, 'resume'])->name('resume');

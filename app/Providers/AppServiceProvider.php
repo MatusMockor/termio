@@ -11,6 +11,7 @@ use App\Contracts\Services\PaymentMethodServiceContract;
 use App\Contracts\Services\PublicBookingRead;
 use App\Contracts\Services\ReportingDataProvider;
 use App\Contracts\Services\StripeService as StripeServiceContract;
+use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\Contracts\Services\VatService as VatServiceContract;
 use App\Contracts\Services\WorkingHoursBusiness;
 use App\Models\Appointment;
@@ -23,6 +24,7 @@ use App\Services\Booking\BookingAvailabilityService;
 use App\Services\Booking\PublicBookingReadService;
 use App\Services\Reporting\ReportingDataProviderService;
 use App\Services\Stripe\StripeService;
+use App\Services\Subscription\SubscriptionUpgradeBillingService;
 use App\Services\Tenant\TenantContextService;
 use App\Services\WorkingHours\WorkingHoursBusinessService;
 use Illuminate\Support\ServiceProvider;
@@ -43,6 +45,7 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(PublicBookingRead::class, PublicBookingReadService::class);
         $this->app->bind(ReportingDataProvider::class, ReportingDataProviderService::class);
         $this->app->bind(WorkingHoursBusiness::class, WorkingHoursBusinessService::class);
+        $this->app->bind(SubscriptionUpgradeBillingServiceContract::class, SubscriptionUpgradeBillingService::class);
     }
 
     public function boot(): void
