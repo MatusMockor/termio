@@ -9,6 +9,7 @@ use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
 use App\DTOs\Subscription\ValidationContext;
+use App\Enums\BillingCycle;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
@@ -60,7 +61,7 @@ final class SubscriptionUpgradeAction
     ): Subscription {
         return DB::transaction(function () use ($subscription, $newPlan, $dto): Subscription {
             $billingCycle = $dto->billingCycle ?? $subscription->billing_cycle;
-            $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, $billingCycle);
+            $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, BillingCycle::from($billingCycle));
 
             // Cancel any scheduled downgrade
             if ($subscription->scheduled_plan_id) {

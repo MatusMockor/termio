@@ -11,6 +11,14 @@ use Illuminate\Support\Collection;
 interface SubscriptionRepository
 {
     /**
+     * @template TReturn
+     *
+     * @param  callable(): TReturn  $callback
+     * @return TReturn
+     */
+    public function transaction(callable $callback): mixed;
+
+    /**
      * @param  array<string, mixed>  $data
      */
     public function create(array $data): Subscription;

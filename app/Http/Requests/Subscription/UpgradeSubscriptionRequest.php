@@ -6,6 +6,7 @@ namespace App\Http\Requests\Subscription;
 
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
+use App\Enums\BillingCycle;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +26,7 @@ final class UpgradeSubscriptionRequest extends FormRequest
     {
         return [
             'plan_id' => ['required', 'integer', 'exists:plans,id'],
-            'billing_cycle' => ['nullable', 'string', Rule::in(['monthly', 'yearly'])],
+            'billing_cycle' => ['nullable', 'string', Rule::in(BillingCycle::values())],
         ];
     }
 

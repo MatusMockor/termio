@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
+use App\Enums\BillingCycle;
 use App\Models\Plan;
 use App\Models\Subscription;
 
 interface SubscriptionUpgradeBillingServiceContract
 {
-    public function resolvePriceId(Plan $plan, string $billingCycle): string;
+    public function resolvePriceId(Plan $plan, BillingCycle $billingCycle): string;
 
     public function isFreeSubscription(Subscription $subscription): bool;
 

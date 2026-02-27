@@ -6,6 +6,8 @@ namespace App\Http\Requests\Subscription;
 
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\DTOs\Subscription\ImmediateUpgradeSubscriptionDTO;
+use App\Enums\BillingCycle;
+use App\Exceptions\SubscriptionException;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -25,7 +27,7 @@ final class ImmediateUpgradeSubscriptionRequest extends FormRequest
     {
         return [
             'plan_id' => ['required', 'integer', 'exists:plans,id'],
-            'billing_cycle' => ['nullable', 'string', Rule::in(['monthly', 'yearly'])],
+            'billing_cycle' => ['nullable', 'string', Rule::in(BillingCycle::values())],
         ];
     }
 
@@ -53,8 +55,12 @@ final class ImmediateUpgradeSubscriptionRequest extends FormRequest
         $subscriptionRepository = app(SubscriptionRepository::class);
         $subscription = $subscriptionRepository->findActiveByTenant($tenant);
 
+        if (! $subscription) {
+            throw SubscriptionException::noActiveSubscription();
+        }
+
         return new ImmediateUpgradeSubscriptionDTO(
-            subscriptionId: $subscription !== null ? $subscription->id : 0,
+            subscriptionId: $subscription->id,
             newPlanId: $this->getPlanId(),
             billingCycle: $this->getBillingCycle(),
         );
