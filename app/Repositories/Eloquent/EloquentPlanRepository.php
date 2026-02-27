@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repositories\Eloquent;
 
 use App\Contracts\Repositories\PlanRepository;
+use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Support\Collection;
 
@@ -49,7 +50,7 @@ final class EloquentPlanRepository implements PlanRepository
 
     public function getFreePlan(): ?Plan
     {
-        return Plan::where('slug', 'free')->first();
+        return Plan::where('slug', PlanSlug::Free->value)->first();
     }
 
     public function getAll(): Collection
