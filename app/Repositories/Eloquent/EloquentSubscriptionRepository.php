@@ -12,6 +12,11 @@ use Illuminate\Support\Collection;
 
 final class EloquentSubscriptionRepository implements SubscriptionRepository
 {
+    public function transaction(callable $callback): mixed
+    {
+        return Subscription::query()->getConnection()->transaction($callback);
+    }
+
     public function create(array $data): Subscription
     {
         return Subscription::create($data);

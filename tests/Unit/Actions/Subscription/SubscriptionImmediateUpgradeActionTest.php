@@ -5,27 +5,23 @@ declare(strict_types=1);
 namespace Tests\Unit\Actions\Subscription;
 
 use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
-use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
-use App\Contracts\Services\UsageValidationServiceContract;
 use App\DTOs\Subscription\ImmediateUpgradeSubscriptionDTO;
+use App\Enums\BillingCycle;
 use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Repositories\Eloquent\EloquentPlanRepository;
 use App\Repositories\Eloquent\EloquentSubscriptionRepository;
 use App\Services\Validation\ValidationChainBuilder;
-use App\Services\Validation\Validators\CanDowngradeValidator;
-use App\Services\Validation\Validators\CanUpgradeValidator;
-use App\Services\Validation\Validators\PlanExistsValidator;
-use App\Services\Validation\Validators\SubscriptionExistsValidator;
-use App\Services\Validation\Validators\UsageLimitsValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Tests\Concerns\BuildsUpgradeValidationChain;
 use Tests\TestCase;
 
 final class SubscriptionImmediateUpgradeActionTest extends TestCase
 {
+    use BuildsUpgradeValidationChain;
     use RefreshDatabase;
 
     private Plan $freePlan;
@@ -85,7 +81,7 @@ final class SubscriptionImmediateUpgradeActionTest extends TestCase
                     ->method('resolvePriceId')
                     ->with(
                         $this->callback(fn (Plan $plan): bool => $plan->is($this->smartPlan)),
-                        'monthly',
+                        BillingCycle::Monthly,
                     )
                     ->willReturn('price_smart_monthly');
                 $billingService->expects($this->once())
@@ -146,7 +142,7 @@ final class SubscriptionImmediateUpgradeActionTest extends TestCase
                     ->method('resolvePriceId')
                     ->with(
                         $this->callback(fn (Plan $plan): bool => $plan->is($this->smartPlan)),
-                        'monthly',
+                        BillingCycle::Monthly,
                     )
                     ->willReturn('price_smart_monthly');
                 $billingService->expects($this->once())
@@ -208,7 +204,7 @@ final class SubscriptionImmediateUpgradeActionTest extends TestCase
                     ->method('resolvePriceId')
                     ->with(
                         $this->callback(fn (Plan $plan): bool => $plan->is($this->easyPlan)),
-                        'yearly',
+                        BillingCycle::Yearly,
                     )
                     ->willReturn('price_easy_yearly');
                 $billingService->expects($this->once())
@@ -256,24 +252,6 @@ final class SubscriptionImmediateUpgradeActionTest extends TestCase
             new EloquentPlanRepository,
             $validationChainBuilder,
             $billingService,
-        );
-    }
-
-    private function createUpgradeValidationChainBuilder(): ValidationChainBuilder
-    {
-        $subscriptionService = $this->createMock(SubscriptionServiceContract::class);
-        $subscriptionService->method('canUpgradeTo')->willReturn(true);
-        $subscriptionService->method('canDowngradeTo')->willReturn(true);
-
-        $usageValidationService = $this->createMock(UsageValidationServiceContract::class);
-        $usageValidationService->method('checkLimitViolations')->willReturn([]);
-
-        return new ValidationChainBuilder(
-            new SubscriptionExistsValidator,
-            new PlanExistsValidator,
-            new CanDowngradeValidator($subscriptionService),
-            new CanUpgradeValidator($subscriptionService),
-            new UsageLimitsValidator($usageValidationService),
         );
     }
 

@@ -9,12 +9,12 @@ use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\DTOs\Subscription\ImmediateUpgradeSubscriptionDTO;
 use App\DTOs\Subscription\ValidationContext;
+use App\Enums\BillingCycle;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Notifications\SubscriptionUpgradedNotification;
 use App\Services\Validation\ValidationChainBuilder;
-use Illuminate\Support\Facades\DB;
 
 final class SubscriptionImmediateUpgradeAction
 {
@@ -56,49 +56,59 @@ final class SubscriptionImmediateUpgradeAction
         Plan $newPlan,
         ImmediateUpgradeSubscriptionDTO $dto,
     ): Subscription {
-        return DB::transaction(function () use ($subscription, $newPlan, $dto): Subscription {
-            $billingCycle = $dto->billingCycle ?? $subscription->billing_cycle;
-            $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, $billingCycle);
+        $billingCycle = $dto->billingCycle ?? $subscription->billing_cycle;
+        $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, BillingCycle::from($billingCycle));
+        $updateData = $this->buildBaseUpgradeData($newPlan, $billingCycle, $priceId);
 
-            if ($this->upgradeBillingService->isFreeSubscription($subscription)) {
-                $stripeSubscription = $this->upgradeBillingService->createPaidSubscriptionFromFree(
-                    $subscription,
-                    $priceId,
-                );
+        if ($this->upgradeBillingService->isFreeSubscription($subscription)) {
+            $stripeSubscription = $this->upgradeBillingService->createPaidSubscriptionFromFree(
+                $subscription,
+                $priceId,
+            );
 
-                return $this->subscriptions->update($subscription, [
-                    'plan_id' => $newPlan->id,
-                    'stripe_id' => $stripeSubscription->id,
-                    'stripe_status' => $stripeSubscription->status,
-                    'stripe_price' => $priceId,
-                    'billing_cycle' => $billingCycle,
-                    'ends_at' => null,
-                    'scheduled_plan_id' => null,
-                    'scheduled_change_at' => null,
-                ]);
-            }
-
-            $this->upgradeBillingService->resumeCanceledPaidSubscription($subscription);
-
-            $isOnTrial = $subscription->onTrial();
-
-            if ($isOnTrial) {
-                $this->upgradeBillingService->swapPaidSubscription($subscription, $priceId);
-            }
-
-            if (! $isOnTrial) {
-                $this->upgradeBillingService->swapPaidSubscriptionAndInvoice($subscription, $priceId);
-            }
-
-            return $this->subscriptions->update($subscription, [
-                'plan_id' => $newPlan->id,
-                'stripe_price' => $priceId,
-                'billing_cycle' => $billingCycle,
-                'ends_at' => null,
-                'scheduled_plan_id' => null,
-                'scheduled_change_at' => null,
+            return $this->persistSubscriptionUpdate($subscription, [
+                ...$updateData,
+                'stripe_id' => $stripeSubscription->id,
+                'stripe_status' => $stripeSubscription->status,
             ]);
-        });
+        }
+
+        $this->upgradeBillingService->resumeCanceledPaidSubscription($subscription);
+
+        if ($subscription->onTrial()) {
+            $this->upgradeBillingService->swapPaidSubscription($subscription, $priceId);
+
+            return $this->persistSubscriptionUpdate($subscription, $updateData);
+        }
+
+        $this->upgradeBillingService->swapPaidSubscriptionAndInvoice($subscription, $priceId);
+
+        return $this->persistSubscriptionUpdate($subscription, $updateData);
+    }
+
+    /**
+     * @return array<string, int|string|null>
+     */
+    private function buildBaseUpgradeData(Plan $newPlan, string $billingCycle, string $priceId): array
+    {
+        return [
+            'plan_id' => $newPlan->id,
+            'stripe_price' => $priceId,
+            'billing_cycle' => $billingCycle,
+            'ends_at' => null,
+            'scheduled_plan_id' => null,
+            'scheduled_change_at' => null,
+        ];
+    }
+
+    /**
+     * @param  array<string, int|string|null>  $data
+     */
+    private function persistSubscriptionUpdate(Subscription $subscription, array $data): Subscription
+    {
+        return $this->subscriptions->transaction(
+            fn (): Subscription => $this->subscriptions->update($subscription, $data),
+        );
     }
 
     private function sendUpgradeNotification(

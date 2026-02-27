@@ -7,27 +7,22 @@ namespace Tests\Feature\Api;
 use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
-use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
-use App\Contracts\Services\UsageValidationServiceContract;
+use App\Enums\BillingCycle;
 use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\Service;
 use App\Models\Subscription;
 use App\Models\User;
-use App\Services\Validation\ValidationChainBuilder;
-use App\Services\Validation\Validators\CanDowngradeValidator;
-use App\Services\Validation\Validators\CanUpgradeValidator;
-use App\Services\Validation\Validators\PlanExistsValidator;
-use App\Services\Validation\Validators\SubscriptionExistsValidator;
-use App\Services\Validation\Validators\UsageLimitsValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Tests\Concerns\BuildsUpgradeValidationChain;
 use Tests\TestCase;
 
 final class SubscriptionControllerTest extends TestCase
 {
+    use BuildsUpgradeValidationChain;
     use RefreshDatabase;
 
     private Plan $freePlan;
@@ -543,6 +538,9 @@ final class SubscriptionControllerTest extends TestCase
             ->with($subscription->id)
             ->willReturn($subscription);
         $subscriptionRepository->expects($this->once())
+            ->method('transaction')
+            ->willReturnCallback(static fn (callable $callback): Subscription => $callback());
+        $subscriptionRepository->expects($this->once())
             ->method('update')
             ->with(
                 $subscription,
@@ -574,7 +572,7 @@ final class SubscriptionControllerTest extends TestCase
         $billingService = $this->createMock(SubscriptionUpgradeBillingServiceContract::class);
         $billingService->expects($this->once())
             ->method('resolvePriceId')
-            ->with($this->smartPlan, 'monthly')
+            ->with($this->smartPlan, BillingCycle::Monthly)
             ->willReturn('price_smart_monthly');
         $billingService->expects($this->once())
             ->method('isFreeSubscription')
@@ -615,24 +613,6 @@ final class SubscriptionControllerTest extends TestCase
         $this->assertNotNull($responseTrialEndsAt);
 
         $this->assertTrue(Carbon::parse((string) $responseTrialEndsAt)->equalTo($subscription->trial_ends_at));
-    }
-
-    private function createUpgradeValidationChainBuilder(): ValidationChainBuilder
-    {
-        $subscriptionService = $this->createMock(SubscriptionServiceContract::class);
-        $subscriptionService->method('canUpgradeTo')->willReturn(true);
-        $subscriptionService->method('canDowngradeTo')->willReturn(true);
-
-        $usageValidationService = $this->createMock(UsageValidationServiceContract::class);
-        $usageValidationService->method('checkLimitViolations')->willReturn([]);
-
-        return new ValidationChainBuilder(
-            new SubscriptionExistsValidator,
-            new PlanExistsValidator,
-            new CanDowngradeValidator($subscriptionService),
-            new CanUpgradeValidator($subscriptionService),
-            new UsageLimitsValidator($usageValidationService),
-        );
     }
 
     // ==========================================

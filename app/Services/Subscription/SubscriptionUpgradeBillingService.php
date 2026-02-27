@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Subscription;
 
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\Enums\BillingCycle;
 use App\Enums\SubscriptionType;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
@@ -14,9 +15,9 @@ use Throwable;
 
 final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBillingServiceContract
 {
-    public function resolvePriceId(Plan $plan, string $billingCycle): string
+    public function resolvePriceId(Plan $plan, BillingCycle $billingCycle): string
     {
-        $priceId = $billingCycle === 'yearly'
+        $priceId = $billingCycle === BillingCycle::Yearly
             ? $plan->stripe_yearly_price_id
             : $plan->stripe_monthly_price_id;
 
@@ -85,7 +86,7 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
 
     public function resumeCanceledPaidSubscription(Subscription $subscription): void
     {
-        if ($subscription->ends_at === null) {
+        if (! $subscription->ends_at) {
             return;
         }
 
@@ -121,7 +122,7 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
     {
         $stripeSubscription = $subscription->tenant->subscription(SubscriptionType::Default->value);
 
-        if ($stripeSubscription === null) {
+        if (! $stripeSubscription) {
             throw SubscriptionException::noActiveSubscription();
         }
 
