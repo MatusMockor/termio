@@ -8,13 +8,16 @@ use App\Contracts\Repositories\SubscriptionRepository;
 use App\Enums\SubscriptionStatus;
 use App\Models\Subscription;
 use App\Models\Tenant;
+use Closure;
 use Illuminate\Support\Collection;
 
 final class EloquentSubscriptionRepository implements SubscriptionRepository
 {
     public function transaction(callable $callback): mixed
     {
-        return Subscription::query()->getConnection()->transaction($callback);
+        return Subscription::query()->getConnection()->transaction(
+            $callback instanceof Closure ? $callback : Closure::fromCallable($callback),
+        );
     }
 
     public function create(array $data): Subscription

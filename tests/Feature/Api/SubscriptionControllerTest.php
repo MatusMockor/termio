@@ -501,12 +501,12 @@ final class SubscriptionControllerTest extends TestCase
             'plan_id' => $this->freePlan->id,
             'stripe_status' => SubscriptionStatus::Active->value,
             'stripe_id' => 'free_'.$this->tenant->id,
-            'billing_cycle' => 'monthly',
+            'billing_cycle' => BillingCycle::Monthly->value,
         ]);
 
         $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
             'plan_id' => $this->easyPlan->id,
-            'billing_cycle' => 'monthly',
+            'billing_cycle' => BillingCycle::Monthly->value,
         ]);
 
         $response->assertStatus(400);
@@ -527,7 +527,7 @@ final class SubscriptionControllerTest extends TestCase
                 'ends_at' => now()->addDays(2),
                 'scheduled_plan_id' => $this->freePlan->id,
                 'scheduled_change_at' => now()->addDay(),
-                'billing_cycle' => 'monthly',
+                'billing_cycle' => BillingCycle::Monthly->value,
             ]);
 
         $validationChainBuilder = $this->createUpgradeValidationChainBuilder();
@@ -599,7 +599,7 @@ final class SubscriptionControllerTest extends TestCase
 
         $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
             'plan_id' => $this->smartPlan->id,
-            'billing_cycle' => 'monthly',
+            'billing_cycle' => BillingCycle::Monthly->value,
         ]);
 
         $response->assertOk();
@@ -607,7 +607,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertJsonPath('data.plan_id', $this->smartPlan->id);
         $response->assertJsonPath('data.ends_at', null);
         $response->assertJsonPath('data.scheduled_plan_id', null);
-        $response->assertJsonPath('data.billing_cycle', 'monthly');
+        $response->assertJsonPath('data.billing_cycle', BillingCycle::Monthly->value);
 
         $responseTrialEndsAt = $response->json('data.trial_ends_at');
         $this->assertNotNull($responseTrialEndsAt);

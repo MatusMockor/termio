@@ -56,6 +56,8 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
                     ['price' => $priceId],
                 ],
                 'default_payment_method' => $defaultPaymentMethodId,
+            ], [
+                'idempotency_key' => $this->buildIdempotencyKey('create_from_free', $subscription, $priceId),
             ]);
         } catch (Throwable $exception) {
             throw SubscriptionException::stripeError($exception->getMessage());
@@ -65,6 +67,10 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
     public function swapPaidSubscription(Subscription $subscription, string $priceId): void
     {
         $stripeSubscription = $this->getCashierSubscription($subscription);
+
+        if ($this->isAlreadyOnTargetPrice($stripeSubscription, $priceId)) {
+            return;
+        }
 
         try {
             $stripeSubscription->swap($priceId);
@@ -76,6 +82,10 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
     public function swapPaidSubscriptionAndInvoice(Subscription $subscription, string $priceId): void
     {
         $stripeSubscription = $this->getCashierSubscription($subscription);
+
+        if ($this->isAlreadyOnTargetPrice($stripeSubscription, $priceId)) {
+            return;
+        }
 
         try {
             $stripeSubscription->swapAndInvoice($priceId);
@@ -127,5 +137,29 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
         }
 
         return $stripeSubscription;
+    }
+
+    private function isAlreadyOnTargetPrice(
+        \Laravel\Cashier\Subscription $stripeSubscription,
+        string $priceId,
+    ): bool {
+        $currentPriceId = $stripeSubscription->asStripeSubscription()
+            ->items
+            ->data[0]
+            ->price
+            ->id
+            ?? null;
+
+        return $currentPriceId === $priceId;
+    }
+
+    private function buildIdempotencyKey(string $operation, Subscription $subscription, string $priceId): string
+    {
+        return hash('sha256', implode('|', [
+            $operation,
+            (string) $subscription->id,
+            (string) $subscription->tenant_id,
+            $priceId,
+        ]));
     }
 }
