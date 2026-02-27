@@ -4,11 +4,26 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
+use App\Contracts\Repositories\PlanRepository;
+use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\SubscriptionServiceContract;
+use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\Contracts\Services\UsageValidationServiceContract;
+use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
 use App\Models\Service;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\Validation\ValidationChainBuilder;
+use App\Services\Validation\Validators\CanDowngradeValidator;
+use App\Services\Validation\Validators\CanUpgradeValidator;
+use App\Services\Validation\Validators\PlanExistsValidator;
+use App\Services\Validation\Validators\SubscriptionExistsValidator;
+use App\Services\Validation\Validators\UsageLimitsValidator;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 final class SubscriptionControllerTest extends TestCase
@@ -404,6 +419,220 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Stripe error: No Stripe price ID configured for this plan.');
+    }
+
+    public function test_immediate_upgrade_requires_authentication(): void
+    {
+        $response = $this->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->smartPlan->id,
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_immediate_upgrade_requires_owner_role(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+        ]);
+
+        $staffUser = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'staff',
+        ]);
+
+        $response = $this->actingAs($staffUser)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->smartPlan->id,
+        ]);
+
+        $response->assertForbidden();
+    }
+
+    public function test_immediate_upgrade_requires_valid_plan(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => 99999,
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['plan_id']);
+    }
+
+    public function test_immediate_upgrade_validates_billing_cycle_values(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->smartPlan->id,
+            'billing_cycle' => 'weekly',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['billing_cycle']);
+    }
+
+    public function test_user_cannot_immediately_upgrade_to_lower_plan(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->smartPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->easyPlan->id,
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonStructure(['error']);
+    }
+
+    public function test_immediate_free_subscription_upgrade_requires_default_payment_method(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->freePlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+            'stripe_id' => 'free_'.$this->tenant->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+    }
+
+    public function test_immediate_upgrade_trial_subscription_returns_success_payload_and_clears_pending_flags(): void
+    {
+        Notification::fake();
+
+        $subscription = Subscription::factory()
+            ->forTenant($this->tenant)
+            ->forPlan($this->easyPlan)
+            ->create([
+                'stripe_id' => 'sub_trial_123',
+                'stripe_status' => SubscriptionStatus::Trialing->value,
+                'trial_ends_at' => now()->addDays(7),
+                'ends_at' => now()->addDays(2),
+                'scheduled_plan_id' => $this->freePlan->id,
+                'scheduled_change_at' => now()->addDay(),
+                'billing_cycle' => 'monthly',
+            ]);
+
+        $validationChainBuilder = $this->createUpgradeValidationChainBuilder();
+
+        $subscriptionRepository = $this->createMock(SubscriptionRepository::class);
+        $subscriptionRepository->expects($this->once())
+            ->method('findById')
+            ->with($subscription->id)
+            ->willReturn($subscription);
+        $subscriptionRepository->expects($this->once())
+            ->method('update')
+            ->with(
+                $subscription,
+                $this->callback(function (array $data): bool {
+                    $this->assertArrayHasKey('ends_at', $data);
+                    $this->assertNull($data['ends_at']);
+                    $this->assertArrayHasKey('scheduled_plan_id', $data);
+                    $this->assertNull($data['scheduled_plan_id']);
+                    $this->assertArrayHasKey('scheduled_change_at', $data);
+                    $this->assertNull($data['scheduled_change_at']);
+
+                    return true;
+                }),
+            )
+            ->willReturnCallback(
+                static function (Subscription $subscriptionModel, array $data): Subscription {
+                    $subscriptionModel->forceFill($data);
+
+                    return $subscriptionModel;
+                }
+            );
+
+        $planRepository = $this->createMock(PlanRepository::class);
+        $planRepository->expects($this->once())
+            ->method('findById')
+            ->with($this->smartPlan->id)
+            ->willReturn($this->smartPlan);
+
+        $billingService = $this->createMock(SubscriptionUpgradeBillingServiceContract::class);
+        $billingService->expects($this->once())
+            ->method('resolvePriceId')
+            ->with($this->smartPlan, 'monthly')
+            ->willReturn('price_smart_monthly');
+        $billingService->expects($this->once())
+            ->method('isFreeSubscription')
+            ->with($subscription)
+            ->willReturn(false);
+        $billingService->expects($this->once())
+            ->method('resumeCanceledPaidSubscription')
+            ->with($subscription);
+        $billingService->expects($this->once())
+            ->method('swapPaidSubscription')
+            ->with($subscription, 'price_smart_monthly');
+        $billingService->expects($this->never())
+            ->method('swapPaidSubscriptionAndInvoice');
+
+        $this->app->instance(
+            SubscriptionImmediateUpgradeAction::class,
+            new SubscriptionImmediateUpgradeAction(
+                $subscriptionRepository,
+                $planRepository,
+                $validationChainBuilder,
+                $billingService,
+            ),
+        );
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade-immediate'), [
+            'plan_id' => $this->smartPlan->id,
+            'billing_cycle' => 'monthly',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('message', 'Subscription upgraded immediately.');
+        $response->assertJsonPath('data.plan_id', $this->smartPlan->id);
+        $response->assertJsonPath('data.ends_at', null);
+        $response->assertJsonPath('data.scheduled_plan_id', null);
+        $response->assertJsonPath('data.billing_cycle', 'monthly');
+
+        $responseTrialEndsAt = $response->json('data.trial_ends_at');
+        $this->assertNotNull($responseTrialEndsAt);
+
+        $this->assertTrue(Carbon::parse((string) $responseTrialEndsAt)->equalTo($subscription->trial_ends_at));
+    }
+
+    private function createUpgradeValidationChainBuilder(): ValidationChainBuilder
+    {
+        $subscriptionService = $this->createMock(SubscriptionServiceContract::class);
+        $subscriptionService->method('canUpgradeTo')->willReturn(true);
+        $subscriptionService->method('canDowngradeTo')->willReturn(true);
+
+        $usageValidationService = $this->createMock(UsageValidationServiceContract::class);
+        $usageValidationService->method('checkLimitViolations')->willReturn([]);
+
+        return new ValidationChainBuilder(
+            new SubscriptionExistsValidator,
+            new PlanExistsValidator,
+            new CanDowngradeValidator($subscriptionService),
+            new CanUpgradeValidator($subscriptionService),
+            new UsageLimitsValidator($usageValidationService),
+        );
     }
 
     // ==========================================

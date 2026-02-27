@@ -7,7 +7,7 @@ namespace App\Actions\Subscription;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
-use App\DTOs\Subscription\UpgradeSubscriptionDTO;
+use App\DTOs\Subscription\ImmediateUpgradeSubscriptionDTO;
 use App\DTOs\Subscription\ValidationContext;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -16,7 +16,7 @@ use App\Notifications\SubscriptionUpgradedNotification;
 use App\Services\Validation\ValidationChainBuilder;
 use Illuminate\Support\Facades\DB;
 
-final class SubscriptionUpgradeAction
+final class SubscriptionImmediateUpgradeAction
 {
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
@@ -25,12 +25,11 @@ final class SubscriptionUpgradeAction
         private readonly SubscriptionUpgradeBillingServiceContract $upgradeBillingService,
     ) {}
 
-    public function handle(UpgradeSubscriptionDTO $dto): Subscription
+    public function handle(ImmediateUpgradeSubscriptionDTO $dto): Subscription
     {
         $subscription = $this->subscriptions->findById($dto->subscriptionId);
         $newPlan = $this->plans->findById($dto->newPlanId);
 
-        // Build and run validation chain
         $validationChain = $this->validationChainBuilder->buildUpgradeChain();
         $context = ValidationContext::forUpgrade(
             subscription: $subscription,
@@ -45,65 +44,61 @@ final class SubscriptionUpgradeAction
         $tenant = $subscription->tenant;
         $oldPlan = $subscription->plan;
 
-        $updatedSubscription = $this->performUpgrade($subscription, $newPlan, $dto);
+        $updatedSubscription = $this->performImmediateUpgrade($subscription, $newPlan, $dto);
 
-        // Send notification
         $this->sendUpgradeNotification($tenant, $oldPlan, $newPlan);
 
         return $updatedSubscription;
     }
 
-    private function performUpgrade(
+    private function performImmediateUpgrade(
         Subscription $subscription,
         Plan $newPlan,
-        UpgradeSubscriptionDTO $dto,
+        ImmediateUpgradeSubscriptionDTO $dto,
     ): Subscription {
         return DB::transaction(function () use ($subscription, $newPlan, $dto): Subscription {
             $billingCycle = $dto->billingCycle ?? $subscription->billing_cycle;
             $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, $billingCycle);
 
-            // Cancel any scheduled downgrade
-            if ($subscription->scheduled_plan_id) {
-                $subscription = $this->subscriptions->update($subscription, [
+            if ($this->upgradeBillingService->isFreeSubscription($subscription)) {
+                $stripeSubscription = $this->upgradeBillingService->createPaidSubscriptionFromFree(
+                    $subscription,
+                    $priceId,
+                );
+
+                return $this->subscriptions->update($subscription, [
+                    'plan_id' => $newPlan->id,
+                    'stripe_id' => $stripeSubscription->id,
+                    'stripe_status' => $stripeSubscription->status,
+                    'stripe_price' => $priceId,
+                    'billing_cycle' => $billingCycle,
+                    'ends_at' => null,
                     'scheduled_plan_id' => null,
                     'scheduled_change_at' => null,
                 ]);
             }
 
-            if ($this->upgradeBillingService->isFreeSubscription($subscription)) {
-                return $this->upgradeFromFreeSubscription($subscription, $newPlan, $billingCycle, $priceId);
+            $this->upgradeBillingService->resumeCanceledPaidSubscription($subscription);
+
+            $isOnTrial = $subscription->onTrial();
+
+            if ($isOnTrial) {
+                $this->upgradeBillingService->swapPaidSubscription($subscription, $priceId);
             }
 
-            $this->upgradeBillingService->swapPaidSubscription($subscription, $priceId);
+            if (! $isOnTrial) {
+                $this->upgradeBillingService->swapPaidSubscriptionAndInvoice($subscription, $priceId);
+            }
 
-            // Update local record
             return $this->subscriptions->update($subscription, [
                 'plan_id' => $newPlan->id,
                 'stripe_price' => $priceId,
                 'billing_cycle' => $billingCycle,
+                'ends_at' => null,
+                'scheduled_plan_id' => null,
+                'scheduled_change_at' => null,
             ]);
         });
-    }
-
-    private function upgradeFromFreeSubscription(
-        Subscription $subscription,
-        Plan $newPlan,
-        string $billingCycle,
-        string $priceId,
-    ): Subscription {
-        $stripeSubscription = $this->upgradeBillingService->createPaidSubscriptionFromFree(
-            $subscription,
-            $priceId,
-        );
-
-        return $this->subscriptions->update($subscription, [
-            'plan_id' => $newPlan->id,
-            'stripe_id' => $stripeSubscription->id,
-            'stripe_status' => $stripeSubscription->status,
-            'stripe_price' => $priceId,
-            'billing_cycle' => $billingCycle,
-            'ends_at' => null,
-        ]);
     }
 
     private function sendUpgradeNotification(

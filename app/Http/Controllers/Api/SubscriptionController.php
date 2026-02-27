@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\Subscription\SubscriptionCancelAction;
 use App\Actions\Subscription\SubscriptionCreateAction;
 use App\Actions\Subscription\SubscriptionDowngradeAction;
+use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Actions\Subscription\SubscriptionResumeAction;
 use App\Actions\Subscription\SubscriptionUpgradeAction;
 use App\Contracts\Repositories\SubscriptionRepository;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Subscription\CancelSubscriptionRequest;
 use App\Http\Requests\Subscription\CreateSubscriptionRequest;
 use App\Http\Requests\Subscription\DowngradeSubscriptionRequest;
+use App\Http\Requests\Subscription\ImmediateUpgradeSubscriptionRequest;
 use App\Http\Requests\Subscription\UpgradeSubscriptionRequest;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
@@ -101,6 +103,25 @@ final class SubscriptionController extends Controller
             return response()->json([
                 'data' => $subscription->load('plan'),
                 'message' => 'Subscription upgraded successfully.',
+            ]);
+        } catch (SubscriptionException $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+
+    /**
+     * Upgrade subscription immediately.
+     */
+    public function upgradeImmediate(
+        ImmediateUpgradeSubscriptionRequest $request,
+        SubscriptionImmediateUpgradeAction $action
+    ): JsonResponse {
+        try {
+            $subscription = $action->handle($request->toDTO());
+
+            return response()->json([
+                'data' => $subscription->load('plan'),
+                'message' => 'Subscription upgraded immediately.',
             ]);
         } catch (SubscriptionException $e) {
             return response()->json(['error' => $e->getMessage()], 400);
