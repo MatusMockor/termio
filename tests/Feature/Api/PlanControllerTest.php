@@ -60,6 +60,13 @@ final class PlanControllerTest extends TestCase
                         'monthly_price',
                         'yearly_price',
                         'pricing' => [
+                            'monthly',
+                            'yearly',
+                            'yearly_monthly_equivalent',
+                            'yearly_discount_percent',
+                            'currency',
+                        ],
+                        'pricing_details' => [
                             'monthly' => ['amount', 'currency'],
                             'yearly' => ['amount', 'monthly_equivalent', 'discount_percentage', 'currency'],
                         ],
@@ -176,8 +183,8 @@ final class PlanControllerTest extends TestCase
 
         $response->assertOk();
 
-        $this->assertEquals(15.0, $response->json('data.pricing.yearly.monthly_equivalent'));
-        $this->assertEquals(25.0, $response->json('data.pricing.yearly.discount_percentage'));
+        $this->assertEquals(15.0, $response->json('data.pricing.yearly_monthly_equivalent'));
+        $this->assertEquals(25.0, $response->json('data.pricing.yearly_discount_percent'));
     }
 
     public function test_show_formats_unlimited_limits(): void

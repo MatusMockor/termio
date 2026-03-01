@@ -21,6 +21,9 @@ final class PlanResource extends JsonResource
      */
     public function toArray(Request $_request): array
     {
+        $monthlyPrice = (float) $this->monthly_price;
+        $yearlyPrice = (float) $this->yearly_price;
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -29,12 +32,19 @@ final class PlanResource extends JsonResource
             'monthly_price' => $this->monthly_price,
             'yearly_price' => $this->yearly_price,
             'pricing' => [
+                'monthly' => $monthlyPrice,
+                'yearly' => $yearlyPrice,
+                'yearly_monthly_equivalent' => $this->getYearlyMonthlyEquivalent(),
+                'yearly_discount_percent' => $this->getYearlyDiscountPercentage(),
+                'currency' => 'EUR',
+            ],
+            'pricing_details' => [
                 'monthly' => [
-                    'amount' => (float) $this->monthly_price,
+                    'amount' => $monthlyPrice,
                     'currency' => 'EUR',
                 ],
                 'yearly' => [
-                    'amount' => (float) $this->yearly_price,
+                    'amount' => $yearlyPrice,
                     'monthly_equivalent' => $this->getYearlyMonthlyEquivalent(),
                     'discount_percentage' => $this->getYearlyDiscountPercentage(),
                     'currency' => 'EUR',
