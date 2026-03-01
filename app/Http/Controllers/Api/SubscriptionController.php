@@ -78,7 +78,7 @@ final class SubscriptionController extends Controller
 
             return response()->json([
                 'data' => null,
-                'plan' => $currentPlan ? new PlanResource($currentPlan) : null,
+                'plan' => new PlanResource($currentPlan),
                 'is_on_trial' => false,
                 'trial_days_remaining' => 0,
                 'pending_change' => null,
