@@ -19,6 +19,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'Perfect for trying out Termio',
                 'monthly_price' => 0.00,
                 'yearly_price' => 0.00,
+                'stripe_monthly_price_id' => null,
+                'stripe_yearly_price_id' => null,
                 'sort_order' => 0,
                 'features' => [
                     'online_booking_widget' => true,
@@ -59,6 +61,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'For solo practitioners getting started',
                 'monthly_price' => 5.90,
                 'yearly_price' => 49.00,
+                'stripe_monthly_price_id' => env('STRIPE_PRICE_EASY_MONTHLY'),
+                'stripe_yearly_price_id' => env('STRIPE_PRICE_EASY_YEARLY'),
                 'sort_order' => 1,
                 'features' => [
                     'online_booking_widget' => true,
@@ -99,6 +103,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'Best value for growing businesses',
                 'monthly_price' => 11.90,
                 'yearly_price' => 99.00,
+                'stripe_monthly_price_id' => env('STRIPE_PRICE_SMART_MONTHLY'),
+                'stripe_yearly_price_id' => env('STRIPE_PRICE_SMART_YEARLY'),
                 'sort_order' => 2,
                 'features' => [
                     'online_booking_widget' => true,
@@ -139,6 +145,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'For established businesses with teams',
                 'monthly_price' => 24.90,
                 'yearly_price' => 199.00,
+                'stripe_monthly_price_id' => env('STRIPE_PRICE_STANDARD_MONTHLY'),
+                'stripe_yearly_price_id' => env('STRIPE_PRICE_STANDARD_YEARLY'),
                 'sort_order' => 3,
                 'features' => [
                     'online_booking_widget' => true,
@@ -179,6 +187,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'Enterprise features with priority support',
                 'monthly_price' => 49.90,
                 'yearly_price' => 449.00,
+                'stripe_monthly_price_id' => env('STRIPE_PRICE_PREMIUM_MONTHLY'),
+                'stripe_yearly_price_id' => env('STRIPE_PRICE_PREMIUM_YEARLY'),
                 'sort_order' => 4,
                 'features' => [
                     'online_booking_widget' => true,
