@@ -51,7 +51,6 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property-read Collection<int, WorkingHours> $workingHours
  * @property-read Subscription|null $localSubscription
  * @property-read Collection<int, Invoice> $invoices
- * @property-read Collection<int, PaymentMethod> $paymentMethods
  * @property-read Collection<int, UsageRecord> $usageRecords
  */
 final class Tenant extends Model
@@ -167,14 +166,6 @@ final class Tenant extends Model
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
-    }
-
-    /**
-     * @return HasMany<PaymentMethod, $this>
-     */
-    public function paymentMethods(): HasMany
-    {
-        return $this->hasMany(PaymentMethod::class);
     }
 
     /**

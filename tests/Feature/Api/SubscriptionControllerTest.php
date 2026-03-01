@@ -225,6 +225,8 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('data.id', $subscription->id);
         $response->assertJsonPath('plan.id', $this->easyPlan->id);
+        $this->assertSame((float) $this->easyPlan->monthly_price, (float) $response->json('data.plan.pricing.monthly'));
+        $this->assertSame((float) $this->easyPlan->yearly_price, (float) $response->json('data.plan.pricing.yearly'));
         $response->assertJsonStructure([
             'data' => ['id', 'plan_id', 'stripe_status', 'billing_cycle'],
             'plan' => ['id', 'name', 'slug'],

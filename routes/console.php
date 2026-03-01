@@ -3,7 +3,6 @@
 use App\Jobs\CheckUsageWarningsJob;
 use App\Jobs\Subscription\ProcessExpiredTrialsJob;
 use App\Jobs\Subscription\ProcessScheduledDowngradesJob;
-use App\Jobs\Subscription\SendCardExpiryRemindersJob;
 use App\Jobs\Subscription\SendDowngradeRemindersJob;
 use App\Jobs\Subscription\SendTrialEndingRemindersJob;
 use Illuminate\Foundation\Inspiring;
@@ -36,10 +35,6 @@ Schedule::job(new SendTrialEndingRemindersJob)
     ->withoutOverlapping();
 
 Schedule::job(new SendDowngradeRemindersJob)
-    ->dailyAt('09:00')
-    ->withoutOverlapping();
-
-Schedule::job(new SendCardExpiryRemindersJob)
     ->dailyAt('09:00')
     ->withoutOverlapping();
 
