@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Billing\BillingPaymentMethodsListAction;
 use App\Actions\Billing\BillingPortalSessionCreateAction;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Services\BillingService;
@@ -14,8 +15,6 @@ use App\Http\Resources\InvoiceResource;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Log;
-use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
 
 final class BillingController extends Controller
 {
@@ -96,7 +95,7 @@ final class BillingController extends Controller
     /**
      * Get payment methods from Stripe (default method only).
      */
-    public function paymentMethods(): JsonResponse
+    public function paymentMethods(BillingPaymentMethodsListAction $action): JsonResponse
     {
         $tenant = $this->tenantContext->getTenant();
 
@@ -104,23 +103,8 @@ final class BillingController extends Controller
             return response()->json(['error' => 'Tenant not found.'], 404);
         }
 
-        try {
-            $defaultPaymentMethod = $tenant->getDefaultPaymentMethod();
-        } catch (\Throwable $exception) {
-            Log::warning('Unable to fetch default payment method from Stripe.', [
-                'tenant_id' => $tenant->id,
-                'error' => $exception->getMessage(),
-            ]);
-
-            return response()->json(['data' => []]);
-        }
-
-        if ($defaultPaymentMethod === null) {
-            return response()->json(['data' => []]);
-        }
-
         return response()->json([
-            'data' => [$this->mapDefaultPaymentMethod($defaultPaymentMethod)],
+            'data' => $action->handle($tenant),
         ]);
     }
 
@@ -149,47 +133,5 @@ final class BillingController extends Controller
         return response()->json([
             'data' => $portalSession->toArray(),
         ]);
-    }
-
-    /**
-     * @return array{
-     *     id: int,
-     *     stripe_payment_method_id: string,
-     *     type: string,
-     *     card_brand: string,
-     *     card_last4: string,
-     *     card_exp_month: int,
-     *     card_exp_year: int,
-     *     is_default: bool
-     * }
-     */
-    private function mapDefaultPaymentMethod(CashierPaymentMethod $paymentMethod): array
-    {
-        $stripePaymentMethod = $paymentMethod->asStripePaymentMethod();
-        $card = $stripePaymentMethod->card;
-
-        if ($card === null) {
-            return [
-                'id' => 1,
-                'stripe_payment_method_id' => (string) $stripePaymentMethod->id,
-                'type' => (string) $stripePaymentMethod->type,
-                'card_brand' => '',
-                'card_last4' => '',
-                'card_exp_month' => 0,
-                'card_exp_year' => 0,
-                'is_default' => true,
-            ];
-        }
-
-        return [
-            'id' => 1,
-            'stripe_payment_method_id' => (string) $stripePaymentMethod->id,
-            'type' => (string) $stripePaymentMethod->type,
-            'card_brand' => (string) $card->brand,
-            'card_last4' => (string) $card->last4,
-            'card_exp_month' => (int) $card->exp_month,
-            'card_exp_year' => (int) $card->exp_year,
-            'is_default' => true,
-        ];
     }
 }
