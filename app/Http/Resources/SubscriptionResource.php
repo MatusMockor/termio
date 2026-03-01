@@ -74,20 +74,36 @@ final class SubscriptionResource extends JsonResource
 
     private function getYearlyMonthlyEquivalent(Plan $plan): float
     {
-        return round((float) $plan->yearly_price / 12, 2);
+        return round((float) $plan->yearly_price / $this->getMonthsPerYear(), 2);
     }
 
     private function getYearlyDiscountPercentage(Plan $plan): float
     {
         $monthlyPrice = (float) $plan->monthly_price;
+        $monthsPerYear = $this->getMonthsPerYear();
+        $percentBase = $this->getPercentBase();
 
         if ($monthlyPrice <= 0) {
             return 0.0;
         }
 
-        $annualMonthlyTotal = $monthlyPrice * 12;
+        $annualMonthlyTotal = $monthlyPrice * $monthsPerYear;
         $savings = $annualMonthlyTotal - (float) $plan->yearly_price;
 
-        return round(($savings / $annualMonthlyTotal) * 100, 0);
+        return round(($savings / $annualMonthlyTotal) * $percentBase, 0);
+    }
+
+    private function getMonthsPerYear(): int
+    {
+        $monthsPerYear = (int) config('billing.months_per_year', 12);
+
+        return $monthsPerYear > 0 ? $monthsPerYear : 12;
+    }
+
+    private function getPercentBase(): int
+    {
+        $percentBase = (int) config('billing.percent_base', 100);
+
+        return $percentBase > 0 ? $percentBase : 100;
     }
 }

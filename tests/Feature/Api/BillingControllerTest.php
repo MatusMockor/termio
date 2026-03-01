@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Actions\Billing\BillingPaymentMethodsListAction;
 use App\Contracts\Services\StripeService;
 use App\Models\Invoice;
 use App\Models\Tenant;
@@ -204,6 +205,52 @@ final class BillingControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonCount(0, 'data');
+    }
+
+    public function test_list_payment_methods_returns_payment_method_with_expected_payload(): void
+    {
+        $action = $this->createMock(BillingPaymentMethodsListAction::class);
+        $action->expects($this->once())
+            ->method('handle')
+            ->with($this->callback(fn (Tenant $tenant): bool => $tenant->id === $this->tenant->id))
+            ->willReturn([
+                [
+                    'id' => 1,
+                    'stripe_payment_method_id' => 'pm_test_123',
+                    'type' => 'card',
+                    'card_brand' => 'visa',
+                    'card_last4' => '4242',
+                    'card_exp_month' => 12,
+                    'card_exp_year' => 2030,
+                    'is_default' => true,
+                ],
+            ]);
+        $this->app->instance(BillingPaymentMethodsListAction::class, $action);
+
+        $response = $this->actingAs($this->user)->getJson(route('billing.payment-methods.index'));
+
+        $response->assertOk();
+        $response->assertJsonCount(1, 'data');
+        $response->assertJsonStructure([
+            'data' => [
+                [
+                    'stripe_payment_method_id',
+                    'type',
+                    'card_brand',
+                    'card_last4',
+                    'card_exp_month',
+                    'card_exp_year',
+                    'is_default',
+                ],
+            ],
+        ]);
+        $response->assertJsonPath('data.0.stripe_payment_method_id', 'pm_test_123');
+        $response->assertJsonPath('data.0.type', 'card');
+        $response->assertJsonPath('data.0.card_brand', 'visa');
+        $response->assertJsonPath('data.0.card_last4', '4242');
+        $response->assertJsonPath('data.0.card_exp_month', 12);
+        $response->assertJsonPath('data.0.card_exp_year', 2030);
+        $response->assertJsonPath('data.0.is_default', true);
     }
 
     public function test_list_payment_methods_requires_authentication(): void
