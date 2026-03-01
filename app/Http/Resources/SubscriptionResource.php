@@ -90,7 +90,7 @@ final class SubscriptionResource extends JsonResource
         $annualMonthlyTotal = $monthlyPrice * $monthsPerYear;
         $savings = $annualMonthlyTotal - (float) $plan->yearly_price;
 
-        return round(($savings / $annualMonthlyTotal) * $percentBase, 0);
+        return max(0.0, round(($savings / $annualMonthlyTotal) * $percentBase, 0));
     }
 
     private function getMonthsPerYear(): int
