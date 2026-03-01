@@ -7,6 +7,7 @@ namespace Database\Seeders;
 use App\Enums\PlanSlug;
 use App\Models\Plan;
 use Illuminate\Database\Seeder;
+use RuntimeException;
 
 final class PlanSeeder extends Seeder
 {
@@ -61,8 +62,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'For solo practitioners getting started',
                 'monthly_price' => 5.90,
                 'yearly_price' => 49.00,
-                'stripe_monthly_price_id' => env('STRIPE_PRICE_EASY_MONTHLY'),
-                'stripe_yearly_price_id' => env('STRIPE_PRICE_EASY_YEARLY'),
+                'stripe_monthly_price_id' => config('cashier.prices.easy.monthly'),
+                'stripe_yearly_price_id' => config('cashier.prices.easy.yearly'),
                 'sort_order' => 1,
                 'features' => [
                     'online_booking_widget' => true,
@@ -103,8 +104,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'Best value for growing businesses',
                 'monthly_price' => 11.90,
                 'yearly_price' => 99.00,
-                'stripe_monthly_price_id' => env('STRIPE_PRICE_SMART_MONTHLY'),
-                'stripe_yearly_price_id' => env('STRIPE_PRICE_SMART_YEARLY'),
+                'stripe_monthly_price_id' => config('cashier.prices.smart.monthly'),
+                'stripe_yearly_price_id' => config('cashier.prices.smart.yearly'),
                 'sort_order' => 2,
                 'features' => [
                     'online_booking_widget' => true,
@@ -145,8 +146,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'For established businesses with teams',
                 'monthly_price' => 24.90,
                 'yearly_price' => 199.00,
-                'stripe_monthly_price_id' => env('STRIPE_PRICE_STANDARD_MONTHLY'),
-                'stripe_yearly_price_id' => env('STRIPE_PRICE_STANDARD_YEARLY'),
+                'stripe_monthly_price_id' => config('cashier.prices.standard.monthly'),
+                'stripe_yearly_price_id' => config('cashier.prices.standard.yearly'),
                 'sort_order' => 3,
                 'features' => [
                     'online_booking_widget' => true,
@@ -187,8 +188,8 @@ final class PlanSeeder extends Seeder
                 'description' => 'Enterprise features with priority support',
                 'monthly_price' => 49.90,
                 'yearly_price' => 449.00,
-                'stripe_monthly_price_id' => env('STRIPE_PRICE_PREMIUM_MONTHLY'),
-                'stripe_yearly_price_id' => env('STRIPE_PRICE_PREMIUM_YEARLY'),
+                'stripe_monthly_price_id' => config('cashier.prices.premium.monthly'),
+                'stripe_yearly_price_id' => config('cashier.prices.premium.yearly'),
                 'sort_order' => 4,
                 'features' => [
                     'online_booking_widget' => true,
@@ -226,10 +227,36 @@ final class PlanSeeder extends Seeder
         ];
 
         foreach ($plans as $planData) {
+            $this->assertStripePriceIdsConfigured($planData);
+
             Plan::updateOrCreate(
                 ['slug' => $planData['slug']],
                 $planData
             );
         }
+    }
+
+    /**
+     * @param  array{name: string, slug: string, stripe_monthly_price_id: string|null, stripe_yearly_price_id: string|null}  $planData
+     */
+    private function assertStripePriceIdsConfigured(array $planData): void
+    {
+        if ($planData['slug'] === PlanSlug::Free->value) {
+            return;
+        }
+
+        if ($planData['stripe_monthly_price_id'] && $planData['stripe_yearly_price_id']) {
+            return;
+        }
+
+        throw new RuntimeException(
+            sprintf(
+                'Missing Stripe price IDs for paid plan "%s" (%s). Configure STRIPE_PRICE_%s_MONTHLY and STRIPE_PRICE_%s_YEARLY.',
+                $planData['name'],
+                $planData['slug'],
+                strtoupper($planData['slug']),
+                strtoupper($planData['slug']),
+            ),
+        );
     }
 }

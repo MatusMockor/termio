@@ -49,6 +49,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Stripe Prices
+    |--------------------------------------------------------------------------
+    |
+    | Price IDs for paid plans used by subscription-related flows and seeding.
+    | These values are loaded from environment variables.
+    |
+    */
+    'prices' => [
+        'easy' => [
+            'monthly' => env('STRIPE_PRICE_EASY_MONTHLY'),
+            'yearly' => env('STRIPE_PRICE_EASY_YEARLY'),
+        ],
+        'premium' => [
+            'monthly' => env('STRIPE_PRICE_PREMIUM_MONTHLY'),
+            'yearly' => env('STRIPE_PRICE_PREMIUM_YEARLY'),
+        ],
+        'smart' => [
+            'monthly' => env('STRIPE_PRICE_SMART_MONTHLY'),
+            'yearly' => env('STRIPE_PRICE_SMART_YEARLY'),
+        ],
+        'standard' => [
+            'monthly' => env('STRIPE_PRICE_STANDARD_MONTHLY'),
+            'yearly' => env('STRIPE_PRICE_STANDARD_YEARLY'),
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Currency
     |--------------------------------------------------------------------------
     |
