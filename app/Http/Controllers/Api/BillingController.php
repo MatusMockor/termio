@@ -7,24 +7,21 @@ namespace App\Http\Controllers\Api;
 use App\Actions\Billing\BillingPortalSessionCreateAction;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Services\BillingService;
-use App\Contracts\Services\PaymentMethodServiceContract;
 use App\Exceptions\BillingException;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Billing\AddPaymentMethodRequest;
 use App\Http\Requests\Billing\CreatePortalSessionRequest;
 use App\Http\Resources\InvoiceResource;
-use App\Http\Resources\PaymentMethodResource;
-use App\Models\PaymentMethod;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
+use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
 
 final class BillingController extends Controller
 {
     public function __construct(
         private readonly InvoiceRepository $invoices,
         private readonly BillingService $billingService,
-        private readonly PaymentMethodServiceContract $paymentMethodService,
         private readonly TenantContextService $tenantContext,
     ) {}
 
@@ -97,9 +94,7 @@ final class BillingController extends Controller
     }
 
     /**
-     * Get payment methods.
-     *
-     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
+     * Get payment methods from Stripe (default method only).
      */
     public function paymentMethods(): JsonResponse
     {
@@ -109,104 +104,23 @@ final class BillingController extends Controller
             return response()->json(['error' => 'Tenant not found.'], 404);
         }
 
-        $methods = $this->paymentMethodService->getPaymentMethods($tenant);
+        try {
+            $defaultPaymentMethod = $tenant->getDefaultPaymentMethod();
+        } catch (\Throwable $exception) {
+            Log::warning('Unable to fetch default payment method from Stripe.', [
+                'tenant_id' => $tenant->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return response()->json(['data' => []]);
+        }
+
+        if ($defaultPaymentMethod === null) {
+            return response()->json(['data' => []]);
+        }
 
         return response()->json([
-            'data' => PaymentMethodResource::collection($methods),
-        ]);
-    }
-
-    /**
-     * Add a new payment method.
-     *
-     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
-     */
-    public function addPaymentMethod(AddPaymentMethodRequest $request): JsonResponse
-    {
-        $tenant = $this->tenantContext->getTenant();
-
-        if ($tenant === null) {
-            return response()->json(['error' => 'Tenant not found.'], 404);
-        }
-
-        if ($tenant->stripe_id === null) {
-            return response()->json(['error' => 'No Stripe customer found. Please contact support.'], 400);
-        }
-
-        $paymentMethodId = $request->getPaymentMethodId();
-        $paymentMethod = $request->shouldSetAsDefault()
-            ? $this->paymentMethodService->addPaymentMethod($tenant, $paymentMethodId)
-            : $this->paymentMethodService->addPaymentMethodWithoutDefault($tenant, $paymentMethodId);
-
-        return response()->json([
-            'data' => new PaymentMethodResource($paymentMethod),
-            'message' => 'Payment method added successfully.',
-        ], 201);
-    }
-
-    /**
-     * Remove a payment method.
-     *
-     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
-     */
-    public function removePaymentMethod(int $paymentMethodId): JsonResponse
-    {
-        $tenant = $this->tenantContext->getTenant();
-
-        if ($tenant === null) {
-            return response()->json(['error' => 'Tenant not found.'], 404);
-        }
-
-        $paymentMethod = PaymentMethod::where('tenant_id', $tenant->id)
-            ->find($paymentMethodId);
-
-        if ($paymentMethod === null) {
-            return response()->json(['error' => 'Payment method not found.'], 404);
-        }
-
-        // Cannot remove default payment method if there's an active subscription
-        if ($paymentMethod->is_default && $tenant->activeSubscription() !== null) {
-            return response()->json([
-                'error' => 'cannot_remove_default',
-                'message' => 'Cannot remove default payment method while you have an active subscription.',
-            ], 400);
-        }
-
-        $this->paymentMethodService->removePaymentMethod($paymentMethod);
-
-        return response()->json([
-            'message' => 'Payment method removed successfully.',
-        ]);
-    }
-
-    /**
-     * Set default payment method.
-     *
-     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
-     */
-    public function setDefaultPaymentMethod(int $paymentMethodId): JsonResponse
-    {
-        $tenant = $this->tenantContext->getTenant();
-
-        if ($tenant === null) {
-            return response()->json(['error' => 'Tenant not found.'], 404);
-        }
-
-        if ($tenant->stripe_id === null) {
-            return response()->json(['error' => 'No Stripe customer found. Please contact support.'], 400);
-        }
-
-        $paymentMethod = PaymentMethod::where('tenant_id', $tenant->id)
-            ->find($paymentMethodId);
-
-        if ($paymentMethod === null) {
-            return response()->json(['error' => 'Payment method not found.'], 404);
-        }
-
-        $this->paymentMethodService->setDefaultPaymentMethod($tenant, $paymentMethod);
-
-        return response()->json([
-            'message' => 'Default payment method updated successfully.',
+            'data' => [$this->mapDefaultPaymentMethod($defaultPaymentMethod)],
         ]);
     }
 
@@ -235,5 +149,47 @@ final class BillingController extends Controller
         return response()->json([
             'data' => $portalSession->toArray(),
         ]);
+    }
+
+    /**
+     * @return array{
+     *     id: int,
+     *     stripe_payment_method_id: string,
+     *     type: string,
+     *     card_brand: string,
+     *     card_last4: string,
+     *     card_exp_month: int,
+     *     card_exp_year: int,
+     *     is_default: bool
+     * }
+     */
+    private function mapDefaultPaymentMethod(CashierPaymentMethod $paymentMethod): array
+    {
+        $stripePaymentMethod = $paymentMethod->asStripePaymentMethod();
+        $card = $stripePaymentMethod->card;
+
+        if ($card === null) {
+            return [
+                'id' => 1,
+                'stripe_payment_method_id' => (string) $stripePaymentMethod->id,
+                'type' => (string) $stripePaymentMethod->type,
+                'card_brand' => '',
+                'card_last4' => '',
+                'card_exp_month' => 0,
+                'card_exp_year' => 0,
+                'is_default' => true,
+            ];
+        }
+
+        return [
+            'id' => 1,
+            'stripe_payment_method_id' => (string) $stripePaymentMethod->id,
+            'type' => (string) $stripePaymentMethod->type,
+            'card_brand' => (string) $card->brand,
+            'card_last4' => (string) $card->last4,
+            'card_exp_month' => (int) $card->exp_month,
+            'card_exp_year' => (int) $card->exp_year,
+            'is_default' => true,
+        ];
     }
 }
