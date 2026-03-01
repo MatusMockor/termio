@@ -199,4 +199,19 @@ final class StripeService implements StripeServiceContract
             'id' => $setupIntent->id,
         ];
     }
+
+    /**
+     * Create a billing portal session URL for a customer.
+     *
+     * @throws ApiErrorException
+     */
+    public function createBillingPortalSession(string $customerId, string $returnUrl): string
+    {
+        $session = $this->getClient()->billingPortal->sessions->create([
+            'customer' => $customerId,
+            'return_url' => $returnUrl,
+        ]);
+
+        return (string) $session->url;
+    }
 }

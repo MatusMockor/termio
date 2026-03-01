@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Contracts\Services\StripeService;
 use App\Models\Invoice;
 use App\Models\PaymentMethod;
 use App\Models\Plan;
@@ -11,6 +12,9 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Stripe\Customer;
+use Stripe\Exception\ApiConnectionException;
+use Stripe\Exception\InvalidRequestException;
 use Tests\TestCase;
 
 final class BillingControllerTest extends TestCase
@@ -204,6 +208,142 @@ final class BillingControllerTest extends TestCase
         $response = $this->actingAs($this->user)->getJson(route('billing.invoices.download', 99999));
 
         $response->assertNotFound();
+    }
+
+    // ==========================================
+    // Billing Portal Session Tests
+    // ==========================================
+
+    public function test_owner_can_create_portal_session(): void
+    {
+        $stripeService = $this->createMock(StripeService::class);
+        $stripeService->expects($this->never())
+            ->method('createCustomer');
+        $stripeService->expects($this->once())
+            ->method('createBillingPortalSession')
+            ->with($this->tenant->stripe_id, 'https://app.termio.sk/billing')
+            ->willReturn('https://billing.stripe.com/p/session/test_123');
+        $this->app->instance(StripeService::class, $stripeService);
+
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.url', 'https://billing.stripe.com/p/session/test_123');
+    }
+
+    public function test_non_owner_cannot_create_portal_session(): void
+    {
+        $staffUser = User::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'role' => 'staff',
+        ]);
+
+        $response = $this->actingAs($staffUser)->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertForbidden();
+        $response->assertJsonPath('message', 'Access denied. Owner role required.');
+    }
+
+    public function test_unauthenticated_user_cannot_create_portal_session(): void
+    {
+        $response = $this->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertUnauthorized();
+    }
+
+    public function test_create_portal_session_requires_return_url(): void
+    {
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), []);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['return_url']);
+    }
+
+    public function test_create_portal_session_validates_return_url_format(): void
+    {
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), [
+            'return_url' => 'invalid-url',
+        ]);
+
+        $response->assertUnprocessable();
+        $response->assertJsonValidationErrors(['return_url']);
+    }
+
+    public function test_tenant_without_stripe_id_gets_customer_created_for_portal_session(): void
+    {
+        $this->tenant->update(['stripe_id' => null]);
+
+        $stripeService = $this->createMock(StripeService::class);
+        $stripeService->expects($this->once())
+            ->method('createCustomer')
+            ->with($this->callback(fn (Tenant $tenant): bool => $tenant->id === $this->tenant->id))
+            ->willReturn(Customer::constructFrom(['id' => 'cus_new_123']));
+        $stripeService->expects($this->once())
+            ->method('createBillingPortalSession')
+            ->with('cus_new_123', 'https://app.termio.sk/billing')
+            ->willReturn('https://billing.stripe.com/p/session/test_123');
+        $this->app->instance(StripeService::class, $stripeService);
+
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('data.url', 'https://billing.stripe.com/p/session/test_123');
+        $this->assertDatabaseHas('tenants', [
+            'id' => $this->tenant->id,
+            'stripe_id' => 'cus_new_123',
+        ]);
+    }
+
+    public function test_create_portal_session_returns_502_when_customer_invalid(): void
+    {
+        $stripeService = $this->createMock(StripeService::class);
+        $stripeService->expects($this->never())
+            ->method('createCustomer');
+        $stripeService->expects($this->once())
+            ->method('createBillingPortalSession')
+            ->willThrowException(InvalidRequestException::factory(
+                'No such customer',
+                404,
+                null,
+                ['error' => ['code' => 'resource_missing', 'param' => 'customer']],
+                null,
+                'resource_missing',
+                'customer',
+            ));
+        $this->app->instance(StripeService::class, $stripeService);
+
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertStatus(502);
+        $response->assertJsonPath('error', 'Unable to create billing portal session.');
+    }
+
+    public function test_create_portal_session_returns_503_when_stripe_unavailable(): void
+    {
+        $stripeService = $this->createMock(StripeService::class);
+        $stripeService->expects($this->never())
+            ->method('createCustomer');
+        $stripeService->expects($this->once())
+            ->method('createBillingPortalSession')
+            ->willThrowException(ApiConnectionException::factory('Stripe API is unavailable', 503));
+        $this->app->instance(StripeService::class, $stripeService);
+
+        $response = $this->actingAs($this->user)->postJson(route('billing.portal-session'), [
+            'return_url' => 'https://app.termio.sk/billing',
+        ]);
+
+        $response->assertStatus(503);
+        $response->assertJsonPath('error', 'Billing service temporarily unavailable.');
     }
 
     // ==========================================

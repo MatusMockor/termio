@@ -160,6 +160,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::get('/invoices/{invoice}', [BillingController::class, 'showInvoice'])->name('invoices.show');
         Route::get('/invoices/{invoice}/download', [BillingController::class, 'downloadInvoice'])->name('invoices.download');
 
+        Route::post('/portal-session', [BillingController::class, 'createPortalSession'])->name('portal-session');
+
         // Payment Methods
         Route::get('/payment-methods', [BillingController::class, 'paymentMethods'])->name('payment-methods.index');
         Route::post('/payment-methods', [BillingController::class, 'addPaymentMethod'])->name('payment-methods.store');

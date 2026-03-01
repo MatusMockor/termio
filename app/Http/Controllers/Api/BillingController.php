@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Billing\BillingPortalSessionCreateAction;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Services\BillingService;
 use App\Contracts\Services\PaymentMethodServiceContract;
+use App\Exceptions\BillingException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Billing\AddPaymentMethodRequest;
+use App\Http\Requests\Billing\CreatePortalSessionRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Http\Resources\PaymentMethodResource;
 use App\Models\PaymentMethod;
@@ -95,6 +98,8 @@ final class BillingController extends Controller
 
     /**
      * Get payment methods.
+     *
+     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
      */
     public function paymentMethods(): JsonResponse
     {
@@ -113,6 +118,8 @@ final class BillingController extends Controller
 
     /**
      * Add a new payment method.
+     *
+     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
      */
     public function addPaymentMethod(AddPaymentMethodRequest $request): JsonResponse
     {
@@ -139,6 +146,8 @@ final class BillingController extends Controller
 
     /**
      * Remove a payment method.
+     *
+     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
      */
     public function removePaymentMethod(int $paymentMethodId): JsonResponse
     {
@@ -172,6 +181,8 @@ final class BillingController extends Controller
 
     /**
      * Set default payment method.
+     *
+     * @deprecated This endpoint will be removed after frontend fully migrates to Stripe Customer Portal.
      */
     public function setDefaultPaymentMethod(int $paymentMethodId): JsonResponse
     {
@@ -196,6 +207,33 @@ final class BillingController extends Controller
 
         return response()->json([
             'message' => 'Default payment method updated successfully.',
+        ]);
+    }
+
+    /**
+     * Create a Stripe billing portal session.
+     */
+    public function createPortalSession(
+        CreatePortalSessionRequest $request,
+        BillingPortalSessionCreateAction $action,
+    ): JsonResponse {
+        $tenant = $this->tenantContext->getTenant();
+
+        if ($tenant === null) {
+            return response()->json(['error' => 'Tenant not found.'], 404);
+        }
+
+        try {
+            $portalSession = $action->handle($tenant, $request->getReturnUrl());
+        } catch (BillingException $exception) {
+            return response()->json(
+                ['error' => $exception->getMessage()],
+                $exception->getStatusCode(),
+            );
+        }
+
+        return response()->json([
+            'data' => $portalSession->toArray(),
         ]);
     }
 }
