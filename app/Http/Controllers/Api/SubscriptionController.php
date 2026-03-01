@@ -21,6 +21,8 @@ use App\Http\Requests\Subscription\CreateSubscriptionRequest;
 use App\Http\Requests\Subscription\DowngradeSubscriptionRequest;
 use App\Http\Requests\Subscription\ImmediateUpgradeSubscriptionRequest;
 use App\Http\Requests\Subscription\UpgradeSubscriptionRequest;
+use App\Http\Resources\PlanResource;
+use App\Http\Resources\SubscriptionResource;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
 
@@ -50,7 +52,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($request->toDTO(), $tenant);
 
             return response()->json([
-                'data' => $subscription,
+                'data' => new SubscriptionResource($subscription->load('plan')),
                 'message' => 'Subscription created successfully.',
             ], 201);
         } catch (SubscriptionException $e) {
@@ -72,9 +74,11 @@ final class SubscriptionController extends Controller
         $subscription = $this->subscriptions->findActiveByTenant($tenant);
 
         if (! $subscription) {
+            $currentPlan = $this->subscriptionService->getCurrentPlan($tenant);
+
             return response()->json([
                 'data' => null,
-                'plan' => $this->subscriptionService->getCurrentPlan($tenant),
+                'plan' => $currentPlan ? new PlanResource($currentPlan) : null,
                 'is_on_trial' => false,
                 'trial_days_remaining' => 0,
                 'pending_change' => null,
@@ -82,8 +86,8 @@ final class SubscriptionController extends Controller
         }
 
         return response()->json([
-            'data' => $subscription->load('plan'),
-            'plan' => $subscription->plan,
+            'data' => new SubscriptionResource($subscription->load('plan')),
+            'plan' => new PlanResource($subscription->plan),
             'is_on_trial' => $this->subscriptionService->isOnTrial($tenant),
             'trial_days_remaining' => $this->subscriptionService->getTrialDaysRemaining($tenant),
             'pending_change' => $this->subscriptionService->getPendingChange($tenant),
@@ -101,7 +105,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($request->toDTO());
 
             return response()->json([
-                'data' => $subscription->load('plan'),
+                'data' => new SubscriptionResource($subscription->load('plan')),
                 'message' => 'Subscription upgraded successfully.',
             ]);
         } catch (SubscriptionException $e) {
@@ -120,7 +124,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($request->toDTO());
 
             return response()->json([
-                'data' => $subscription->load('plan'),
+                'data' => new SubscriptionResource($subscription->load('plan')),
                 'message' => 'Subscription upgraded immediately.',
             ]);
         } catch (SubscriptionException $e) {
@@ -139,7 +143,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($request->toDTO());
 
             return response()->json([
-                'data' => $subscription->load(['plan', 'scheduledPlan']),
+                'data' => new SubscriptionResource($subscription->load(['plan', 'scheduledPlan'])),
                 'message' => 'Downgrade scheduled successfully.',
             ]);
         } catch (SubscriptionException $e) {
@@ -176,7 +180,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($subscription->id, $request->getReason());
 
             return response()->json([
-                'data' => $subscription,
+                'data' => new SubscriptionResource($subscription->load('plan')),
                 'message' => 'Subscription cancellation scheduled.',
             ]);
         } catch (SubscriptionException $e) {
@@ -205,7 +209,7 @@ final class SubscriptionController extends Controller
             $subscription = $action->handle($subscription->id);
 
             return response()->json([
-                'data' => $subscription,
+                'data' => new SubscriptionResource($subscription->load('plan')),
                 'message' => 'Subscription resumed successfully.',
             ]);
         } catch (SubscriptionException $e) {
