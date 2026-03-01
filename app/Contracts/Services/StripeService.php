@@ -76,4 +76,9 @@ interface StripeService
      * @return array{client_secret: string, id: string}
      */
     public function createSetupIntent(string $customerId): array;
+
+    /**
+     * Create a billing portal session URL for a customer.
+     */
+    public function createBillingPortalSession(string $customerId, string $returnUrl): string;
 }
