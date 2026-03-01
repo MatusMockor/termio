@@ -37,8 +37,8 @@ final class SubscriptionResource extends JsonResource
             'scheduled_plan_id' => $this->scheduled_plan_id,
             'scheduled_plan' => new PlanResource($this->whenLoaded('scheduledPlan')),
             'scheduled_change_at' => $this->scheduled_change_at?->toIso8601String(),
-            'created_at' => $this->created_at?->toIso8601String(),
-            'updated_at' => $this->updated_at?->toIso8601String(),
+            'created_at' => $this->created_at->toIso8601String(),
+            'updated_at' => $this->updated_at->toIso8601String(),
         ];
     }
 }
