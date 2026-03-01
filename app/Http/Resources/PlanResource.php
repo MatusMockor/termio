@@ -23,6 +23,7 @@ final class PlanResource extends JsonResource
     {
         $monthlyPrice = (float) $this->monthly_price;
         $yearlyPrice = (float) $this->yearly_price;
+        $currency = (string) config('billing.currency', 'EUR');
 
         return [
             'id' => $this->id,
@@ -36,18 +37,18 @@ final class PlanResource extends JsonResource
                 'yearly' => $yearlyPrice,
                 'yearly_monthly_equivalent' => $this->getYearlyMonthlyEquivalent(),
                 'yearly_discount_percent' => $this->getYearlyDiscountPercentage(),
-                'currency' => 'EUR',
+                'currency' => $currency,
             ],
             'pricing_details' => [
                 'monthly' => [
                     'amount' => $monthlyPrice,
-                    'currency' => 'EUR',
+                    'currency' => $currency,
                 ],
                 'yearly' => [
                     'amount' => $yearlyPrice,
                     'monthly_equivalent' => $this->getYearlyMonthlyEquivalent(),
                     'discount_percentage' => $this->getYearlyDiscountPercentage(),
-                    'currency' => 'EUR',
+                    'currency' => $currency,
                 ],
             ],
             'features' => $this->features,
