@@ -48,10 +48,12 @@ final class BookingControllerTest extends TestCase
 
     public function test_tenant_info_returns_custom_branding_color(): void
     {
+        $primaryColor = fake()->hexColor();
+
         $this->tenant->update([
             'settings' => [
                 'branding' => [
-                    'primary_color' => '#EF4444',
+                    'primary_color' => $primaryColor,
                 ],
             ],
         ]);
@@ -59,7 +61,7 @@ final class BookingControllerTest extends TestCase
         $response = $this->getJson(route('booking.info', ['tenantSlug' => $this->tenant->slug]));
 
         $response->assertOk()
-            ->assertJsonPath('branding.primary_color', '#EF4444');
+            ->assertJsonPath('branding.primary_color', $primaryColor);
     }
 
     public function test_tenant_info_returns_404_for_invalid_slug(): void

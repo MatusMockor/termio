@@ -61,7 +61,7 @@ final class SettingsController extends Controller
     public function updateBranding(UpdateBrandingRequest $request): JsonResponse
     {
         $tenant = $this->tenantContext->getTenant();
-        $updatedTenant = $this->updateBrandingAction->handle($tenant, $request->getPrimaryColor());
+        $updatedTenant = $this->updateBrandingAction->handle($tenant, $request->toDTO());
 
         return response()->json([
             'branding' => $updatedTenant->getBranding(),

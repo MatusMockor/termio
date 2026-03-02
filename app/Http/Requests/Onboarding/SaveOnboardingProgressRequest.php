@@ -116,11 +116,8 @@ final class SaveOnboardingProgressRequest extends FormRequest
      */
     private function brandingRules(): array
     {
+        /** @var string $primaryColorRegex */
         $primaryColorRegex = config('branding.primary_color_regex');
-
-        if (! is_string($primaryColorRegex) || $primaryColorRegex === '') {
-            $primaryColorRegex = '/^#[0-9A-Fa-f]{6}$/';
-        }
 
         return [
             'data.branding' => ['sometimes', 'array'],
