@@ -34,8 +34,32 @@ final class BookingControllerTest extends TestCase
         $response = $this->getJson(route('booking.info', ['tenantSlug' => $this->tenant->slug]));
 
         $response->assertOk()
-            ->assertJsonStructure(['name', 'business_type', 'address', 'phone'])
-            ->assertJsonPath('name', $this->tenant->name);
+            ->assertJsonStructure([
+                'name',
+                'business_type',
+                'address',
+                'phone',
+                'logo_url',
+                'branding' => ['primary_color'],
+            ])
+            ->assertJsonPath('name', $this->tenant->name)
+            ->assertJsonPath('branding.primary_color', config('branding.default_primary_color'));
+    }
+
+    public function test_tenant_info_returns_custom_branding_color(): void
+    {
+        $this->tenant->update([
+            'settings' => [
+                'branding' => [
+                    'primary_color' => '#EF4444',
+                ],
+            ],
+        ]);
+
+        $response = $this->getJson(route('booking.info', ['tenantSlug' => $this->tenant->slug]));
+
+        $response->assertOk()
+            ->assertJsonPath('branding.primary_color', '#EF4444');
     }
 
     public function test_tenant_info_returns_404_for_invalid_slug(): void

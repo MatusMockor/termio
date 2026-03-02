@@ -39,6 +39,7 @@ final class OnboardingService
         DB::transaction(function () use ($tenant): void {
             $this->syncBusinessWorkingHoursFromProgress($tenant);
             $this->syncReservationSettingsFromProgress($tenant);
+            $this->syncBrandingFromProgress($tenant);
             $this->repository->completeOnboarding($tenant);
         });
     }
@@ -62,6 +63,10 @@ final class OnboardingService
     {
         DB::transaction(function () use ($tenant, $step, $data): void {
             $this->repository->saveProgress($tenant, $step, $data);
+
+            if ($step === 'branding') {
+                $this->syncBrandingFromProgress($tenant);
+            }
         });
     }
 
@@ -126,5 +131,27 @@ final class OnboardingService
                 activeFlag: ($hours['is_active'] ?? true) ? 1 : 0,
             ));
         }
+    }
+
+    private function syncBrandingFromProgress(Tenant $tenant): void
+    {
+        $branding = $this->progressValidationService->extractBranding($tenant);
+
+        if (! $branding) {
+            return;
+        }
+
+        $settings = $tenant->settings;
+        $existingBranding = $settings['branding'] ?? [];
+
+        if (! is_array($existingBranding)) {
+            $existingBranding = [];
+        }
+
+        $settings['branding'] = array_merge($existingBranding, [
+            'primary_color' => $branding['primary_color'],
+        ]);
+
+        $tenant->update(['settings' => $settings]);
     }
 }

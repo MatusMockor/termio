@@ -152,6 +152,29 @@ final class OnboardingControllerTest extends TestCase
         $this->assertArrayHasKey('services', $this->tenant->onboarding_data);
     }
 
+    public function test_save_progress_branding_syncs_tenant_branding(): void
+    {
+        $response = $this->postJson(route('onboarding.save-progress'), [
+            'step' => 'branding',
+            'data' => [
+                'branding' => [
+                    'primary_color' => '#0EA5E9',
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJson([
+                'message' => 'Progress saved successfully',
+                'step' => 'branding',
+            ]);
+
+        $this->tenant->refresh();
+        $this->assertEquals('branding', $this->tenant->onboarding_step);
+        $this->assertArrayHasKey('branding', $this->tenant->onboarding_data);
+        $this->assertSame('#0EA5E9', $this->tenant->getBrandingPrimaryColor());
+    }
+
     public function test_cannot_save_progress_without_step(): void
     {
         $response = $this->postJson(route('onboarding.save-progress'), [
@@ -392,6 +415,28 @@ final class OnboardingControllerTest extends TestCase
             'reservation_max_days_in_advance' => $maxDays,
             'reservation_slot_interval_minutes' => $slotInterval,
         ]);
+    }
+
+    public function test_complete_onboarding_syncs_branding_from_progress(): void
+    {
+        $this->tenant->update([
+            'business_type' => BusinessType::Salon,
+            'onboarding_step' => 'branding',
+            'onboarding_data' => [
+                'branding' => [
+                    'branding' => [
+                        'primary_color' => '#9333EA',
+                    ],
+                ],
+            ],
+        ]);
+
+        $response = $this->postJson(route('onboarding.complete'));
+
+        $response->assertOk();
+
+        $this->tenant->refresh();
+        $this->assertSame('#9333EA', $this->tenant->getBrandingPrimaryColor());
     }
 
     public function test_complete_onboarding_fails_for_invalid_reservation_settings_progress_data(): void

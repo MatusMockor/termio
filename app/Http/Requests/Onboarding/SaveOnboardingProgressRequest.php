@@ -21,6 +21,7 @@ final class SaveOnboardingProgressRequest extends FormRequest
             $this->baseRules(),
             $this->workingHoursRules(),
             $this->reservationSettingsRules(),
+            $this->brandingRules(),
         );
     }
 
@@ -107,6 +108,23 @@ final class SaveOnboardingProgressRequest extends FormRequest
                 'max:'.$slotIntervalMax,
                 'multiple_of:'.$slotIntervalMultipleOf,
             ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function brandingRules(): array
+    {
+        $primaryColorRegex = config('branding.primary_color_regex');
+
+        if (! is_string($primaryColorRegex) || $primaryColorRegex === '') {
+            $primaryColorRegex = '/^#[0-9A-Fa-f]{6}$/';
+        }
+
+        return [
+            'data.branding' => ['sometimes', 'array'],
+            'data.branding.primary_color' => ['required_with:data.branding', 'string', 'regex:'.$primaryColorRegex],
         ];
     }
 

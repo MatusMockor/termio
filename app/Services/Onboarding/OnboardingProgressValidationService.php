@@ -105,6 +105,47 @@ final class OnboardingProgressValidationService implements OnboardingProgressVal
     }
 
     /**
+     * @return array{primary_color: string}|null
+     */
+    public function extractBranding(Tenant $tenant): ?array
+    {
+        $brandingPayload = $this->resolveStepPayload($tenant, 'branding');
+
+        if (! $brandingPayload) {
+            return null;
+        }
+
+        $primaryColorRegex = config('branding.primary_color_regex');
+
+        if (! is_string($primaryColorRegex) || $primaryColorRegex === '') {
+            $primaryColorRegex = '/^#[0-9A-Fa-f]{6}$/';
+        }
+
+        $validator = Validator::make(
+            ['branding' => $brandingPayload],
+            [
+                'branding' => ['array'],
+                'branding.primary_color' => ['required', 'string', 'regex:'.$primaryColorRegex],
+            ],
+        );
+
+        if ($validator->fails()) {
+            $this->throwInvalidStepPayload('branding', $tenant->id, $validator->errors()->toArray());
+        }
+
+        $validated = $validator->validated();
+        $branding = $validated['branding'] ?? null;
+
+        if (! is_array($branding)) {
+            $this->throwInvalidStepPayload('branding', $tenant->id);
+        }
+
+        return [
+            'primary_color' => (string) $branding['primary_color'],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function resolveStepPayload(Tenant $tenant, string $stepKey): ?array
@@ -146,6 +187,10 @@ final class OnboardingProgressValidationService implements OnboardingProgressVal
     {
         if ($stepKey === 'working_hours') {
             throw InvalidOnboardingDataException::forTenantWorkingHours($tenantId, $errors);
+        }
+
+        if ($stepKey === 'branding') {
+            throw InvalidOnboardingDataException::forTenantBranding($tenantId, $errors);
         }
 
         throw InvalidOnboardingDataException::forTenantReservationSettings($tenantId, $errors);

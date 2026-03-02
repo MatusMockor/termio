@@ -286,6 +286,34 @@ final class Tenant extends Model
     }
 
     /**
+     * @return array{primary_color: string}
+     */
+    public function getBranding(): array
+    {
+        return [
+            'primary_color' => $this->getBrandingPrimaryColor(),
+        ];
+    }
+
+    public function getBrandingPrimaryColor(): string
+    {
+        $settings = $this->settings;
+        $branding = $settings['branding'] ?? null;
+
+        if (! is_array($branding)) {
+            return $this->getDefaultBrandingPrimaryColor();
+        }
+
+        $primaryColor = $branding['primary_color'] ?? null;
+
+        if (! is_string($primaryColor) || $primaryColor === '') {
+            return $this->getDefaultBrandingPrimaryColor();
+        }
+
+        return $primaryColor;
+    }
+
+    /**
      * Get the public URL for the tenant's logo.
      */
     public function getLogoUrl(): ?string
@@ -295,5 +323,16 @@ final class Tenant extends Model
         }
 
         return Storage::disk(config('filesystems.logo_disk', 'public'))->url($this->logo);
+    }
+
+    private function getDefaultBrandingPrimaryColor(): string
+    {
+        $defaultPrimaryColor = config('branding.default_primary_color');
+
+        if (! is_string($defaultPrimaryColor) || $defaultPrimaryColor === '') {
+            return '#2563EB';
+        }
+
+        return $defaultPrimaryColor;
     }
 }
