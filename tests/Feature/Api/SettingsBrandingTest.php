@@ -46,9 +46,11 @@ final class SettingsBrandingTest extends TestCase
 
     public function test_update_branding_validates_primary_color_format(): void
     {
+        $invalidPrimaryColor = ltrim(fake()->hexColor(), '#');
+
         $response = $this->actingAs($this->owner)
             ->putJson(route('settings.branding.update'), [
-                'primary_color' => 'blue',
+                'primary_color' => $invalidPrimaryColor,
             ]);
 
         $response->assertUnprocessable()
