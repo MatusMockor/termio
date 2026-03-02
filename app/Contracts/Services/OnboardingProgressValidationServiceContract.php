@@ -17,4 +17,9 @@ interface OnboardingProgressValidationServiceContract
      * @return array{lead_time_hours: int, max_days_in_advance: int, slot_interval_minutes: int}|null
      */
     public function extractReservationSettings(Tenant $tenant): ?array;
+
+    /**
+     * @return array{primary_color: string}|null
+     */
+    public function extractBranding(Tenant $tenant): ?array;
 }

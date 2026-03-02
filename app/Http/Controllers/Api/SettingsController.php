@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Settings\SettingsBrandingUpdateAction;
 use App\Actions\Settings\SettingsUpdateAction;
 use App\Actions\Settings\SettingsWorkingHoursUpdateAction;
 use App\Actions\Tenant\TenantLogoDeleteAction;
 use App\Actions\Tenant\TenantLogoUploadAction;
 use App\Contracts\Repositories\WorkingHoursRepository;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Settings\UpdateBrandingRequest;
 use App\Http\Requests\Settings\UpdateSettingsRequest;
 use App\Http\Requests\Settings\UpdateWorkingHoursRequest;
 use App\Http\Requests\Settings\UploadLogoRequest;
@@ -24,6 +26,7 @@ final class SettingsController extends Controller
         private readonly WorkingHoursRepository $workingHoursRepository,
         private readonly TenantLogoUploadAction $uploadLogoAction,
         private readonly TenantLogoDeleteAction $deleteLogoAction,
+        private readonly SettingsBrandingUpdateAction $updateBrandingAction,
     ) {}
 
     public function index(): JsonResponse
@@ -35,6 +38,8 @@ final class SettingsController extends Controller
             'tenant' => $tenant,
             'working_hours' => $workingHours,
             'reservation_settings' => $this->getReservationSettings($tenant),
+            'branding' => $tenant->getBranding(),
+            'logo_url' => $tenant->getLogoUrl(),
         ]);
     }
 
@@ -48,6 +53,19 @@ final class SettingsController extends Controller
         return response()->json([
             'tenant' => $updatedTenant,
             'reservation_settings' => $this->getReservationSettings($updatedTenant),
+            'branding' => $updatedTenant->getBranding(),
+            'logo_url' => $updatedTenant->getLogoUrl(),
+        ]);
+    }
+
+    public function updateBranding(UpdateBrandingRequest $request): JsonResponse
+    {
+        $tenant = $this->tenantContext->getTenant();
+        $updatedTenant = $this->updateBrandingAction->handle($tenant, $request->getPrimaryColor());
+
+        return response()->json([
+            'branding' => $updatedTenant->getBranding(),
+            'logo_url' => $updatedTenant->getLogoUrl(),
         ]);
     }
 

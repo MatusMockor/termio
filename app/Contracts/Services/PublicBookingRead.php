@@ -19,7 +19,8 @@ interface PublicBookingRead
      *     business_type: \App\Enums\BusinessType|null,
      *     address: string|null,
      *     phone: string|null,
-     *     logo_url: string|null
+     *     logo_url: string|null,
+     *     branding: array{primary_color: string}
      * }
      */
     public function getTenantInfo(string $tenantSlug): array;

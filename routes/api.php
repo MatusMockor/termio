@@ -120,6 +120,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::middleware('owner')->group(function (): void {
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/settings', [SettingsController::class, 'update'])->name('settings.update');
+        Route::put('/settings/branding', [SettingsController::class, 'updateBranding'])->name('settings.branding.update');
         Route::put('/settings/working-hours', [SettingsController::class, 'updateWorkingHours'])->name('settings.working-hours');
         Route::post('/settings/logo', [SettingsController::class, 'uploadLogo'])->name('settings.logo.upload');
         Route::delete('/settings/logo', [SettingsController::class, 'deleteLogo'])->name('settings.logo.delete');
