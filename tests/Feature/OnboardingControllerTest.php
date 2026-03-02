@@ -154,11 +154,17 @@ final class OnboardingControllerTest extends TestCase
 
     public function test_save_progress_branding_syncs_tenant_branding(): void
     {
+        $primaryColor = fake()->hexColor();
+
+        $this->postJson(route('onboarding.start'), [
+            'business_type' => BusinessType::Salon->value,
+        ])->assertOk();
+
         $response = $this->postJson(route('onboarding.save-progress'), [
             'step' => 'branding',
             'data' => [
                 'branding' => [
-                    'primary_color' => '#0EA5E9',
+                    'primary_color' => $primaryColor,
                 ],
             ],
         ]);
@@ -172,7 +178,7 @@ final class OnboardingControllerTest extends TestCase
         $this->tenant->refresh();
         $this->assertEquals('branding', $this->tenant->onboarding_step);
         $this->assertArrayHasKey('branding', $this->tenant->onboarding_data);
-        $this->assertSame('#0EA5E9', $this->tenant->getBrandingPrimaryColor());
+        $this->assertSame($primaryColor, $this->tenant->getBrandingPrimaryColor());
     }
 
     public function test_cannot_save_progress_without_step(): void
@@ -419,13 +425,15 @@ final class OnboardingControllerTest extends TestCase
 
     public function test_complete_onboarding_syncs_branding_from_progress(): void
     {
+        $primaryColor = fake()->hexColor();
+
         $this->tenant->update([
             'business_type' => BusinessType::Salon,
             'onboarding_step' => 'branding',
             'onboarding_data' => [
                 'branding' => [
                     'branding' => [
-                        'primary_color' => '#9333EA',
+                        'primary_color' => $primaryColor,
                     ],
                 ],
             ],
@@ -436,7 +444,7 @@ final class OnboardingControllerTest extends TestCase
         $response->assertOk();
 
         $this->tenant->refresh();
-        $this->assertSame('#9333EA', $this->tenant->getBrandingPrimaryColor());
+        $this->assertSame($primaryColor, $this->tenant->getBrandingPrimaryColor());
     }
 
     public function test_complete_onboarding_fails_for_invalid_reservation_settings_progress_data(): void

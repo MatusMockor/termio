@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Settings;
 
+use App\DTOs\Settings\UpdateBrandingDTO;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class UpdateBrandingRequest extends FormRequest
@@ -18,11 +19,8 @@ final class UpdateBrandingRequest extends FormRequest
      */
     public function rules(): array
     {
+        /** @var string $primaryColorRegex */
         $primaryColorRegex = config('branding.primary_color_regex');
-
-        if (! is_string($primaryColorRegex) || $primaryColorRegex === '') {
-            $primaryColorRegex = '/^#[0-9A-Fa-f]{6}$/';
-        }
 
         return [
             'primary_color' => ['required', 'string', 'regex:'.$primaryColorRegex],
@@ -32,5 +30,12 @@ final class UpdateBrandingRequest extends FormRequest
     public function getPrimaryColor(): string
     {
         return (string) $this->validated('primary_color');
+    }
+
+    public function toDTO(): UpdateBrandingDTO
+    {
+        return new UpdateBrandingDTO(
+            primaryColor: $this->getPrimaryColor(),
+        );
     }
 }

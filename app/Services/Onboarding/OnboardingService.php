@@ -10,6 +10,7 @@ use App\Contracts\Services\OnboardingProgressValidationServiceContract;
 use App\DTOs\Onboarding\OnboardingStatusDTO;
 use App\DTOs\WorkingHours\WorkingHoursDTO;
 use App\Enums\BusinessType;
+use App\Enums\OnboardingStep;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\DB;
 
@@ -64,7 +65,7 @@ final class OnboardingService
         DB::transaction(function () use ($tenant, $step, $data): void {
             $this->repository->saveProgress($tenant, $step, $data);
 
-            if ($step === 'branding') {
+            if ($step === OnboardingStep::Branding->value) {
                 $this->syncBrandingFromProgress($tenant);
             }
         });
@@ -141,7 +142,7 @@ final class OnboardingService
             return;
         }
 
-        $settings = $tenant->settings;
+        $settings = (array) $tenant->settings;
         $existingBranding = $settings['branding'] ?? [];
 
         if (! is_array($existingBranding)) {

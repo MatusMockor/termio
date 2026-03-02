@@ -327,11 +327,8 @@ final class Tenant extends Model
 
     private function getDefaultBrandingPrimaryColor(): string
     {
+        /** @var string $defaultPrimaryColor */
         $defaultPrimaryColor = config('branding.default_primary_color');
-
-        if (! is_string($defaultPrimaryColor) || $defaultPrimaryColor === '') {
-            return '#2563EB';
-        }
 
         return $defaultPrimaryColor;
     }

@@ -29,17 +29,19 @@ final class SettingsBrandingTest extends TestCase
 
     public function test_owner_can_update_primary_branding_color(): void
     {
+        $primaryColor = fake()->hexColor();
+
         $response = $this->actingAs($this->owner)
             ->putJson(route('settings.branding.update'), [
-                'primary_color' => '#1D4ED8',
+                'primary_color' => $primaryColor,
             ]);
 
         $response->assertOk()
-            ->assertJsonPath('branding.primary_color', '#1D4ED8')
+            ->assertJsonPath('branding.primary_color', $primaryColor)
             ->assertJsonPath('logo_url', null);
 
         $this->tenant->refresh();
-        $this->assertSame('#1D4ED8', $this->tenant->getBrandingPrimaryColor());
+        $this->assertSame($primaryColor, $this->tenant->getBrandingPrimaryColor());
     }
 
     public function test_update_branding_validates_primary_color_format(): void
@@ -55,14 +57,12 @@ final class SettingsBrandingTest extends TestCase
 
     public function test_non_owner_cannot_update_branding(): void
     {
-        $staff = User::factory()->create([
-            'tenant_id' => $this->tenant->id,
-            'role' => 'staff',
-        ]);
+        $staff = User::factory()->forTenant($this->tenant)->staff()->create();
+        $primaryColor = fake()->hexColor();
 
         $response = $this->actingAs($staff)
             ->putJson(route('settings.branding.update'), [
-                'primary_color' => '#1D4ED8',
+                'primary_color' => $primaryColor,
             ]);
 
         $response->assertForbidden();
@@ -70,10 +70,12 @@ final class SettingsBrandingTest extends TestCase
 
     public function test_settings_index_returns_branding_and_logo_url(): void
     {
+        $primaryColor = fake()->hexColor();
+
         $this->tenant->update([
             'settings' => [
                 'branding' => [
-                    'primary_color' => '#F97316',
+                    'primary_color' => $primaryColor,
                 ],
             ],
         ]);
@@ -81,31 +83,34 @@ final class SettingsBrandingTest extends TestCase
         $response = $this->actingAs($this->owner)->getJson(route('settings.index'));
 
         $response->assertOk()
-            ->assertJsonPath('branding.primary_color', '#F97316')
+            ->assertJsonPath('branding.primary_color', $primaryColor)
             ->assertJsonPath('logo_url', null);
     }
 
     public function test_update_branding_preserves_existing_settings_keys(): void
     {
+        $existingPrimaryColor = fake()->hexColor();
+        $updatedPrimaryColor = fake()->hexColor();
+
         $this->tenant->update([
             'settings' => [
                 'notifications' => [
                     'email' => true,
                 ],
                 'branding' => [
-                    'primary_color' => '#2563EB',
+                    'primary_color' => $existingPrimaryColor,
                 ],
             ],
         ]);
 
         $this->actingAs($this->owner)
             ->putJson(route('settings.branding.update'), [
-                'primary_color' => '#22C55E',
+                'primary_color' => $updatedPrimaryColor,
             ])
             ->assertOk();
 
         $this->tenant->refresh();
-        $this->assertSame('#22C55E', $this->tenant->getBrandingPrimaryColor());
+        $this->assertSame($updatedPrimaryColor, $this->tenant->getBrandingPrimaryColor());
         $this->assertIsArray($this->tenant->settings);
         $this->assertArrayHasKey('notifications', $this->tenant->settings);
         $this->assertSame(true, $this->tenant->settings['notifications']['email'] ?? null);

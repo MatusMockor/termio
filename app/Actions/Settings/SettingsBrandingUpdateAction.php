@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Settings;
 
 use App\Contracts\Repositories\TenantRepository;
+use App\DTOs\Settings\UpdateBrandingDTO;
 use App\Models\Tenant;
 
 final class SettingsBrandingUpdateAction
@@ -13,9 +14,9 @@ final class SettingsBrandingUpdateAction
         private readonly TenantRepository $tenantRepository,
     ) {}
 
-    public function handle(Tenant $tenant, string $primaryColor): Tenant
+    public function handle(Tenant $tenant, UpdateBrandingDTO $dto): Tenant
     {
-        $settings = $tenant->settings;
+        $settings = (array) $tenant->settings;
 
         $branding = $settings['branding'] ?? [];
 
@@ -23,7 +24,7 @@ final class SettingsBrandingUpdateAction
             $branding = [];
         }
 
-        $branding['primary_color'] = $primaryColor;
+        $branding['primary_color'] = $dto->primaryColor;
         $settings['branding'] = $branding;
 
         return $this->tenantRepository->update($tenant, [
