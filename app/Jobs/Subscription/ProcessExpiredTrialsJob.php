@@ -6,6 +6,7 @@ namespace App\Jobs\Subscription;
 
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Enums\SubscriptionStatus;
 use App\Enums\SubscriptionType;
 use App\Models\Plan;
@@ -29,6 +30,7 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly PlanRepository $plans,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     protected function getJobName(): string
@@ -85,7 +87,7 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
             return;
         }
 
-        if ($tenant->hasDefaultPaymentMethod()) {
+        if ($this->paymentMethodGuard->hasLiveDefaultPaymentMethod($tenant)) {
             $this->convertToActiveSubscription($subscription, $tenant);
 
             return;

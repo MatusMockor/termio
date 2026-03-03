@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Api;
 
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\User;
@@ -18,8 +19,7 @@ final class DashboardSubscriptionControllerTest extends TestCase
     {
         $this->actingAsOwner();
         [, $easyPlan, $smartPlan] = $this->createPlans();
-
-        $this->tenant->update(['pm_type' => 'visa']);
+        $this->mockLivePaymentMethodCheck(true);
 
         Subscription::factory()
             ->forTenant($this->tenant)
@@ -102,6 +102,51 @@ final class DashboardSubscriptionControllerTest extends TestCase
             ->assertJsonPath('data.actions.next_action', 'none');
     }
 
+    public function test_free_subscription_requires_default_payment_method(): void
+    {
+        $this->actingAsOwner();
+        [, $easyPlan] = $this->createPlans();
+        $this->mockLivePaymentMethodCheck(false);
+
+        Subscription::factory()
+            ->forTenant($this->tenant)
+            ->forPlan($easyPlan)
+            ->create([
+                'stripe_status' => 'active',
+                'stripe_id' => 'free_'.$this->tenant->id,
+                'billing_cycle' => 'monthly',
+            ]);
+
+        $response = $this->getJson(route('dashboard.subscription'));
+
+        $response->assertOk()
+            ->assertJsonPath('data.actions.requires_default_payment_method', true)
+            ->assertJsonPath('data.actions.has_default_payment_method', false);
+    }
+
+    public function test_trial_subscription_does_not_require_default_payment_method(): void
+    {
+        $this->actingAsOwner();
+        [, $easyPlan] = $this->createPlans();
+        $this->mockLivePaymentMethodCheck(false);
+
+        Subscription::factory()
+            ->forTenant($this->tenant)
+            ->forPlan($easyPlan)
+            ->onTrial()
+            ->create([
+                'stripe_id' => 'sub_trial_dashboard',
+                'billing_cycle' => 'monthly',
+            ]);
+
+        $response = $this->getJson(route('dashboard.subscription'));
+
+        $response->assertOk()
+            ->assertJsonPath('data.subscription.is_on_trial', true)
+            ->assertJsonPath('data.actions.requires_default_payment_method', false)
+            ->assertJsonPath('data.actions.has_default_payment_method', false);
+    }
+
     public function test_dashboard_subscription_context_excludes_non_public_or_inactive_plans(): void
     {
         $this->actingAsOwner();
@@ -179,5 +224,13 @@ final class DashboardSubscriptionControllerTest extends TestCase
         ]);
 
         return [$freePlan, $easyPlan, $smartPlan];
+    }
+
+    private function mockLivePaymentMethodCheck(bool $hasDefaultPaymentMethod): void
+    {
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->method('hasLiveDefaultPaymentMethod')->willReturn($hasDefaultPaymentMethod);
+
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
     }
 }

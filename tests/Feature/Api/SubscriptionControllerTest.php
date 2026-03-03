@@ -7,6 +7,7 @@ namespace Tests\Feature\Api;
 use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\Enums\BillingCycle;
 use App\Enums\SubscriptionStatus;
@@ -17,6 +18,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
+use Stripe\StripeClient;
 use Tests\Concerns\BuildsUpgradeValidationChain;
 use Tests\TestCase;
 
@@ -207,6 +209,54 @@ final class SubscriptionControllerTest extends TestCase
         ]);
     }
 
+    public function test_paid_subscription_create_requires_default_payment_method(): void
+    {
+        $this->tenant->update([
+            'stripe_id' => 'cus_create_without_card',
+        ]);
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->expects($this->once())
+            ->method('ensureLiveDefaultPaymentMethod')
+            ->willThrowException(\App\Exceptions\SubscriptionException::paymentMethodRequired());
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.store'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+        $response->assertJsonPath('error_code', 'payment_method_required');
+        $response->assertJsonPath('action.type', 'open_billing_portal');
+        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
+        $response->assertJsonPath('action.portal_session_method', 'POST');
+        $response->assertJsonPath('action.return_url_required', true);
+        $this->assertDatabaseCount(Subscription::class, 0);
+    }
+
+    public function test_paid_subscription_create_with_default_payment_method_succeeds(): void
+    {
+        $this->tenant->update([
+            'stripe_id' => 'cus_create_with_card',
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+
+        $this->mockPaymentMethodGuard('pm_default_create_123');
+        $this->bindStripeClientForSubscriptionCreate();
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.store'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response->assertCreated();
+        $response->assertJsonPath('message', 'Subscription created successfully.');
+        $response->assertJsonPath('data.plan_id', $this->easyPlan->id);
+        $response->assertJsonPath('data.stripe_status', SubscriptionStatus::Trialing->value);
+    }
+
     // ==========================================
     // Get Current Subscription Tests
     // ==========================================
@@ -225,6 +275,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertOk();
         $response->assertJsonPath('data.id', $subscription->id);
         $response->assertJsonPath('data.plan.id', $this->easyPlan->id);
+        $response->assertJsonPath('needs_payment_method', true);
         $this->assertSame((float) $this->easyPlan->monthly_price, (float) $response->json('data.plan.pricing.monthly'));
         $this->assertSame((float) $this->easyPlan->yearly_price, (float) $response->json('data.plan.pricing.yearly'));
         $response->assertJsonStructure([
@@ -242,6 +293,7 @@ final class SubscriptionControllerTest extends TestCase
             ],
             'is_on_trial',
             'trial_days_remaining',
+            'needs_payment_method',
             'pending_change',
         ]);
     }
@@ -252,6 +304,7 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('data', null);
+        $response->assertJsonPath('needs_payment_method', false);
     }
 
     public function test_user_on_trial_gets_trial_info(): void
@@ -284,6 +337,7 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertOk();
         $this->assertNotNull($response->json('pending_change'));
+        $response->assertJsonPath('data.scheduled_plan.id', $this->easyPlan->id);
     }
 
     public function test_get_subscription_requires_authentication(): void
@@ -323,6 +377,8 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonStructure(['error']);
+        $response->assertJsonMissingPath('error_code');
+        $response->assertJsonMissingPath('action');
     }
 
     public function test_user_cannot_upgrade_to_same_plan(): void
@@ -402,6 +458,35 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+        $response->assertJsonPath('error_code', 'payment_method_required');
+        $response->assertJsonPath('action.type', 'open_billing_portal');
+        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
+        $response->assertJsonPath('action.portal_session_method', 'POST');
+        $response->assertJsonPath('action.return_url_required', true);
+    }
+
+    public function test_paid_subscription_upgrade_requires_default_payment_method(): void
+    {
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+            'stripe_id' => 'sub_paid_001',
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade'), [
+            'plan_id' => $this->smartPlan->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response->assertStatus(400);
+        $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+        $response->assertJsonPath('error_code', 'payment_method_required');
+        $response->assertJsonPath('action.type', 'open_billing_portal');
+        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
+        $response->assertJsonPath('action.portal_session_method', 'POST');
+        $response->assertJsonPath('action.return_url_required', true);
     }
 
     public function test_free_subscription_upgrade_fails_when_target_plan_has_no_price_id(): void
@@ -426,6 +511,124 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Stripe error: No Stripe price ID configured for this plan.');
+    }
+
+    public function test_free_subscription_upgrade_with_default_payment_method_starts_trial_and_returns_billing_notice(): void
+    {
+        $this->tenant->update([
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+        $this->mockPaymentMethodGuard();
+
+        $trialEndTimestamp = now()->addDays((int) config('subscription.trial_days'))->timestamp;
+
+        $subscription = Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->freePlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+            'stripe_id' => 'free_'.$this->tenant->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+            'trial_ends_at' => null,
+        ]);
+
+        $billingService = $this->createMock(SubscriptionUpgradeBillingServiceContract::class);
+        $billingService->expects($this->once())
+            ->method('resolvePriceId')
+            ->with(
+                $this->callback(fn (Plan $plan): bool => $plan->id === $this->easyPlan->id),
+                BillingCycle::Monthly,
+            )
+            ->willReturn('price_easy_monthly');
+        $billingService->expects($this->once())
+            ->method('isFreeSubscription')
+            ->with($this->callback(static fn (Subscription $candidate): bool => $candidate->id === $subscription->id))
+            ->willReturn(true);
+        $billingService->expects($this->once())
+            ->method('createTrialSubscriptionFromFree')
+            ->with(
+                $this->callback(static fn (Subscription $candidate): bool => $candidate->id === $subscription->id),
+                'price_easy_monthly',
+                (int) config('subscription.trial_days'),
+            )
+            ->willReturn((object) [
+                'id' => 'sub_trial_from_free_123',
+                'status' => SubscriptionStatus::Trialing->value,
+                'trial_end' => $trialEndTimestamp,
+            ]);
+
+        $this->app->instance(SubscriptionUpgradeBillingServiceContract::class, $billingService);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade'), [
+            'plan_id' => $this->easyPlan->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('message', 'Subscription upgraded successfully. Billing starts after trial ends.');
+        $response->assertJsonPath('data.plan_id', $this->easyPlan->id);
+        $response->assertJsonPath('data.stripe_status', SubscriptionStatus::Trialing->value);
+        $response->assertJsonPath('billing_notice.will_charge_after_trial', true);
+        $response->assertJsonPath('billing_notice.charge_starts_at', $response->json('billing_notice.trial_ends_at'));
+
+        $this->assertNotNull($response->json('data.trial_ends_at'));
+
+        $subscription->refresh();
+        $this->assertSame($this->easyPlan->id, $subscription->plan_id);
+        $this->assertSame('sub_trial_from_free_123', $subscription->stripe_id);
+        $this->assertSame(SubscriptionStatus::Trialing->value, $subscription->stripe_status->value);
+        $this->assertNotNull($subscription->trial_ends_at);
+    }
+
+    public function test_paid_subscription_upgrade_returns_non_trial_billing_notice(): void
+    {
+        $this->tenant->update([
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+        $this->mockPaymentMethodGuard();
+
+        $subscription = Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_status' => SubscriptionStatus::Active->value,
+            'stripe_id' => 'sub_paid_123',
+            'billing_cycle' => BillingCycle::Monthly->value,
+            'trial_ends_at' => null,
+        ]);
+
+        $billingService = $this->createMock(SubscriptionUpgradeBillingServiceContract::class);
+        $billingService->expects($this->once())
+            ->method('resolvePriceId')
+            ->with(
+                $this->callback(fn (Plan $plan): bool => $plan->id === $this->smartPlan->id),
+                BillingCycle::Monthly,
+            )
+            ->willReturn('price_smart_monthly');
+        $billingService->expects($this->once())
+            ->method('isFreeSubscription')
+            ->with($this->callback(static fn (Subscription $candidate): bool => $candidate->id === $subscription->id))
+            ->willReturn(false);
+        $billingService->expects($this->once())
+            ->method('swapPaidSubscription')
+            ->with(
+                $this->callback(static fn (Subscription $candidate): bool => $candidate->id === $subscription->id),
+                'price_smart_monthly',
+            );
+
+        $this->app->instance(SubscriptionUpgradeBillingServiceContract::class, $billingService);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.upgrade'), [
+            'plan_id' => $this->smartPlan->id,
+            'billing_cycle' => BillingCycle::Monthly->value,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonPath('message', 'Subscription upgraded successfully.');
+        $response->assertJsonPath('billing_notice.will_charge_after_trial', false);
+        $response->assertJsonPath('billing_notice.trial_ends_at', null);
+        $response->assertJsonPath('billing_notice.charge_starts_at', null);
+        $response->assertJsonPath('data.plan_id', $this->smartPlan->id);
     }
 
     public function test_immediate_upgrade_requires_authentication(): void
@@ -523,6 +726,11 @@ final class SubscriptionControllerTest extends TestCase
 
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
+        $response->assertJsonPath('error_code', 'payment_method_required');
+        $response->assertJsonPath('action.type', 'open_billing_portal');
+        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
+        $response->assertJsonPath('action.portal_session_method', 'POST');
+        $response->assertJsonPath('action.return_url_required', true);
     }
 
     public function test_immediate_upgrade_trial_subscription_returns_success_payload_and_clears_pending_flags(): void
@@ -709,6 +917,53 @@ final class SubscriptionControllerTest extends TestCase
         ]);
 
         $response->assertForbidden();
+    }
+
+    public function test_trial_subscription_downgrade_to_paid_plan_succeeds_without_payment_method(): void
+    {
+        Notification::fake();
+
+        $subscription = Subscription::factory()
+            ->forTenant($this->tenant)
+            ->forPlan($this->smartPlan)
+            ->onTrial()
+            ->create([
+                'stripe_id' => 'sub_trial_downgrade',
+                'billing_cycle' => BillingCycle::Monthly->value,
+                'stripe_price' => 'price_smart_monthly',
+            ]);
+
+        $easyPlanId = $this->easyPlan->id;
+        $subscriptionId = $subscription->id;
+        $billingService = $this->createMock(SubscriptionUpgradeBillingServiceContract::class);
+        $billingService->expects($this->once())
+            ->method('resolvePriceId')
+            ->with(
+                $this->callback(static fn (Plan $plan): bool => $plan->id === $easyPlanId),
+                BillingCycle::Monthly,
+            )
+            ->willReturn('price_easy_monthly');
+        $billingService->expects($this->once())
+            ->method('swapPaidSubscription')
+            ->with(
+                $this->callback(static fn (Subscription $sub): bool => $sub->id === $subscriptionId),
+                'price_easy_monthly',
+            );
+
+        $this->app->instance(SubscriptionUpgradeBillingServiceContract::class, $billingService);
+
+        $response = $this->actingAs($this->user)->postJson(route('subscriptions.downgrade'), [
+            'plan_id' => $this->easyPlan->id,
+        ]);
+
+        $response->assertOk();
+        $response->assertJsonMissingPath('error_code');
+
+        $this->assertDatabaseHas(Subscription::class, [
+            'id' => $subscription->id,
+            'plan_id' => $this->easyPlan->id,
+            'stripe_price' => 'price_easy_monthly',
+        ]);
     }
 
     // ==========================================
@@ -946,5 +1201,39 @@ final class SubscriptionControllerTest extends TestCase
         ]);
 
         $this->assertTrue($subscription->ended());
+    }
+
+    private function mockPaymentMethodGuard(string $paymentMethodId = 'pm_default_123'): void
+    {
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->method('hasLiveDefaultPaymentMethod')->willReturn(true);
+        $guard->method('ensureLiveDefaultPaymentMethod')->willReturn($paymentMethodId);
+
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
+    }
+
+    private function bindStripeClientForSubscriptionCreate(): void
+    {
+        $this->app->bind(StripeClient::class, static fn (): object => new class
+        {
+            public object $subscriptions;
+
+            public function __construct()
+            {
+                $this->subscriptions = new class
+                {
+                    /**
+                     * @param  array<string, mixed>  $payload
+                     */
+                    public function create(array $payload): object
+                    {
+                        return (object) [
+                            'id' => 'sub_created_from_test',
+                            'status' => SubscriptionStatus::Trialing->value,
+                        ];
+                    }
+                };
+            }
+        });
     }
 }

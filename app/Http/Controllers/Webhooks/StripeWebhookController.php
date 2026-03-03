@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Webhooks;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\BillingService;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Jobs\Subscription\HandlePaymentFailedJob;
 use App\Jobs\Subscription\HandleSubscriptionCanceledJob;
@@ -24,6 +25,7 @@ final class StripeWebhookController extends CashierWebhookController
         private readonly InvoiceRepository $invoices,
         private readonly BillingService $billingService,
         private readonly StripeServiceContract $stripeService,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     /**
@@ -265,6 +267,48 @@ final class StripeWebhookController extends CashierWebhookController
         Log::info('Stripe webhook: payment method attached', [
             'tenant_id' => $tenant->id,
             'pm_type' => $paymentMethodType,
+        ]);
+
+        return $this->successMethod();
+    }
+
+    /**
+     * Handle payment_method.detached event.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handlePaymentMethodDetached(array $payload): Response
+    {
+        /** @var array<string, mixed> $paymentMethod */
+        $paymentMethod = $payload['data']['object'];
+        /** @var string|null $stripeCustomerId */
+        $stripeCustomerId = $paymentMethod['customer'] ?? null;
+
+        if (! is_string($stripeCustomerId) || $stripeCustomerId === '') {
+            return $this->successMethod();
+        }
+
+        $tenant = Tenant::where('stripe_id', $stripeCustomerId)->first();
+
+        if ($tenant === null) {
+            Log::warning('Stripe webhook: tenant not found for detached payment method', [
+                'stripe_customer_id' => $stripeCustomerId,
+            ]);
+
+            return $this->successMethod();
+        }
+
+        if ($this->paymentMethodGuard->hasLiveDefaultPaymentMethod($tenant)) {
+            return $this->successMethod();
+        }
+
+        $tenant->update([
+            'pm_type' => null,
+            'pm_last_four' => null,
+        ]);
+
+        Log::info('Stripe webhook: cleared tenant payment method snapshot after detach', [
+            'tenant_id' => $tenant->id,
         ]);
 
         return $this->successMethod();

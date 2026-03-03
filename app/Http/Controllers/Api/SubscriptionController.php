@@ -11,8 +11,10 @@ use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Actions\Subscription\SubscriptionResumeAction;
 use App\Actions\Subscription\SubscriptionUpgradeAction;
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\Contracts\Services\UsageLimitServiceContract;
+use App\Enums\SubscriptionStatus;
 use App\Enums\UsageResource;
 use App\Exceptions\SubscriptionException;
 use App\Http\Controllers\Controller;
@@ -33,6 +35,7 @@ final class SubscriptionController extends Controller
         private readonly SubscriptionServiceContract $subscriptionService,
         private readonly UsageLimitServiceContract $usageLimitService,
         private readonly TenantContextService $tenantContext,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     /**
@@ -56,7 +59,7 @@ final class SubscriptionController extends Controller
                 'message' => 'Subscription created successfully.',
             ], 201);
         } catch (SubscriptionException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -81,15 +84,19 @@ final class SubscriptionController extends Controller
                 'plan' => new PlanResource($currentPlan),
                 'is_on_trial' => false,
                 'trial_days_remaining' => 0,
+                'needs_payment_method' => false,
                 'pending_change' => null,
             ]);
         }
 
+        $subscription->load(['plan', 'scheduledPlan']);
+
         return response()->json([
-            'data' => new SubscriptionResource($subscription->load('plan')),
+            'data' => new SubscriptionResource($subscription),
             'plan' => new PlanResource($subscription->plan),
             'is_on_trial' => $this->subscriptionService->isOnTrial($tenant),
             'trial_days_remaining' => $this->subscriptionService->getTrialDaysRemaining($tenant),
+            'needs_payment_method' => $this->needsPaymentMethod($subscription),
             'pending_change' => $this->subscriptionService->getPendingChange($tenant),
         ]);
     }
@@ -103,13 +110,15 @@ final class SubscriptionController extends Controller
     ): JsonResponse {
         try {
             $subscription = $action->handle($request->toDTO());
+            $billingNotice = $this->buildBillingNotice($subscription);
 
             return response()->json([
                 'data' => new SubscriptionResource($subscription->load('plan')),
-                'message' => 'Subscription upgraded successfully.',
+                'message' => $this->buildUpgradeMessage($billingNotice['will_charge_after_trial']),
+                'billing_notice' => $billingNotice,
             ]);
         } catch (SubscriptionException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -128,7 +137,7 @@ final class SubscriptionController extends Controller
                 'message' => 'Subscription upgraded immediately.',
             ]);
         } catch (SubscriptionException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -147,13 +156,7 @@ final class SubscriptionController extends Controller
                 'message' => 'Downgrade scheduled successfully.',
             ]);
         } catch (SubscriptionException $e) {
-            $response = ['error' => $e->getMessage()];
-
-            if (! empty($e->getViolations())) {
-                $response['violations'] = $e->getViolations();
-            }
-
-            return response()->json($response, 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -184,7 +187,7 @@ final class SubscriptionController extends Controller
                 'message' => 'Subscription cancellation scheduled.',
             ]);
         } catch (SubscriptionException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -213,7 +216,7 @@ final class SubscriptionController extends Controller
                 'message' => 'Subscription resumed successfully.',
             ]);
         } catch (SubscriptionException $e) {
-            return response()->json(['error' => $e->getMessage()], 400);
+            return $this->subscriptionExceptionResponse($e);
         }
     }
 
@@ -238,5 +241,72 @@ final class SubscriptionController extends Controller
                 UsageResource::Services->value => $this->usageLimitService->isNearLimit($tenant, UsageResource::Services),
             ],
         ]);
+    }
+
+    private function buildUpgradeMessage(bool $willChargeAfterTrial): string
+    {
+        if ($willChargeAfterTrial) {
+            return 'Subscription upgraded successfully. Billing starts after trial ends.';
+        }
+
+        return 'Subscription upgraded successfully.';
+    }
+
+    /**
+     * @return array{
+     *     will_charge_after_trial: bool,
+     *     trial_ends_at: string|null,
+     *     charge_starts_at: string|null
+     * }
+     */
+    private function buildBillingNotice(\App\Models\Subscription $subscription): array
+    {
+        $trialEndsAt = $subscription->trial_ends_at?->toIso8601String();
+        $willChargeAfterTrial = $this->shouldChargeAfterTrial($subscription);
+
+        return [
+            'will_charge_after_trial' => $willChargeAfterTrial,
+            'trial_ends_at' => $trialEndsAt,
+            'charge_starts_at' => $willChargeAfterTrial ? $trialEndsAt : null,
+        ];
+    }
+
+    private function shouldChargeAfterTrial(\App\Models\Subscription $subscription): bool
+    {
+        return $subscription->stripe_status === SubscriptionStatus::Trialing
+            && $subscription->trial_ends_at !== null;
+    }
+
+    private function needsPaymentMethod(\App\Models\Subscription $subscription): bool
+    {
+        if (str_starts_with($subscription->stripe_id, 'free_')) {
+            return false;
+        }
+
+        return ! $this->paymentMethodGuard->hasLiveDefaultPaymentMethod($subscription->tenant);
+    }
+
+    private function subscriptionExceptionResponse(SubscriptionException $exception): JsonResponse
+    {
+        $response = [
+            'error' => $exception->getMessage(),
+        ];
+
+        $errorCode = $exception->getErrorCode();
+        if ($errorCode !== null) {
+            $response['error_code'] = $errorCode;
+        }
+
+        $action = $exception->getAction();
+        if ($action !== null) {
+            $response['action'] = $action;
+        }
+
+        $violations = $exception->getViolations();
+        if ($violations) {
+            $response['violations'] = $violations;
+        }
+
+        return response()->json($response, 400);
     }
 }

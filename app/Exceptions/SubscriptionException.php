@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Exceptions;
 
+use App\Enums\ApiErrorCode;
 use App\Models\Plan;
 use Exception;
 
@@ -13,6 +14,13 @@ final class SubscriptionException extends Exception
      * @var array<string, array{current: int, limit: int}>
      */
     private array $violations = [];
+
+    private ?string $errorCode = null;
+
+    /**
+     * @var array<string, mixed>|null
+     */
+    private ?array $action = null;
 
     public static function planNotFound(int $planId): self
     {
@@ -77,7 +85,16 @@ final class SubscriptionException extends Exception
 
     public static function paymentMethodRequired(): self
     {
-        return new self('Payment method is required for paid plans.');
+        $exception = new self('Payment method is required for paid plans.');
+        $exception->errorCode = ApiErrorCode::PaymentMethodRequired->value;
+        $exception->action = [
+            'type' => 'open_billing_portal',
+            'portal_session_endpoint' => '/api/billing/portal-session',
+            'portal_session_method' => 'POST',
+            'return_url_required' => true,
+        ];
+
+        return $exception;
     }
 
     public static function stripeError(string $message): self
@@ -91,5 +108,18 @@ final class SubscriptionException extends Exception
     public function getViolations(): array
     {
         return $this->violations;
+    }
+
+    public function getErrorCode(): ?string
+    {
+        return $this->errorCode;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    public function getAction(): ?array
+    {
+        return $this->action;
     }
 }

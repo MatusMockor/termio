@@ -6,6 +6,7 @@ namespace App\Actions\Subscription;
 
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
 use App\DTOs\Subscription\ValidationContext;
@@ -15,6 +16,7 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Notifications\SubscriptionUpgradedNotification;
 use App\Services\Validation\ValidationChainBuilder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 final class SubscriptionUpgradeAction
@@ -24,6 +26,7 @@ final class SubscriptionUpgradeAction
         private readonly PlanRepository $plans,
         private readonly ValidationChainBuilder $validationChainBuilder,
         private readonly SubscriptionUpgradeBillingServiceContract $upgradeBillingService,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     public function handle(UpgradeSubscriptionDTO $dto): Subscription
@@ -62,6 +65,9 @@ final class SubscriptionUpgradeAction
         return DB::transaction(function () use ($subscription, $newPlan, $dto): Subscription {
             $billingCycle = $dto->billingCycle ?? $subscription->billing_cycle;
             $priceId = $this->upgradeBillingService->resolvePriceId($newPlan, BillingCycle::from($billingCycle));
+            if (! $subscription->onTrial()) {
+                $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($subscription->tenant);
+            }
 
             // Cancel any scheduled downgrade
             if ($subscription->scheduled_plan_id) {
@@ -92,10 +98,15 @@ final class SubscriptionUpgradeAction
         string $billingCycle,
         string $priceId,
     ): Subscription {
-        $stripeSubscription = $this->upgradeBillingService->createPaidSubscriptionFromFree(
+        /** @var int $trialDays */
+        $trialDays = config('subscription.trial_days');
+        $stripeSubscription = $this->upgradeBillingService->createTrialSubscriptionFromFree(
             $subscription,
             $priceId,
+            $trialDays,
         );
+
+        $trialEndsAt = $this->resolveTrialEndsAt($stripeSubscription, $trialDays);
 
         return $this->subscriptions->update($subscription, [
             'plan_id' => $newPlan->id,
@@ -103,8 +114,22 @@ final class SubscriptionUpgradeAction
             'stripe_status' => $stripeSubscription->status,
             'stripe_price' => $priceId,
             'billing_cycle' => $billingCycle,
+            'trial_ends_at' => $trialEndsAt,
             'ends_at' => null,
         ]);
+    }
+
+    private function resolveTrialEndsAt(object $stripeSubscription, int $trialDays): Carbon
+    {
+        $trialEndTimestamp = is_int($stripeSubscription->trial_end ?? null)
+            ? $stripeSubscription->trial_end
+            : null;
+
+        if ($trialEndTimestamp) {
+            return Carbon::createFromTimestamp($trialEndTimestamp);
+        }
+
+        return now()->addDays($trialDays);
     }
 
     private function sendUpgradeNotification(

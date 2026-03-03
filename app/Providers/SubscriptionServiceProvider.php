@@ -7,18 +7,22 @@ namespace App\Providers;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Repositories\UsageRecordRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\SubscriptionServiceContract;
+use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
 use App\Contracts\Services\UsageLimitServiceContract;
 use App\Contracts\Services\UsageValidationServiceContract;
 use App\Repositories\Eloquent\EloquentPlanRepository;
 use App\Repositories\Eloquent\EloquentSubscriptionRepository;
 use App\Repositories\Eloquent\EloquentUsageRecordRepository;
+use App\Services\Subscription\DefaultPaymentMethodGuardService;
 use App\Services\Subscription\FeatureGateService;
 use App\Services\Subscription\Strategies\FreeSubscriptionStrategy;
 use App\Services\Subscription\Strategies\PaidSubscriptionStrategy;
 use App\Services\Subscription\SubscriptionService;
 use App\Services\Subscription\SubscriptionStrategyResolver;
+use App\Services\Subscription\SubscriptionUpgradeBillingService;
 use App\Services\Subscription\UsageLimitService;
 use App\Services\Subscription\UsageValidationService;
 use Illuminate\Support\ServiceProvider;
@@ -45,6 +49,8 @@ final class SubscriptionServiceProvider extends ServiceProvider
         $this->app->bind(UsageLimitServiceContract::class, UsageLimitService::class);
         $this->app->bind(UsageValidationServiceContract::class, UsageValidationService::class);
         $this->app->bind(FeatureGateServiceContract::class, FeatureGateService::class);
+        $this->app->bind(DefaultPaymentMethodGuardContract::class, DefaultPaymentMethodGuardService::class);
+        $this->app->bind(SubscriptionUpgradeBillingServiceContract::class, SubscriptionUpgradeBillingService::class);
     }
 
     private function registerStrategies(): void
