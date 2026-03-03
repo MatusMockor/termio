@@ -14,10 +14,10 @@ use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Tenant;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 use Stripe\Exception\ApiConnectionException;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Exception\RateLimitException;
+use Throwable;
 
 final class CheckoutSessionCreateAction
 {
@@ -92,7 +92,7 @@ final class CheckoutSessionCreateAction
     {
         $activeSubscription = $this->subscriptions->findActiveByTenant($tenant);
 
-        if ($activeSubscription === null) {
+        if (! $activeSubscription) {
             return true;
         }
 
@@ -135,8 +135,23 @@ final class CheckoutSessionCreateAction
         }
 
         try {
-            $customer = $this->stripeService->createCustomer($tenant);
-        } catch (ApiErrorException|RuntimeException $exception) {
+            $tenant->getConnection()
+                ->transaction(function () use ($tenant): void {
+                    $lockedTenant = Tenant::whereKey($tenant->id)
+                        ->lockForUpdate()
+                        ->firstOrFail();
+
+                    if ($lockedTenant->stripe_id) {
+                        $tenant->stripe_id = $lockedTenant->stripe_id;
+
+                        return;
+                    }
+
+                    $customer = $this->stripeService->createCustomer($lockedTenant);
+                    $lockedTenant->update(['stripe_id' => $customer->id]);
+                    $tenant->stripe_id = $customer->id;
+                });
+        } catch (Throwable $exception) {
             Log::error('Failed to create Stripe customer for checkout session.', [
                 'tenant_id' => $tenant->id,
                 'error' => $exception->getMessage(),
@@ -144,8 +159,6 @@ final class CheckoutSessionCreateAction
 
             throw BillingException::serviceUnavailable();
         }
-
-        $tenant->update(['stripe_id' => $customer->id]);
     }
 
     private function logCheckoutError(Tenant $tenant, ApiErrorException $exception): void

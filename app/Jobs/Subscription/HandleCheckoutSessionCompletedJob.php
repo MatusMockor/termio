@@ -69,7 +69,10 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
         }
 
         $this->updateTenantPaymentMethod($tenant, $stripeService);
-        $this->sendTrialNotification($tenant, $plan);
+        $trialEndsAt = $this->resolveTrialEndsAt($stripeSubscription);
+        if ($trialEndsAt !== null && $trialEndsAt->isFuture()) {
+            $this->sendTrialNotification($tenant, $plan);
+        }
 
         Log::info('HandleCheckoutSessionCompletedJob: subscription created', [
             'tenant_id' => $tenant->id,
@@ -82,7 +85,7 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
     {
         $tenant = Tenant::find($this->tenantId);
 
-        if ($tenant !== null) {
+        if ($tenant) {
             return $tenant;
         }
 
@@ -97,7 +100,7 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
     {
         $plan = $plans->findById($this->planId);
 
-        if ($plan !== null) {
+        if ($plan) {
             return $plan;
         }
 
