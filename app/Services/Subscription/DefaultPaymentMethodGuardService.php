@@ -12,7 +12,7 @@ use Throwable;
 
 final class DefaultPaymentMethodGuardService implements DefaultPaymentMethodGuardContract
 {
-    public function hasLiveDefaultPaymentMethod(Tenant $tenant): bool
+    public function determineLiveDefaultPaymentMethod(Tenant $tenant): ?bool
     {
         if (! $tenant->hasStripeId()) {
             return false;
@@ -26,8 +26,13 @@ final class DefaultPaymentMethodGuardService implements DefaultPaymentMethodGuar
                 'error' => $exception->getMessage(),
             ]);
 
-            return false;
+            return null;
         }
+    }
+
+    public function hasLiveDefaultPaymentMethod(Tenant $tenant): bool
+    {
+        return $this->determineLiveDefaultPaymentMethod($tenant) === true;
     }
 
     public function ensureLiveDefaultPaymentMethod(Tenant $tenant): string
@@ -60,6 +65,10 @@ final class DefaultPaymentMethodGuardService implements DefaultPaymentMethodGuar
 
         if (is_string($defaultPaymentMethod) && $defaultPaymentMethod !== '') {
             return $defaultPaymentMethod;
+        }
+
+        if (! is_object($defaultPaymentMethod)) {
+            return null;
         }
 
         $defaultPaymentMethodId = $defaultPaymentMethod->id ?? null;

@@ -298,7 +298,18 @@ final class StripeWebhookController extends CashierWebhookController
             return $this->successMethod();
         }
 
-        if ($this->paymentMethodGuard->hasLiveDefaultPaymentMethod($tenant)) {
+        $paymentMethodState = $this->paymentMethodGuard->determineLiveDefaultPaymentMethod($tenant);
+
+        if ($paymentMethodState === true) {
+            return $this->successMethod();
+        }
+
+        if ($paymentMethodState === null) {
+            Log::warning('Stripe webhook: payment method detached verification inconclusive', [
+                'tenant_id' => $tenant->id,
+                'stripe_customer_id' => $stripeCustomerId,
+            ]);
+
             return $this->successMethod();
         }
 

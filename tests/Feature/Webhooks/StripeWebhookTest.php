@@ -286,7 +286,7 @@ final class StripeWebhookTest extends TestCase
 
         $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
         $guard->expects($this->once())
-            ->method('hasLiveDefaultPaymentMethod')
+            ->method('determineLiveDefaultPaymentMethod')
             ->with($this->callback(static fn (Tenant $tenant): bool => $tenant->id > 0))
             ->willReturn(false);
 
@@ -317,8 +317,38 @@ final class StripeWebhookTest extends TestCase
 
         $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
         $guard->expects($this->once())
-            ->method('hasLiveDefaultPaymentMethod')
+            ->method('determineLiveDefaultPaymentMethod')
             ->willReturn(true);
+
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
+        $controller = app(StripeWebhookController::class);
+
+        $payload = $this->createWebhookPayload('payment_method.detached', [
+            'id' => 'pm_'.fake()->regexify('[A-Za-z0-9]{24}'),
+            'customer' => $this->tenant->stripe_id,
+            'type' => 'card',
+        ]);
+
+        $response = $this->invokeProtectedMethod('handlePaymentMethodDetached', $payload, $controller);
+
+        $this->assertEquals(200, $response->getStatusCode());
+
+        $this->tenant->refresh();
+        $this->assertSame('card', $this->tenant->pm_type);
+        $this->assertSame('4242', $this->tenant->pm_last_four);
+    }
+
+    public function test_payment_method_detached_keeps_snapshot_when_verification_is_inconclusive(): void
+    {
+        $this->tenant->update([
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->expects($this->once())
+            ->method('determineLiveDefaultPaymentMethod')
+            ->willReturn(null);
 
         $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
         $controller = app(StripeWebhookController::class);

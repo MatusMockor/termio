@@ -87,8 +87,19 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
             return;
         }
 
-        if ($this->paymentMethodGuard->hasLiveDefaultPaymentMethod($tenant)) {
+        $paymentMethodState = $this->paymentMethodGuard->determineLiveDefaultPaymentMethod($tenant);
+
+        if ($paymentMethodState === true) {
             $this->convertToActiveSubscription($subscription, $tenant);
+
+            return;
+        }
+
+        if ($paymentMethodState === null) {
+            Log::warning('Skipped expired trial processing due to inconclusive payment method verification.', [
+                'subscription_id' => $subscription->id,
+                'tenant_id' => $tenant->id,
+            ]);
 
             return;
         }
@@ -121,7 +132,7 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
         Tenant $tenant,
     ): void {
         DB::transaction(function () use ($subscription, $freePlan, $tenant): void {
-            if (! str_starts_with($subscription->stripe_id, 'free_')) {
+            if ($tenant->hasStripeId() && ! str_starts_with($subscription->stripe_id, 'free_')) {
                 $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
                 if ($stripeSub) {
