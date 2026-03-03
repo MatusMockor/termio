@@ -45,6 +45,8 @@ final class CheckoutSessionCreateAction
         $priceId = $this->resolvePriceId($plan, $billingCycle);
         $shouldStartTrial = $this->shouldStartTrial($tenant);
         $subscriptionData = $this->buildSubscriptionData($tenant, $plan, $billingCycle, $shouldStartTrial);
+        /** @var array<string, string> $metadata */
+        $metadata = $subscriptionData['metadata'];
 
         try {
             $session = $this->stripeService->createCheckoutSession([
@@ -52,6 +54,7 @@ final class CheckoutSessionCreateAction
                 'mode' => 'subscription',
                 'line_items' => [['price' => $priceId, 'quantity' => 1]],
                 'subscription_data' => $subscriptionData,
+                'metadata' => $metadata,
                 'success_url' => $successUrl,
                 'cancel_url' => $cancelUrl,
                 'payment_method_collection' => 'always',
@@ -94,6 +97,9 @@ final class CheckoutSessionCreateAction
         }
 
         $freePrefix = (string) config('subscription.free_subscription_prefix');
+        if ($freePrefix === '') {
+            return false;
+        }
 
         return str_starts_with($activeSubscription->stripe_id, $freePrefix);
     }

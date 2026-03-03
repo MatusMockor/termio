@@ -403,11 +403,24 @@ final class StripeWebhookController extends CashierWebhookController
         }
 
         $metadata = $this->resolveCheckoutMetadata($session);
+        $this->logCheckoutTenantMetadataMismatch($metadata, $tenant->id, $stripeSubscriptionId);
+
+        $planId = $this->resolveCheckoutPlanId($metadata);
+        if ($planId === null) {
+            Log::warning('Stripe webhook: checkout session missing valid plan metadata', [
+                'tenant_id' => $tenant->id,
+                'stripe_subscription_id' => $stripeSubscriptionId,
+                'metadata' => $metadata,
+            ]);
+
+            return $this->successMethod();
+        }
+
         $billingCycle = $this->resolveCheckoutBillingCycle($metadata);
 
         HandleCheckoutSessionCompletedJob::dispatch(
-            (int) ($metadata['tenant_id'] ?? $tenant->id),
-            (int) ($metadata['plan_id'] ?? 0),
+            $tenant->id,
+            $planId,
             $billingCycle,
             $stripeSubscriptionId,
         );
@@ -495,5 +508,40 @@ final class StripeWebhookController extends CashierWebhookController
         ]);
 
         return null;
+    }
+
+    /**
+     * @param  array<string, string>  $metadata
+     */
+    private function resolveCheckoutPlanId(array $metadata): ?int
+    {
+        $planId = filter_var($metadata['plan_id'] ?? null, FILTER_VALIDATE_INT);
+
+        if (! is_int($planId) || $planId < 1) {
+            return null;
+        }
+
+        return $planId;
+    }
+
+    /**
+     * @param  array<string, string>  $metadata
+     */
+    private function logCheckoutTenantMetadataMismatch(
+        array $metadata,
+        int $resolvedTenantId,
+        string $stripeSubscriptionId,
+    ): void {
+        $tenantIdFromMetadata = filter_var($metadata['tenant_id'] ?? null, FILTER_VALIDATE_INT);
+
+        if (! is_int($tenantIdFromMetadata) || $tenantIdFromMetadata === $resolvedTenantId) {
+            return;
+        }
+
+        Log::warning('Stripe webhook: checkout session tenant metadata mismatch', [
+            'resolved_tenant_id' => $resolvedTenantId,
+            'metadata_tenant_id' => $tenantIdFromMetadata,
+            'stripe_subscription_id' => $stripeSubscriptionId,
+        ]);
     }
 }

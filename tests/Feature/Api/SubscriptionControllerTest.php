@@ -229,7 +229,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
         $response->assertJsonPath('action.type', 'open_checkout_session');
-        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_endpoint', route('billing.checkout-session', absolute: false));
         $response->assertJsonPath('action.checkout_session_method', 'POST');
         $this->assertDatabaseCount(Subscription::class, 0);
     }
@@ -459,7 +459,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
         $response->assertJsonPath('action.type', 'open_checkout_session');
-        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_endpoint', route('billing.checkout-session', absolute: false));
         $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
@@ -482,7 +482,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
         $response->assertJsonPath('action.type', 'open_checkout_session');
-        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_endpoint', route('billing.checkout-session', absolute: false));
         $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
@@ -725,7 +725,7 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
         $response->assertJsonPath('action.type', 'open_checkout_session');
-        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_endpoint', route('billing.checkout-session', absolute: false));
         $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
