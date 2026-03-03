@@ -88,10 +88,9 @@ final class SubscriptionException extends Exception
         $exception = new self('Payment method is required for paid plans.');
         $exception->errorCode = ApiErrorCode::PaymentMethodRequired->value;
         $exception->action = [
-            'type' => 'open_billing_portal',
-            'portal_session_endpoint' => '/api/billing/portal-session',
-            'portal_session_method' => 'POST',
-            'return_url_required' => true,
+            'type' => 'open_checkout_session',
+            'checkout_session_endpoint' => '/api/billing/checkout-session',
+            'checkout_session_method' => 'POST',
         ];
 
         return $exception;

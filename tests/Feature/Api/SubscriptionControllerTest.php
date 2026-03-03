@@ -228,10 +228,9 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
-        $response->assertJsonPath('action.type', 'open_billing_portal');
-        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
-        $response->assertJsonPath('action.portal_session_method', 'POST');
-        $response->assertJsonPath('action.return_url_required', true);
+        $response->assertJsonPath('action.type', 'open_checkout_session');
+        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_method', 'POST');
         $this->assertDatabaseCount(Subscription::class, 0);
     }
 
@@ -459,10 +458,9 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
-        $response->assertJsonPath('action.type', 'open_billing_portal');
-        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
-        $response->assertJsonPath('action.portal_session_method', 'POST');
-        $response->assertJsonPath('action.return_url_required', true);
+        $response->assertJsonPath('action.type', 'open_checkout_session');
+        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
     public function test_paid_subscription_upgrade_requires_default_payment_method(): void
@@ -483,10 +481,9 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
-        $response->assertJsonPath('action.type', 'open_billing_portal');
-        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
-        $response->assertJsonPath('action.portal_session_method', 'POST');
-        $response->assertJsonPath('action.return_url_required', true);
+        $response->assertJsonPath('action.type', 'open_checkout_session');
+        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
     public function test_free_subscription_upgrade_fails_when_target_plan_has_no_price_id(): void
@@ -727,10 +724,9 @@ final class SubscriptionControllerTest extends TestCase
         $response->assertStatus(400);
         $response->assertJsonPath('error', 'Payment method is required for paid plans.');
         $response->assertJsonPath('error_code', 'payment_method_required');
-        $response->assertJsonPath('action.type', 'open_billing_portal');
-        $response->assertJsonPath('action.portal_session_endpoint', '/api/billing/portal-session');
-        $response->assertJsonPath('action.portal_session_method', 'POST');
-        $response->assertJsonPath('action.return_url_required', true);
+        $response->assertJsonPath('action.type', 'open_checkout_session');
+        $response->assertJsonPath('action.checkout_session_endpoint', '/api/billing/checkout-session');
+        $response->assertJsonPath('action.checkout_session_method', 'POST');
     }
 
     public function test_immediate_upgrade_trial_subscription_returns_success_payload_and_clears_pending_flags(): void

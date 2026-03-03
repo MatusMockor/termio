@@ -6,10 +6,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Billing\BillingPaymentMethodsListAction;
 use App\Actions\Billing\BillingPortalSessionCreateAction;
+use App\Actions\Billing\CheckoutSessionCreateAction;
 use App\Contracts\Repositories\InvoiceRepository;
 use App\Contracts\Services\BillingService;
 use App\Exceptions\BillingException;
+use App\Exceptions\SubscriptionException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Billing\CreateCheckoutSessionRequest;
 use App\Http\Requests\Billing\CreatePortalSessionRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Services\Tenant\TenantContextService;
@@ -132,6 +135,47 @@ final class BillingController extends Controller
 
         return response()->json([
             'data' => $portalSession->toArray(),
+        ]);
+    }
+
+    /**
+     * Create a Stripe Checkout session for new subscriptions.
+     */
+    public function createCheckoutSession(
+        CreateCheckoutSessionRequest $request,
+        CheckoutSessionCreateAction $action,
+    ): JsonResponse {
+        $tenant = $this->tenantContext->getTenant();
+
+        if ($tenant === null) {
+            return response()->json(['error' => 'Tenant not found.'], 404);
+        }
+
+        try {
+            $session = $action->handle(
+                $tenant,
+                $request->getPlanId(),
+                $request->getBillingCycle(),
+                $request->getSuccessUrl(),
+                $request->getCancelUrl(),
+            );
+        } catch (BillingException $exception) {
+            return response()->json(
+                ['error' => $exception->getMessage()],
+                $exception->getStatusCode(),
+            );
+        } catch (SubscriptionException $exception) {
+            return response()->json(
+                ['error' => $exception->getMessage()],
+                422,
+            );
+        }
+
+        return response()->json([
+            'data' => [
+                'url' => $session->url,
+                'session_id' => $session->sessionId,
+            ],
         ]);
     }
 }

@@ -7,6 +7,7 @@ namespace App\Services\Stripe;
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Models\Tenant;
 use RuntimeException;
+use Stripe\Checkout\Session;
 use Stripe\Customer;
 use Stripe\Exception\ApiErrorException;
 use Stripe\Invoice;
@@ -14,6 +15,7 @@ use Stripe\PaymentMethod;
 use Stripe\Price;
 use Stripe\Product;
 use Stripe\StripeClient;
+use Stripe\Subscription;
 
 final class StripeService implements StripeServiceContract
 {
@@ -213,5 +215,37 @@ final class StripeService implements StripeServiceContract
         ]);
 
         return (string) $session->url;
+    }
+
+    /**
+     * Create a Stripe Checkout session.
+     *
+     * @param  array<string, mixed>  $params
+     *
+     * @throws ApiErrorException
+     */
+    public function createCheckoutSession(array $params): Session
+    {
+        return $this->getClient()->checkout->sessions->create($params);
+    }
+
+    /**
+     * Retrieve a Stripe subscription by ID.
+     *
+     * @throws ApiErrorException
+     */
+    public function getSubscription(string $subscriptionId): Subscription
+    {
+        return $this->getClient()->subscriptions->retrieve($subscriptionId);
+    }
+
+    /**
+     * Cancel a Stripe subscription immediately.
+     *
+     * @throws ApiErrorException
+     */
+    public function cancelSubscription(string $subscriptionId): Subscription
+    {
+        return $this->getClient()->subscriptions->cancel($subscriptionId);
     }
 }

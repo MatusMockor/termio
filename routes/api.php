@@ -163,6 +163,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
 
         Route::get('/payment-methods', [BillingController::class, 'paymentMethods'])->name('payment-methods.index');
         Route::post('/portal-session', [BillingController::class, 'createPortalSession'])->name('portal-session');
+        Route::post('/checkout-session', [BillingController::class, 'createCheckoutSession'])->name('checkout-session');
     });
 });
 

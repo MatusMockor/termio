@@ -15,7 +15,9 @@ use Illuminate\Support\Carbon;
  * @property string $stripe_id
  * @property string $stripe_product
  * @property string $stripe_price
+ * @property string|null $meter_id
  * @property int|null $quantity
+ * @property string|null $meter_event_name
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property-read Subscription $subscription
@@ -29,7 +31,9 @@ final class SubscriptionItem extends Model
         'stripe_id',
         'stripe_product',
         'stripe_price',
+        'meter_id',
         'quantity',
+        'meter_event_name',
     ];
 
     /**
@@ -38,7 +42,9 @@ final class SubscriptionItem extends Model
     protected function casts(): array
     {
         return [
+            'meter_id' => 'string',
             'quantity' => 'integer',
+            'meter_event_name' => 'string',
         ];
     }
 
