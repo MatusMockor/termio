@@ -1227,6 +1227,13 @@ final class SubscriptionControllerTest extends TestCase
                      */
                     public function create(array $payload): object
                     {
+                        if (
+                            ! array_key_exists('default_payment_method', $payload)
+                            || ! array_key_exists('trial_period_days', $payload)
+                        ) {
+                            throw new \RuntimeException('Missing required Stripe subscription payload keys.');
+                        }
+
                         return (object) [
                             'id' => 'sub_created_from_test',
                             'status' => SubscriptionStatus::Trialing->value,

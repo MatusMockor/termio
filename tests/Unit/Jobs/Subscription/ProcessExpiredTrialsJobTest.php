@@ -28,14 +28,14 @@ final class ProcessExpiredTrialsJobTest extends TestCase
             ->forPlan($paidPlan)
             ->create([
                 'stripe_status' => SubscriptionStatus::Trialing->value,
-                'stripe_id' => 'free_'.$this->tenant->id,
+                'stripe_id' => 'sub_trial_without_pm_'.$this->tenant->id,
                 'trial_ends_at' => now()->subMinute(),
                 'billing_cycle' => 'monthly',
             ]);
 
         $paymentMethodGuard = $this->createMock(DefaultPaymentMethodGuardContract::class);
         $paymentMethodGuard->expects($this->once())
-            ->method('hasLiveDefaultPaymentMethod')
+            ->method('determineLiveDefaultPaymentMethod')
             ->willReturn(false);
 
         $job = new ProcessExpiredTrialsJob(
@@ -63,14 +63,14 @@ final class ProcessExpiredTrialsJobTest extends TestCase
             ->forPlan($paidPlan)
             ->create([
                 'stripe_status' => SubscriptionStatus::Trialing->value,
-                'stripe_id' => 'free_'.$this->tenant->id,
+                'stripe_id' => 'sub_trial_with_pm_'.$this->tenant->id,
                 'trial_ends_at' => now()->subMinute(),
                 'billing_cycle' => 'monthly',
             ]);
 
         $paymentMethodGuard = $this->createMock(DefaultPaymentMethodGuardContract::class);
         $paymentMethodGuard->expects($this->once())
-            ->method('hasLiveDefaultPaymentMethod')
+            ->method('determineLiveDefaultPaymentMethod')
             ->willReturn(true);
 
         $job = new ProcessExpiredTrialsJob(

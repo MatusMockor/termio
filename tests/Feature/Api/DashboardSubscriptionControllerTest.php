@@ -105,12 +105,12 @@ final class DashboardSubscriptionControllerTest extends TestCase
     public function test_free_subscription_requires_default_payment_method(): void
     {
         $this->actingAsOwner();
-        [, $easyPlan] = $this->createPlans();
+        [$freePlan] = $this->createPlans();
         $this->mockLivePaymentMethodCheck(false);
 
         Subscription::factory()
             ->forTenant($this->tenant)
-            ->forPlan($easyPlan)
+            ->forPlan($freePlan)
             ->create([
                 'stripe_status' => 'active',
                 'stripe_id' => 'free_'.$this->tenant->id,
