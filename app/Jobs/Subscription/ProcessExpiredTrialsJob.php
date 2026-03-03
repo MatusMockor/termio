@@ -132,7 +132,12 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
         Tenant $tenant,
     ): void {
         DB::transaction(function () use ($subscription, $freePlan, $tenant): void {
-            if ($tenant->hasStripeId() && ! str_starts_with($subscription->stripe_id, 'free_')) {
+            $freeSubscriptionPrefix = (string) config('subscription.free_subscription_prefix', 'free_');
+            $stripeId = $subscription->stripe_id;
+            $isFreeSubscription = $stripeId !== ''
+                && str_starts_with($stripeId, $freeSubscriptionPrefix);
+
+            if ($tenant->hasStripeId() && ! $isFreeSubscription) {
                 $stripeSub = $tenant->subscription(SubscriptionType::Default->value);
 
                 if ($stripeSub) {
@@ -142,7 +147,7 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
 
             $this->subscriptions->update($subscription, [
                 'plan_id' => $freePlan->id,
-                'stripe_id' => 'free_'.$tenant->id,
+                'stripe_id' => $freeSubscriptionPrefix.$tenant->id,
                 'stripe_status' => SubscriptionStatus::Active->value,
                 'stripe_price' => null,
                 'trial_ends_at' => null,
