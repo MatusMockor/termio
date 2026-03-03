@@ -14,6 +14,7 @@ use App\Models\Tenant;
 use App\Notifications\TrialStartedNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
@@ -38,7 +39,7 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
         PlanRepository $plans,
         StripeService $stripeService,
     ): void {
-        if ($subscriptions->findByStripeId($this->stripeSubscriptionId) !== null) {
+        if ($subscriptions->findByStripeId($this->stripeSubscriptionId)) {
             Log::info('HandleCheckoutSessionCompletedJob: subscription already exists, skipping', [
                 'stripe_subscription_id' => $this->stripeSubscriptionId,
             ]);
@@ -61,7 +62,11 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
         $this->removeExistingSubscription($tenant, $subscriptions, $stripeService);
 
         $stripeSubscription = $stripeService->getSubscription($this->stripeSubscriptionId);
-        $this->createSubscriptionFromStripe($subscriptions, $tenant, $plan, $stripeSubscription);
+        $subscriptionCreated = $this->createSubscriptionFromStripe($subscriptions, $tenant, $plan, $stripeSubscription);
+
+        if (! $subscriptionCreated) {
+            return;
+        }
 
         $this->updateTenantPaymentMethod($tenant, $stripeService);
         $this->sendTrialNotification($tenant, $plan);
@@ -111,20 +116,34 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
         Tenant $tenant,
         Plan $plan,
         mixed $stripeSubscription,
-    ): void {
+    ): bool {
         $stripePriceId = $this->extractPriceId($stripeSubscription);
         $trialEndsAt = $this->resolveTrialEndsAt($stripeSubscription);
 
-        $subscriptions->create([
-            'tenant_id' => $tenant->id,
-            'plan_id' => $plan->id,
-            'type' => SubscriptionType::Default->value,
-            'stripe_id' => $this->stripeSubscriptionId,
-            'stripe_status' => $stripeSubscription->status,
-            'stripe_price' => $stripePriceId,
-            'billing_cycle' => $this->billingCycle->value,
-            'trial_ends_at' => $trialEndsAt,
-        ]);
+        try {
+            $subscriptions->create([
+                'tenant_id' => $tenant->id,
+                'plan_id' => $plan->id,
+                'type' => SubscriptionType::Default->value,
+                'stripe_id' => $this->stripeSubscriptionId,
+                'stripe_status' => $stripeSubscription->status,
+                'stripe_price' => $stripePriceId,
+                'billing_cycle' => $this->billingCycle->value,
+                'trial_ends_at' => $trialEndsAt,
+            ]);
+        } catch (QueryException $exception) {
+            if ($this->isDuplicateStripeSubscriptionInsert($exception)) {
+                Log::info('HandleCheckoutSessionCompletedJob: duplicate Stripe subscription insert ignored', [
+                    'stripe_subscription_id' => $this->stripeSubscriptionId,
+                ]);
+
+                return false;
+            }
+
+            throw $exception;
+        }
+
+        return true;
     }
 
     /**
@@ -187,8 +206,14 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
             return;
         }
 
-        $freePrefix = (string) config('subscription.free_subscription_prefix');
-        $isFree = str_starts_with($existing->stripe_id, $freePrefix);
+        if ($existing->stripe_id === $this->stripeSubscriptionId) {
+            return;
+        }
+
+        $freePrefix = config('subscription.free_subscription_prefix');
+        $isFree = is_string($freePrefix)
+            && $freePrefix !== ''
+            && str_starts_with($existing->stripe_id, $freePrefix);
 
         if (! $isFree) {
             $stripeService->cancelSubscription($existing->stripe_id);
@@ -206,5 +231,12 @@ final class HandleCheckoutSessionCompletedJob implements ShouldQueue
         }
 
         $owner->notify(new TrialStartedNotification($tenant, $plan));
+    }
+
+    private function isDuplicateStripeSubscriptionInsert(QueryException $exception): bool
+    {
+        $sqlState = $exception->errorInfo[0] ?? null;
+
+        return $sqlState === '23505' || $sqlState === '23000';
     }
 }
