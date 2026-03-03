@@ -107,13 +107,14 @@ final class DashboardSubscriptionControllerTest extends TestCase
         $this->actingAsOwner();
         [$freePlan] = $this->createPlans();
         $this->mockLivePaymentMethodCheck(false);
+        $freeSubscriptionPrefix = (string) config('subscription.free_subscription_prefix', 'free_');
 
         Subscription::factory()
             ->forTenant($this->tenant)
             ->forPlan($freePlan)
             ->create([
                 'stripe_status' => 'active',
-                'stripe_id' => 'free_'.$this->tenant->id,
+                'stripe_id' => $freeSubscriptionPrefix.$this->tenant->id,
                 'billing_cycle' => 'monthly',
             ]);
 
