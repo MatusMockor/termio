@@ -26,7 +26,7 @@ final class DashboardSubscriptionControllerTest extends TestCase
             ->forPlan($easyPlan)
             ->create([
                 'stripe_status' => 'active',
-                'stripe_id' => 'sub_dashboard_context',
+                'stripe_id' => fake()->uuid(),
                 'billing_cycle' => 'monthly',
             ]);
 
@@ -90,7 +90,7 @@ final class DashboardSubscriptionControllerTest extends TestCase
             ->forPlan($smartPlan)
             ->create([
                 'stripe_status' => 'active',
-                'stripe_id' => 'sub_highest_plan',
+                'stripe_id' => fake()->uuid(),
                 'billing_cycle' => 'monthly',
             ]);
 
@@ -135,7 +135,7 @@ final class DashboardSubscriptionControllerTest extends TestCase
             ->forPlan($easyPlan)
             ->onTrial()
             ->create([
-                'stripe_id' => 'sub_trial_dashboard',
+                'stripe_id' => fake()->uuid(),
                 'billing_cycle' => 'monthly',
             ]);
 
@@ -173,7 +173,7 @@ final class DashboardSubscriptionControllerTest extends TestCase
             ->forPlan($easyPlan)
             ->create([
                 'stripe_status' => 'active',
-                'stripe_id' => 'sub_filter_plans',
+                'stripe_id' => fake()->uuid(),
                 'billing_cycle' => 'monthly',
             ]);
 
