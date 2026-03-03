@@ -8,7 +8,7 @@ use App\Models\Tenant;
 use Illuminate\Support\Facades\Log;
 use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
 
-class BillingPaymentMethodsListAction
+final class BillingPaymentMethodsListAction
 {
     /**
      * @return array<int, array{

@@ -45,24 +45,12 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
         string $priceId,
     ): object {
         $tenant = $subscription->tenant;
+        $paymentMethodId = $this->ensurePaymentMethod($tenant);
 
-        try {
-            $defaultPaymentMethodId = $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
+        $payload = $this->buildSubscriptionPayload($tenant, $priceId, $paymentMethodId);
+        $options = $this->buildStripeOptions('create_from_free', $subscription, $priceId);
 
-            return $tenant->stripe()->subscriptions->create([
-                'customer' => (string) $tenant->stripe_id,
-                'items' => [
-                    ['price' => $priceId],
-                ],
-                'default_payment_method' => $defaultPaymentMethodId,
-            ], [
-                'idempotency_key' => $this->buildIdempotencyKey('create_from_free', $subscription, $priceId),
-            ]);
-        } catch (SubscriptionException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            throw SubscriptionException::stripeError($exception->getMessage());
-        }
+        return $this->createStripeSubscription($tenant, $payload, $options);
     }
 
     /**
@@ -74,76 +62,51 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
         int $trialDays,
     ): object {
         $tenant = $subscription->tenant;
+        $paymentMethodId = $this->ensurePaymentMethod($tenant);
 
-        try {
-            $defaultPaymentMethodId = $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
+        $payload = $this->buildSubscriptionPayload($tenant, $priceId, $paymentMethodId, $trialDays);
+        $options = $this->buildStripeOptions('create_trial_from_free', $subscription, $priceId);
 
-            return $tenant->stripe()->subscriptions->create([
-                'customer' => (string) $tenant->stripe_id,
-                'items' => [
-                    ['price' => $priceId],
-                ],
-                'default_payment_method' => $defaultPaymentMethodId,
-                'trial_period_days' => $trialDays,
-            ], [
-                'idempotency_key' => $this->buildIdempotencyKey('create_trial_from_free', $subscription, $priceId),
-            ]);
-        } catch (SubscriptionException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            throw SubscriptionException::stripeError($exception->getMessage());
-        }
+        return $this->createStripeSubscription($tenant, $payload, $options);
     }
 
     public function swapPaidSubscription(Subscription $subscription, string $priceId): void
     {
-        $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($subscription->tenant);
+        $this->ensurePaymentMethod($subscription->tenant);
         $stripeSubscription = $this->getCashierSubscription($subscription);
 
         if ($this->isAlreadyOnTargetPrice($stripeSubscription, $priceId)) {
             return;
         }
 
-        try {
-            $stripeSubscription->swap($priceId);
-        } catch (Throwable $exception) {
-            throw SubscriptionException::stripeError($exception->getMessage());
-        }
+        $this->executeStripeOperation(static fn () => $stripeSubscription->swap($priceId));
     }
 
     public function swapPaidSubscriptionAndInvoice(Subscription $subscription, string $priceId): void
     {
-        $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($subscription->tenant);
+        $this->ensurePaymentMethod($subscription->tenant);
         $stripeSubscription = $this->getCashierSubscription($subscription);
 
         if ($this->isAlreadyOnTargetPrice($stripeSubscription, $priceId)) {
             return;
         }
 
-        try {
-            $stripeSubscription->swapAndInvoice($priceId);
-        } catch (Throwable $exception) {
-            throw SubscriptionException::stripeError($exception->getMessage());
-        }
+        $this->executeStripeOperation(static fn () => $stripeSubscription->swapAndInvoice($priceId));
     }
 
     public function resumeCanceledPaidSubscription(Subscription $subscription): void
     {
-        if (! $subscription->ends_at) {
+        if (! $this->isSubscriptionCanceled($subscription)) {
             return;
         }
 
         $stripeSubscription = $this->getCashierSubscription($subscription);
 
-        if (! $stripeSubscription->onGracePeriod()) {
+        if (! $this->isOnGracePeriod($stripeSubscription)) {
             return;
         }
 
-        try {
-            $stripeSubscription->resume();
-        } catch (Throwable $exception) {
-            throw SubscriptionException::stripeError($exception->getMessage());
-        }
+        $this->executeStripeOperation(static fn () => $stripeSubscription->resume());
     }
 
     private function getCashierSubscription(Subscription $subscription): \Laravel\Cashier\Subscription
@@ -179,5 +142,79 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
             (string) $subscription->tenant_id,
             $priceId,
         ]));
+    }
+
+    private function ensurePaymentMethod(Tenant $tenant): string
+    {
+        return $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildSubscriptionPayload(
+        Tenant $tenant,
+        string $priceId,
+        string $paymentMethodId,
+        ?int $trialDays = null
+    ): array {
+        $payload = [
+            'customer' => (string) $tenant->stripe_id,
+            'items' => [
+                ['price' => $priceId],
+            ],
+            'default_payment_method' => $paymentMethodId,
+        ];
+
+        if ($trialDays !== null) {
+            $payload['trial_period_days'] = $trialDays;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function buildStripeOptions(string $operation, Subscription $subscription, string $priceId): array
+    {
+        return [
+            'idempotency_key' => $this->buildIdempotencyKey($operation, $subscription, $priceId),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, string>  $options
+     * @return object{id: string, status: string, trial_end?: int|null}
+     */
+    private function createStripeSubscription(Tenant $tenant, array $payload, array $options): object
+    {
+        try {
+            return $tenant->stripe()->subscriptions->create($payload, $options);
+        } catch (SubscriptionException $exception) {
+            throw $exception;
+        } catch (Throwable $exception) {
+            throw SubscriptionException::stripeError($exception->getMessage());
+        }
+    }
+
+    private function executeStripeOperation(callable $operation): void
+    {
+        try {
+            $operation();
+        } catch (Throwable $exception) {
+            throw SubscriptionException::stripeError($exception->getMessage());
+        }
+    }
+
+    private function isSubscriptionCanceled(Subscription $subscription): bool
+    {
+        return $subscription->ends_at !== null;
+    }
+
+    private function isOnGracePeriod(\Laravel\Cashier\Subscription $stripeSubscription): bool
+    {
+        return $stripeSubscription->onGracePeriod();
     }
 }

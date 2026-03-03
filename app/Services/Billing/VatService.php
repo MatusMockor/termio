@@ -35,32 +35,24 @@ final class VatService implements VatServiceContract
 
     public function getVatRate(Tenant $tenant): float
     {
-        $country = $tenant->country ?? 'SK';
+        $country = $this->getTenantCountry($tenant);
 
-        // Slovakia - always 20% VAT
-        if ($country === 'SK') {
-            return config('subscription.vat.slovakia_rate');
+        if ($this->isSlovakia($country)) {
+            return $this->getSlovakiaVatRate();
         }
 
-        // EU with valid VAT ID - reverse charge (0%)
-        if ($this->isEuCountry($country) && $this->isReverseCharge($tenant)) {
-            return 0.00;
-        }
-
-        // EU without valid VAT ID - Slovak VAT rate
         if ($this->isEuCountry($country)) {
-            return config('subscription.vat.slovakia_rate');
+            return $this->getEuVatRate($tenant);
         }
 
-        // Non-EU - no VAT
         return 0.00;
     }
 
     public function validateVatId(string $vatId, string $countryCode): bool
     {
-        $vatId = strtoupper(preg_replace('/\s+/', '', $vatId) ?? '');
+        $normalizedVatId = $this->normalizeVatId($vatId);
 
-        if (mb_strlen($vatId) < 4) {
+        if (! $this->isValidVatIdFormat($normalizedVatId)) {
             return false;
         }
 
@@ -70,42 +62,16 @@ final class VatService implements VatServiceContract
             return false;
         }
 
-        // Remove country code prefix if present
-        $vatNumber = str_starts_with($vatId, $countryCode)
-            ? mb_substr($vatId, 2)
-            : $vatId;
+        $vatNumber = $this->extractVatNumber($normalizedVatId, $countryCode);
 
-        // Check cache first
-        $cacheKey = 'vat_validation_'.$countryCode.'_'.$vatNumber;
-        $cached = Cache::get($cacheKey);
-
-        if ($cached !== null) {
-            return (bool) $cached;
-        }
-
-        try {
-            $result = $this->validateViaVies($countryCode, $vatNumber);
-            Cache::put($cacheKey, $result, now()->addHours(24));
-
-            return $result;
-        } catch (Exception $e) {
-            Log::warning('VIES validation failed', [
-                'vat_id' => $vatId,
-                'country_code' => $countryCode,
-                'error' => $e->getMessage(),
-            ]);
-
-            // Return false on API failure - treat as invalid
-            return false;
-        }
+        return $this->validateVatIdWithCache($vatNumber, $countryCode, $normalizedVatId);
     }
 
     public function isReverseCharge(Tenant $tenant): bool
     {
-        $country = $tenant->country ?? 'SK';
+        $country = $this->getTenantCountry($tenant);
 
-        // Reverse charge only applies to EU B2B with valid VAT ID (not Slovakia)
-        if ($country === 'SK') {
+        if ($this->isSlovakia($country)) {
             return false;
         }
 
@@ -113,19 +79,15 @@ final class VatService implements VatServiceContract
             return false;
         }
 
-        $vatId = $tenant->vat_id;
-
-        if (empty($vatId)) {
+        if (! $this->hasVatId($tenant)) {
             return false;
         }
 
-        // Check if VAT ID was verified
-        if ($tenant->vat_id_verified_at !== null) {
+        if ($this->isVatIdVerified($tenant)) {
             return true;
         }
 
-        // Validate VAT ID
-        return $this->validateVatId($vatId, $country);
+        return $this->validateVatId((string) $tenant->vat_id, $country);
     }
 
     public function isEuCountry(string $countryCode): bool
@@ -159,16 +121,114 @@ final class VatService implements VatServiceContract
      */
     private function getVatNote(Tenant $tenant, bool $reverseCharge): ?string
     {
-        $country = $tenant->country ?? 'SK';
-
         if ($reverseCharge) {
             return 'Reverse charge - VAT to be accounted for by the recipient';
         }
 
-        if (! $this->isEuCountry($country) && $country !== 'SK') {
+        $country = $this->getTenantCountry($tenant);
+
+        if ($this->isNonEuExport($country)) {
             return 'Export - VAT exempt';
         }
 
         return null;
+    }
+
+    private function getTenantCountry(Tenant $tenant): string
+    {
+        return $tenant->country ?? 'SK';
+    }
+
+    private function isSlovakia(string $country): bool
+    {
+        return $country === 'SK';
+    }
+
+    private function getSlovakiaVatRate(): float
+    {
+        return (float) config('subscription.vat.slovakia_rate');
+    }
+
+    private function getEuVatRate(Tenant $tenant): float
+    {
+        if ($this->isReverseCharge($tenant)) {
+            return 0.00;
+        }
+
+        return $this->getSlovakiaVatRate();
+    }
+
+    private function hasVatId(Tenant $tenant): bool
+    {
+        return ! empty($tenant->vat_id);
+    }
+
+    private function isVatIdVerified(Tenant $tenant): bool
+    {
+        return $tenant->vat_id_verified_at !== null;
+    }
+
+    private function normalizeVatId(string $vatId): string
+    {
+        return strtoupper(preg_replace('/\s+/', '', $vatId) ?? '');
+    }
+
+    private function isValidVatIdFormat(string $vatId): bool
+    {
+        return mb_strlen($vatId) >= 4;
+    }
+
+    private function extractVatNumber(string $vatId, string $countryCode): string
+    {
+        if (str_starts_with($vatId, $countryCode)) {
+            return mb_substr($vatId, 2);
+        }
+
+        return $vatId;
+    }
+
+    private function validateVatIdWithCache(string $vatNumber, string $countryCode, string $originalVatId): bool
+    {
+        $cacheKey = $this->buildVatCacheKey($countryCode, $vatNumber);
+        $cached = Cache::get($cacheKey);
+
+        if ($cached !== null) {
+            return (bool) $cached;
+        }
+
+        try {
+            $result = $this->validateViaVies($countryCode, $vatNumber);
+            $this->cacheVatValidationResult($cacheKey, $result);
+
+            return $result;
+        } catch (Exception $e) {
+            $this->logVatValidationFailure($originalVatId, $countryCode, $e);
+
+            return false;
+        }
+    }
+
+    private function buildVatCacheKey(string $countryCode, string $vatNumber): string
+    {
+        return 'vat_validation_'.$countryCode.'_'.$vatNumber;
+    }
+
+    private function cacheVatValidationResult(string $cacheKey, bool $result): void
+    {
+        Cache::put($cacheKey, $result, now()->addHours(24));
+    }
+
+    private function logVatValidationFailure(string $vatId, string $countryCode, Exception $exception): void
+    {
+        Log::warning('VIES validation failed', [
+            'vat_id' => $vatId,
+            'country_code' => $countryCode,
+            'error' => $exception->getMessage(),
+        ]);
+    }
+
+    private function isNonEuExport(string $country): bool
+    {
+        return ! $this->isEuCountry($country) && ! $this->isSlovakia($country);
     }
 }

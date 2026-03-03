@@ -30,47 +30,26 @@ final class BillingService implements BillingServiceContract
         Subscription $subscription,
         StripeInvoice $stripeInvoice
     ): Invoice {
-        // Check if invoice already exists
         $existing = $this->invoices->findByStripeId($stripeInvoice->id);
         if ($existing !== null) {
             return $existing;
         }
 
-        $netAmount = $stripeInvoice->subtotal / 100; // Convert from cents
-        $vatCalculation = $this->vatService->calculateVat($tenant, (float) $netAmount);
-
+        $netAmount = $this->convertCentsToAmount($stripeInvoice->subtotal);
+        $vatCalculation = $this->vatService->calculateVat($tenant, $netAmount);
         $lineItems = $this->extractLineItems($stripeInvoice);
+        $isPaid = $this->isInvoicePaid($stripeInvoice);
 
-        /** @var bool $isPaid */
-        $isPaid = $stripeInvoice->paid ?? false;
+        $invoiceData = $this->buildInvoiceData(
+            $tenant,
+            $subscription,
+            $stripeInvoice,
+            $vatCalculation,
+            $lineItems,
+            $isPaid
+        );
 
-        $invoice = $this->invoices->create([
-            'tenant_id' => $tenant->id,
-            'subscription_id' => $subscription->id,
-            'stripe_invoice_id' => $stripeInvoice->id,
-            'invoice_number' => $this->invoices->getNextInvoiceNumber(),
-            'amount_net' => $vatCalculation->netAmount,
-            'vat_rate' => $vatCalculation->vatRate * 100, // Store as percentage
-            'vat_amount' => $vatCalculation->vatAmount,
-            'amount_gross' => $vatCalculation->grossAmount,
-            'currency' => strtoupper($stripeInvoice->currency ?? 'EUR'),
-            'customer_name' => $tenant->name,
-            'customer_address' => $tenant->address,
-            'customer_country' => $tenant->country,
-            'customer_vat_id' => $tenant->vat_id,
-            'line_items' => $lineItems,
-            'status' => $isPaid ? 'paid' : 'open',
-            'paid_at' => $isPaid ? now() : null,
-            'notes' => $vatCalculation->note,
-            'billing_period_start' => $stripeInvoice->period_start > 0
-                ? Carbon::createFromTimestamp($stripeInvoice->period_start)->toDateString()
-                : null,
-            'billing_period_end' => $stripeInvoice->period_end > 0
-                ? Carbon::createFromTimestamp($stripeInvoice->period_end)->toDateString()
-                : null,
-        ]);
-
-        // Generate PDF
+        $invoice = $this->invoices->create($invoiceData);
         $this->generateInvoicePdf($invoice);
 
         return $invoice;
@@ -130,23 +109,81 @@ final class BillingService implements BillingServiceContract
         $items = [];
 
         foreach ($stripeInvoice->lines->data as $line) {
-            $periodStart = $line->period->start ?? 0;
-            $periodEnd = $line->period->end ?? 0;
-
-            $items[] = [
-                'description' => $line->description ?? 'Subscription',
-                'quantity' => $line->quantity ?? 1,
-                'unit_price' => ($line->unit_amount ?? 0) / 100,
-                'amount' => $line->amount / 100,
-                'period_start' => $periodStart > 0
-                    ? Carbon::createFromTimestamp($periodStart)->toDateString()
-                    : null,
-                'period_end' => $periodEnd > 0
-                    ? Carbon::createFromTimestamp($periodEnd)->toDateString()
-                    : null,
-            ];
+            $items[] = $this->buildLineItem($line);
         }
 
         return $items;
+    }
+
+    /**
+     * @return array{description: string, quantity: int, unit_price: float, amount: float, period_start: string|null, period_end: string|null}
+     */
+    private function buildLineItem(object $line): array
+    {
+        $periodStart = $line->period->start ?? 0;
+        $periodEnd = $line->period->end ?? 0;
+
+        return [
+            'description' => $line->description ?? 'Subscription',
+            'quantity' => $line->quantity ?? 1,
+            'unit_price' => $this->convertCentsToAmount($line->unit_amount ?? 0),
+            'amount' => $this->convertCentsToAmount($line->amount),
+            'period_start' => $this->convertTimestampToDate($periodStart),
+            'period_end' => $this->convertTimestampToDate($periodEnd),
+        ];
+    }
+
+    private function convertCentsToAmount(int $cents): float
+    {
+        return $cents / 100;
+    }
+
+    private function convertTimestampToDate(int $timestamp): ?string
+    {
+        if ($timestamp <= 0) {
+            return null;
+        }
+
+        return Carbon::createFromTimestamp($timestamp)->toDateString();
+    }
+
+    private function isInvoicePaid(StripeInvoice $stripeInvoice): bool
+    {
+        return $stripeInvoice->paid ?? false;
+    }
+
+    /**
+     * @param  array<int, array{description: string, quantity: int, unit_price: float, amount: float, period_start: string|null, period_end: string|null}>  $lineItems
+     * @return array{tenant_id: int, subscription_id: int, stripe_invoice_id: string, invoice_number: string, amount_net: float, vat_rate: float, vat_amount: float, amount_gross: float, currency: string, customer_name: string, customer_address: string|null, customer_country: string|null, customer_vat_id: string|null, line_items: array<int, array{description: string, quantity: int, unit_price: float, amount: float, period_start: string|null, period_end: string|null}>, status: string, paid_at: \Illuminate\Support\Carbon|null, notes: string|null, billing_period_start: string|null, billing_period_end: string|null}
+     */
+    private function buildInvoiceData(
+        Tenant $tenant,
+        Subscription $subscription,
+        StripeInvoice $stripeInvoice,
+        \App\DTOs\Billing\VatCalculation $vatCalculation,
+        array $lineItems,
+        bool $isPaid
+    ): array {
+        return [
+            'tenant_id' => $tenant->id,
+            'subscription_id' => $subscription->id,
+            'stripe_invoice_id' => $stripeInvoice->id,
+            'invoice_number' => $this->invoices->getNextInvoiceNumber(),
+            'amount_net' => $vatCalculation->netAmount,
+            'vat_rate' => $vatCalculation->vatRate * 100,
+            'vat_amount' => $vatCalculation->vatAmount,
+            'amount_gross' => $vatCalculation->grossAmount,
+            'currency' => strtoupper($stripeInvoice->currency ?? 'EUR'),
+            'customer_name' => $tenant->name,
+            'customer_address' => $tenant->address,
+            'customer_country' => $tenant->country,
+            'customer_vat_id' => $tenant->vat_id,
+            'line_items' => $lineItems,
+            'status' => $isPaid ? 'paid' : 'open',
+            'paid_at' => $isPaid ? now() : null,
+            'notes' => $vatCalculation->note,
+            'billing_period_start' => $this->convertTimestampToDate($stripeInvoice->period_start ?? 0),
+            'billing_period_end' => $this->convertTimestampToDate($stripeInvoice->period_end ?? 0),
+        ];
     }
 }
