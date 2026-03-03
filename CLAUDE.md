@@ -102,6 +102,7 @@ app/
 
 ### Rules
 * Avoid `DB::` facade - use model or repository methods
+* Do not use `Model::query()` directly. Prefer `Model::where()`, `Model::find()`, relationships/scopes, or a model instance connection when you need a transaction.
 * Controllers are **thin** - only gather inputs and call Actions
 * Use **FormRequest** classes for validation
 * Use **DTOs** to transfer data between layers

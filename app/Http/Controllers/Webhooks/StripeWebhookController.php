@@ -417,18 +417,17 @@ final class StripeWebhookController extends CashierWebhookController
         }
 
         $billingCycle = $this->resolveCheckoutBillingCycle($metadata);
+        if ($billingCycle === null) {
+            Log::warning('Stripe webhook: checkout session missing valid billing_cycle metadata', [
+                'tenant_id' => $tenant->id,
+                'stripe_subscription_id' => $stripeSubscriptionId,
+                'metadata' => $metadata,
+            ]);
 
-        HandleCheckoutSessionCompletedJob::dispatch(
-            $tenant->id,
-            $planId,
-            $billingCycle,
-            $stripeSubscriptionId,
-        );
+            return $this->successMethod();
+        }
 
-        Log::info('Stripe webhook: checkout session completed, job dispatched', [
-            'tenant_id' => $tenant->id,
-            'stripe_subscription_id' => $stripeSubscriptionId,
-        ]);
+        $this->dispatchCheckoutSessionCompletedJob($tenant->id, $planId, $billingCycle, $stripeSubscriptionId);
 
         return $this->successMethod();
     }
@@ -461,9 +460,9 @@ final class StripeWebhookController extends CashierWebhookController
     /**
      * @param  array<string, string>  $metadata
      */
-    private function resolveCheckoutBillingCycle(array $metadata): BillingCycle
+    private function resolveCheckoutBillingCycle(array $metadata): ?BillingCycle
     {
-        return BillingCycle::tryFrom((string) ($metadata['billing_cycle'] ?? '')) ?? BillingCycle::Monthly;
+        return BillingCycle::tryFrom((string) ($metadata['billing_cycle'] ?? ''));
     }
 
     private function hasMissingCheckoutIdentifiers(
@@ -484,7 +483,7 @@ final class StripeWebhookController extends CashierWebhookController
 
     private function subscriptionAlreadyProcessed(string $stripeSubscriptionId): bool
     {
-        if ($this->subscriptions->findByStripeId($stripeSubscriptionId) === null) {
+        if (! $this->subscriptions->findByStripeId($stripeSubscriptionId)) {
             return false;
         }
 
@@ -499,7 +498,7 @@ final class StripeWebhookController extends CashierWebhookController
     {
         $tenant = Tenant::where('stripe_id', $stripeCustomerId)->first();
 
-        if ($tenant !== null) {
+        if ($tenant) {
             return $tenant;
         }
 
@@ -508,6 +507,25 @@ final class StripeWebhookController extends CashierWebhookController
         ]);
 
         return null;
+    }
+
+    private function dispatchCheckoutSessionCompletedJob(
+        int $tenantId,
+        int $planId,
+        BillingCycle $billingCycle,
+        string $stripeSubscriptionId,
+    ): void {
+        HandleCheckoutSessionCompletedJob::dispatch(
+            $tenantId,
+            $planId,
+            $billingCycle,
+            $stripeSubscriptionId,
+        );
+
+        Log::info('Stripe webhook: checkout session completed, job dispatched', [
+            'tenant_id' => $tenantId,
+            'stripe_subscription_id' => $stripeSubscriptionId,
+        ]);
     }
 
     /**

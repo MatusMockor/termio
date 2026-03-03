@@ -8,7 +8,6 @@ use App\Contracts\Services\VatService as VatServiceContract;
 use App\DTOs\Billing\VatCalculation;
 use App\Models\Tenant;
 use Exception;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use SoapClient;
 
@@ -75,19 +74,8 @@ final class VatService implements VatServiceContract
             ? mb_substr($vatId, 2)
             : $vatId;
 
-        // Check cache first
-        $cacheKey = 'vat_validation_'.$countryCode.'_'.$vatNumber;
-        $cached = Cache::get($cacheKey);
-
-        if ($cached !== null) {
-            return (bool) $cached;
-        }
-
         try {
-            $result = $this->validateViaVies($countryCode, $vatNumber);
-            Cache::put($cacheKey, $result, now()->addHours(24));
-
-            return $result;
+            return $this->validateViaVies($countryCode, $vatNumber);
         } catch (Exception $e) {
             Log::warning('VIES validation failed', [
                 'vat_id' => $vatId,
