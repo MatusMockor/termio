@@ -9,6 +9,8 @@ use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\BillingService;
 use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\StripeService as StripeServiceContract;
+use App\Enums\BillingCycle;
+use App\Jobs\Subscription\HandleCheckoutSessionCompletedJob;
 use App\Jobs\Subscription\HandlePaymentFailedJob;
 use App\Jobs\Subscription\HandleSubscriptionCanceledJob;
 use App\Jobs\Subscription\HandleSubscriptionUpdatedJob;
@@ -365,5 +367,133 @@ final class StripeWebhookController extends CashierWebhookController
         ]);
 
         return $this->successMethod();
+    }
+
+    /**
+     * Handle checkout.session.completed event.
+     *
+     * @param  array<string, mixed>  $payload
+     */
+    protected function handleCheckoutSessionCompleted(array $payload): Response
+    {
+        /** @var array<string, mixed> $session */
+        $session = $payload['data']['object'];
+
+        if (! $this->isSubscriptionCheckoutSession($session)) {
+            return $this->successMethod();
+        }
+
+        /** @var string $stripeSubscriptionId */
+        $stripeSubscriptionId = $session['subscription'] ?? '';
+        /** @var string $stripeCustomerId */
+        $stripeCustomerId = $session['customer'] ?? '';
+
+        if ($this->hasMissingCheckoutIdentifiers($stripeSubscriptionId, $stripeCustomerId, $session['id'] ?? null)) {
+            return $this->successMethod();
+        }
+
+        if ($this->subscriptionAlreadyProcessed($stripeSubscriptionId)) {
+            return $this->successMethod();
+        }
+
+        $tenant = $this->resolveCheckoutTenant($stripeCustomerId);
+
+        if ($tenant === null) {
+            return $this->successMethod();
+        }
+
+        $metadata = $this->resolveCheckoutMetadata($session);
+        $billingCycle = $this->resolveCheckoutBillingCycle($metadata);
+
+        HandleCheckoutSessionCompletedJob::dispatch(
+            (int) ($metadata['tenant_id'] ?? $tenant->id),
+            (int) ($metadata['plan_id'] ?? 0),
+            $billingCycle,
+            $stripeSubscriptionId,
+        );
+
+        Log::info('Stripe webhook: checkout session completed, job dispatched', [
+            'tenant_id' => $tenant->id,
+            'stripe_subscription_id' => $stripeSubscriptionId,
+        ]);
+
+        return $this->successMethod();
+    }
+
+    /**
+     * @param  array<string, mixed>  $session
+     */
+    private function isSubscriptionCheckoutSession(array $session): bool
+    {
+        /** @var string $mode */
+        $mode = $session['mode'] ?? '';
+
+        return $mode === 'subscription';
+    }
+
+    /**
+     * @param  array<string, mixed>  $session
+     * @return array<string, string>
+     */
+    private function resolveCheckoutMetadata(array $session): array
+    {
+        /** @var array<string, mixed> $subscriptionData */
+        $subscriptionData = $session['subscription_data'] ?? [];
+        /** @var array<string, string> $metadata */
+        $metadata = $subscriptionData['metadata'] ?? $session['metadata'] ?? [];
+
+        return $metadata;
+    }
+
+    /**
+     * @param  array<string, string>  $metadata
+     */
+    private function resolveCheckoutBillingCycle(array $metadata): BillingCycle
+    {
+        return BillingCycle::tryFrom((string) ($metadata['billing_cycle'] ?? '')) ?? BillingCycle::Monthly;
+    }
+
+    private function hasMissingCheckoutIdentifiers(
+        string $stripeSubscriptionId,
+        string $stripeCustomerId,
+        mixed $sessionId,
+    ): bool {
+        if ($stripeSubscriptionId !== '' && $stripeCustomerId !== '') {
+            return false;
+        }
+
+        Log::warning('Stripe webhook: checkout session missing subscription or customer', [
+            'session_id' => is_string($sessionId) && $sessionId !== '' ? $sessionId : 'unknown',
+        ]);
+
+        return true;
+    }
+
+    private function subscriptionAlreadyProcessed(string $stripeSubscriptionId): bool
+    {
+        if ($this->subscriptions->findByStripeId($stripeSubscriptionId) === null) {
+            return false;
+        }
+
+        Log::info('Stripe webhook: subscription already exists for checkout session, skipping', [
+            'stripe_subscription_id' => $stripeSubscriptionId,
+        ]);
+
+        return true;
+    }
+
+    private function resolveCheckoutTenant(string $stripeCustomerId): ?Tenant
+    {
+        $tenant = Tenant::where('stripe_id', $stripeCustomerId)->first();
+
+        if ($tenant !== null) {
+            return $tenant;
+        }
+
+        Log::warning('Stripe webhook: tenant not found for checkout session', [
+            'stripe_customer_id' => $stripeCustomerId,
+        ]);
+
+        return null;
     }
 }

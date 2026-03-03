@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Contracts\Services;
 
 use App\Models\Tenant;
+use Stripe\Checkout\Session;
 use Stripe\Customer;
 use Stripe\Invoice;
 use Stripe\PaymentMethod;
 use Stripe\Price;
 use Stripe\Product;
+use Stripe\Subscription;
 
 interface StripeService
 {
@@ -81,4 +83,21 @@ interface StripeService
      * Create a billing portal session URL for a customer.
      */
     public function createBillingPortalSession(string $customerId, string $returnUrl): string;
+
+    /**
+     * Create a Stripe Checkout session.
+     *
+     * @param  array<string, mixed>  $params
+     */
+    public function createCheckoutSession(array $params): Session;
+
+    /**
+     * Retrieve a Stripe subscription by ID.
+     */
+    public function getSubscription(string $subscriptionId): Subscription;
+
+    /**
+     * Cancel a Stripe subscription immediately.
+     */
+    public function cancelSubscription(string $subscriptionId): Subscription;
 }

@@ -132,7 +132,7 @@ final class ProcessExpiredTrialsJob extends AbstractSubscriptionProcessingJob
         Tenant $tenant,
     ): void {
         DB::transaction(function () use ($subscription, $freePlan, $tenant): void {
-            $freeSubscriptionPrefix = (string) config('subscription.free_subscription_prefix', 'free_');
+            $freeSubscriptionPrefix = (string) config('subscription.free_subscription_prefix');
             $stripeId = $subscription->stripe_id;
             $isFreeSubscription = $stripeId !== ''
                 && str_starts_with($stripeId, $freeSubscriptionPrefix);
