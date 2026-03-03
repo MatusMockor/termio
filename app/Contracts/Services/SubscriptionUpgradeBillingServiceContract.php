@@ -22,6 +22,15 @@ interface SubscriptionUpgradeBillingServiceContract
         string $priceId,
     ): object;
 
+    /**
+     * @return object{id: string, status: string, trial_end: int|null}
+     */
+    public function createTrialSubscriptionFromFree(
+        Subscription $subscription,
+        string $priceId,
+        int $trialDays,
+    ): object;
+
     public function swapPaidSubscription(Subscription $subscription, string $priceId): void;
 
     public function swapPaidSubscriptionAndInvoice(Subscription $subscription, string $priceId): void;

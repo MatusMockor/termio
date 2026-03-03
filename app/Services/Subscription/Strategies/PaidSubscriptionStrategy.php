@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services\Subscription\Strategies;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\StripeService;
 use App\Contracts\Subscription\SubscriptionCreationStrategy;
 use App\DTOs\Subscription\CreateSubscriptionDTO;
@@ -16,12 +17,14 @@ use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Notifications\TrialStartedNotification;
 use Illuminate\Support\Facades\DB;
+use Throwable;
 
 final class PaidSubscriptionStrategy implements SubscriptionCreationStrategy
 {
     public function __construct(
         private readonly SubscriptionRepository $subscriptions,
         private readonly StripeService $stripe,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     public function supports(Plan $plan): bool
@@ -31,22 +34,32 @@ final class PaidSubscriptionStrategy implements SubscriptionCreationStrategy
 
     public function create(CreateSubscriptionDTO $dto, Tenant $tenant, Plan $plan): Subscription
     {
-        $subscription = DB::transaction(function () use ($dto, $tenant, $plan): Subscription {
+        /** @var int $trialDays */
+        $trialDays = config('subscription.trial_days');
+
+        $subscription = DB::transaction(function () use ($dto, $tenant, $plan, $trialDays): Subscription {
             $this->ensureStripeCustomer($tenant);
+            $defaultPaymentMethodId = $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
 
             $priceId = $this->getPriceId($dto, $plan);
 
-            $stripeSubscription = $this->createStripeSubscription($dto, $tenant, $priceId);
+            $stripeSubscription = $this->createStripeSubscription(
+                $dto,
+                $tenant,
+                $priceId,
+                $trialDays,
+                $defaultPaymentMethodId,
+            );
 
             return $this->subscriptions->create([
                 'tenant_id' => $tenant->id,
                 'plan_id' => $plan->id,
                 'type' => SubscriptionType::Default->value,
-                'stripe_id' => $stripeSubscription->stripe_id,
-                'stripe_status' => $stripeSubscription->stripe_status,
+                'stripe_id' => $stripeSubscription->id,
+                'stripe_status' => $stripeSubscription->status,
                 'stripe_price' => $priceId,
                 'billing_cycle' => $dto->billingCycle,
-                'trial_ends_at' => $dto->startTrial ? now()->addDays((int) config('subscription.trial_days')) : null,
+                'trial_ends_at' => $dto->startTrial ? now()->addDays($trialDays) : null,
             ]);
         });
 
@@ -79,17 +92,32 @@ final class PaidSubscriptionStrategy implements SubscriptionCreationStrategy
     }
 
     /**
-     * @return object{stripe_id: string, stripe_status: string}
+     * @return object{id: string, status: string}
      */
-    private function createStripeSubscription(CreateSubscriptionDTO $dto, Tenant $tenant, string $priceId): object
-    {
-        $stripeSubscriptionBuilder = $tenant->newSubscription(SubscriptionType::Default->value, $priceId);
+    private function createStripeSubscription(
+        CreateSubscriptionDTO $dto,
+        Tenant $tenant,
+        string $priceId,
+        int $trialDays,
+        string $defaultPaymentMethodId,
+    ): object {
+        $payload = [
+            'customer' => (string) $tenant->stripe_id,
+            'items' => [
+                ['price' => $priceId],
+            ],
+            'default_payment_method' => $defaultPaymentMethodId,
+        ];
 
         if ($dto->startTrial) {
-            $stripeSubscriptionBuilder->trialDays((int) config('subscription.trial_days'));
+            $payload['trial_period_days'] = $trialDays;
         }
 
-        return $stripeSubscriptionBuilder->create($dto->paymentMethodId);
+        try {
+            return $tenant->stripe()->subscriptions->create($payload);
+        } catch (Throwable $exception) {
+            throw SubscriptionException::stripeError($exception->getMessage());
+        }
     }
 
     private function sendTrialNotification(CreateSubscriptionDTO $dto, Tenant $tenant, Plan $plan): void

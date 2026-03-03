@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Dashboard;
 
 use App\Contracts\Repositories\SubscriptionRepository;
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\SubscriptionServiceContract;
 use App\Models\Tenant;
 
@@ -13,6 +14,7 @@ final class GetDashboardSubscriptionContextAction
     public function __construct(
         private readonly SubscriptionServiceContract $subscriptionService,
         private readonly SubscriptionRepository $subscriptions,
+        private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
     ) {}
 
     /**
@@ -58,7 +60,7 @@ final class GetDashboardSubscriptionContextAction
                 'upgrade_endpoint' => '/api/subscriptions/upgrade',
                 'default_billing_cycle' => $subscription !== null ? $subscription->billing_cycle : 'monthly',
                 'requires_default_payment_method' => $isFreeSubscription,
-                'has_default_payment_method' => $tenant->hasDefaultPaymentMethod(),
+                'has_default_payment_method' => $this->paymentMethodGuard->hasLiveDefaultPaymentMethod($tenant),
             ],
         ];
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Webhooks;
 
+use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Http\Controllers\Webhooks\StripeWebhookController;
 use App\Jobs\Subscription\HandlePaymentFailedJob;
 use App\Jobs\Subscription\HandleSubscriptionCanceledJob;
@@ -11,6 +12,7 @@ use App\Jobs\Subscription\HandleSubscriptionUpdatedJob;
 use App\Models\Invoice;
 use App\Models\Plan;
 use App\Models\Subscription;
+use App\Models\Tenant;
 use App\Notifications\TrialEndingNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -275,6 +277,67 @@ final class StripeWebhookTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
+    public function test_payment_method_detached_clears_tenant_payment_snapshot_when_no_live_default_exists(): void
+    {
+        $this->tenant->update([
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->expects($this->once())
+            ->method('hasLiveDefaultPaymentMethod')
+            ->with($this->callback(static fn (Tenant $tenant): bool => $tenant->id > 0))
+            ->willReturn(false);
+
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
+        $controller = app(StripeWebhookController::class);
+
+        $payload = $this->createWebhookPayload('payment_method.detached', [
+            'id' => 'pm_'.fake()->regexify('[A-Za-z0-9]{24}'),
+            'customer' => $this->tenant->stripe_id,
+            'type' => 'card',
+        ]);
+
+        $response = $this->invokeProtectedMethod('handlePaymentMethodDetached', $payload, $controller);
+
+        $this->assertEquals(200, $response->getStatusCode());
+
+        $this->tenant->refresh();
+        $this->assertNull($this->tenant->pm_type);
+        $this->assertNull($this->tenant->pm_last_four);
+    }
+
+    public function test_payment_method_detached_keeps_snapshot_when_live_default_exists(): void
+    {
+        $this->tenant->update([
+            'pm_type' => 'card',
+            'pm_last_four' => '4242',
+        ]);
+
+        $guard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $guard->expects($this->once())
+            ->method('hasLiveDefaultPaymentMethod')
+            ->willReturn(true);
+
+        $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
+        $controller = app(StripeWebhookController::class);
+
+        $payload = $this->createWebhookPayload('payment_method.detached', [
+            'id' => 'pm_'.fake()->regexify('[A-Za-z0-9]{24}'),
+            'customer' => $this->tenant->stripe_id,
+            'type' => 'card',
+        ]);
+
+        $response = $this->invokeProtectedMethod('handlePaymentMethodDetached', $payload, $controller);
+
+        $this->assertEquals(200, $response->getStatusCode());
+
+        $this->tenant->refresh();
+        $this->assertSame('card', $this->tenant->pm_type);
+        $this->assertSame('4242', $this->tenant->pm_last_four);
+    }
+
     public function test_charge_refunded_voids_invoice(): void
     {
         $subscription = Subscription::factory()->forTenant($this->tenant)->forPlan($this->smartPlan)->create();
@@ -344,10 +407,14 @@ final class StripeWebhookTest extends TestCase
      *
      * @param  array<string, mixed>  $payload
      */
-    private function invokeProtectedMethod(string $method, array $payload): \Symfony\Component\HttpFoundation\Response
-    {
-        $reflection = new ReflectionMethod($this->controller, $method);
+    private function invokeProtectedMethod(
+        string $method,
+        array $payload,
+        ?StripeWebhookController $controller = null,
+    ): \Symfony\Component\HttpFoundation\Response {
+        $targetController = $controller ?? $this->controller;
+        $reflection = new ReflectionMethod($targetController, $method);
 
-        return $reflection->invoke($this->controller, $payload);
+        return $reflection->invoke($targetController, $payload);
     }
 }
