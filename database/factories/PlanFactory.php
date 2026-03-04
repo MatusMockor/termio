@@ -50,7 +50,6 @@ final class PlanFactory extends Factory
                 'users' => 1,
                 'locations' => 1,
                 'services' => 10,
-                'sms_credits_per_month' => 0,
             ],
         ]);
     }
@@ -64,7 +63,6 @@ final class PlanFactory extends Factory
             'yearly_price' => 449.00,
             'features' => array_merge($this->defaultFeatures(), [
                 'white_label' => true,
-                'sms_reminders' => true,
                 'api_access' => true,
             ]),
             'limits' => [
@@ -72,7 +70,6 @@ final class PlanFactory extends Factory
                 'users' => -1,
                 'locations' => -1,
                 'services' => -1,
-                'sms_credits_per_month' => -1,
             ],
         ]);
     }
@@ -103,7 +100,6 @@ final class PlanFactory extends Factory
             'client_database' => 'basic',
             'email_confirmations' => true,
             'email_reminders' => true,
-            'sms_reminders' => false,
             'custom_logo' => false,
             'custom_colors' => false,
             'custom_booking_url' => false,
@@ -133,7 +129,6 @@ final class PlanFactory extends Factory
             'users' => 1,
             'locations' => 1,
             'services' => 10,
-            'sms_credits_per_month' => 0,
         ];
     }
 }

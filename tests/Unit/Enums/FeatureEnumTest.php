@@ -50,7 +50,7 @@ final class FeatureEnumTest extends TestCase
     {
         $this->assertEquals('integrations', Feature::GoogleCalendarSync->getCategory());
         $this->assertEquals('customization', Feature::CustomLogo->getCategory());
-        $this->assertEquals('notifications', Feature::SmsReminders->getCategory());
+        $this->assertEquals('notifications', Feature::EmailReminders->getCategory());
         $this->assertEquals('advanced_features', Feature::StaffPermissions->getCategory());
     }
 
