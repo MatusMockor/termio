@@ -28,7 +28,6 @@ enum Feature: string
     case GiftVouchers = 'gift_vouchers';
 
     // Notification features
-    case SmsReminders = 'sms_reminders';
     case EmailReminders = 'email_reminders';
 
     /**
@@ -54,8 +53,7 @@ enum Feature: string
             self::StaffPermissions,
             self::ClientSegmentation,
             self::WaitlistManagement,
-            self::GiftVouchers,
-            self::SmsReminders => 'smart',
+            self::GiftVouchers => 'smart',
 
             // PREMIUM tier features
             self::WhiteLabel => 'premium',
@@ -83,7 +81,6 @@ enum Feature: string
             self::WaitlistManagement => 'Waitlist Management',
             self::RecurringAppointments => 'Recurring Appointments',
             self::GiftVouchers => 'Gift Vouchers',
-            self::SmsReminders => 'SMS Reminders',
             self::EmailReminders => 'Email Reminders',
         };
     }
@@ -112,7 +109,6 @@ enum Feature: string
             self::RecurringAppointments,
             self::GiftVouchers => 'advanced_features',
 
-            self::SmsReminders,
             self::EmailReminders => 'notifications',
         };
     }
