@@ -49,6 +49,11 @@ final class UpdateBookingFieldRequest extends FormRequest
     public function getUpdateData(): array
     {
         $validated = $this->validated();
+        $nextType = $validated['type'] ?? $this->route('field')?->type?->value;
+
+        if ($nextType !== BookingFieldType::Select->value) {
+            $validated['options'] = null;
+        }
 
         if (array_key_exists('options', $validated)) {
             $validated['options'] = is_array($validated['options']) ? array_values($validated['options']) : null;
@@ -82,7 +87,7 @@ final class UpdateBookingFieldRequest extends FormRequest
 
                 if (
                     ($switchingToSelect && ! $optionsProvided)
-                    || ($optionsProvided && (! is_array($options) || $options === []))
+                    || ($optionsProvided && (! is_array($options) || ! $options))
                 ) {
                     $validator->errors()->add('options', 'Options are required for select fields.');
                 }

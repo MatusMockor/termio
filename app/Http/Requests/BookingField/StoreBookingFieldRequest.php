@@ -91,7 +91,7 @@ final class StoreBookingFieldRequest extends FormRequest
 
     public function withValidator(Validator $validator): void
     {
-        $validator->after(function (Validator $validator): void {
+        $validator->after(static function (Validator $validator): void {
             /** @var array<string, mixed> $data */
             $data = $validator->safe()->all();
             $type = $data['type'] ?? null;
@@ -99,7 +99,7 @@ final class StoreBookingFieldRequest extends FormRequest
 
             if (
                 $type === BookingFieldType::Select->value
-                && (! is_array($options) || $options === [])
+                && (! is_array($options) || ! $options)
             ) {
                 $validator->errors()->add('options', 'Options are required for select fields.');
 
