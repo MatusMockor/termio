@@ -49,17 +49,73 @@ final class UpdateBookingFieldRequest extends FormRequest
     public function getUpdateData(): array
     {
         $validated = $this->validated();
-        $nextType = $validated['type'] ?? $this->route('field')?->type?->value;
+        $type = $this->getType();
+        $nextType = $type !== null ? $type->value : $this->route('field')?->type?->value;
 
         if ($nextType !== BookingFieldType::Select->value) {
             $validated['options'] = null;
         }
 
         if (array_key_exists('options', $validated)) {
-            $validated['options'] = is_array($validated['options']) ? array_values($validated['options']) : null;
+            $validated['options'] = $this->normalizeOptions($validated['options'] ?? null);
         }
 
         return $validated;
+    }
+
+    public function getKey(): ?string
+    {
+        $value = $this->validated('key');
+
+        return is_string($value) ? $value : null;
+    }
+
+    public function getLabel(): ?string
+    {
+        $value = $this->validated('label');
+
+        return is_string($value) ? $value : null;
+    }
+
+    public function getType(): ?BookingFieldType
+    {
+        $value = $this->validated('type');
+
+        return is_string($value) ? BookingFieldType::from($value) : null;
+    }
+
+    /**
+     * @return array<int, string>|null
+     */
+    public function getOptions(): ?array
+    {
+        return $this->normalizeOptions($this->validated('options'));
+    }
+
+    public function hasOptions(): bool
+    {
+        return $this->exists('options');
+    }
+
+    public function isRequired(): ?bool
+    {
+        $value = $this->validated('is_required');
+
+        return $value !== null ? (bool) $value : null;
+    }
+
+    public function isActive(): ?bool
+    {
+        $value = $this->validated('is_active');
+
+        return $value !== null ? (bool) $value : null;
+    }
+
+    public function getSortOrder(): ?int
+    {
+        $value = $this->validated('sort_order');
+
+        return $value !== null ? (int) $value : null;
     }
 
     /**
@@ -117,5 +173,13 @@ final class UpdateBookingFieldRequest extends FormRequest
         }
 
         return $tenantId;
+    }
+
+    /**
+     * @return array<int, string>|null
+     */
+    private function normalizeOptions(mixed $options): ?array
+    {
+        return is_array($options) ? array_values($options) : null;
     }
 }
