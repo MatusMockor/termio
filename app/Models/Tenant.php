@@ -46,8 +46,12 @@ use Laravel\Cashier\PaymentMethod as CashierPaymentMethod;
  * @property-read User|null $owner
  * @property-read Collection<int, User> $users
  * @property-read Collection<int, Service> $services
+ * @property-read Collection<int, ServiceCategory> $serviceCategories
+ * @property-read Collection<int, BookingField> $bookingFields
  * @property-read Collection<int, Client> $clients
  * @property-read Collection<int, Appointment> $appointments
+ * @property-read Collection<int, WaitlistEntry> $waitlistEntries
+ * @property-read Collection<int, Voucher> $vouchers
  * @property-read Collection<int, WorkingHours> $workingHours
  * @property-read Subscription|null $localSubscription
  * @property-read Collection<int, Invoice> $invoices
@@ -127,6 +131,22 @@ final class Tenant extends Model
     }
 
     /**
+     * @return HasMany<ServiceCategory, $this>
+     */
+    public function serviceCategories(): HasMany
+    {
+        return $this->hasMany(ServiceCategory::class);
+    }
+
+    /**
+     * @return HasMany<BookingField, $this>
+     */
+    public function bookingFields(): HasMany
+    {
+        return $this->hasMany(BookingField::class);
+    }
+
+    /**
      * @return HasMany<Client, $this>
      */
     public function clients(): HasMany
@@ -140,6 +160,22 @@ final class Tenant extends Model
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class);
+    }
+
+    /**
+     * @return HasMany<WaitlistEntry, $this>
+     */
+    public function waitlistEntries(): HasMany
+    {
+        return $this->hasMany(WaitlistEntry::class);
+    }
+
+    /**
+     * @return HasMany<Voucher, $this>
+     */
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class);
     }
 
     /**

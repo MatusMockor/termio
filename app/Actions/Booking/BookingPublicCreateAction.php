@@ -14,6 +14,10 @@ use App\Models\Tenant;
 use App\Notifications\BookingConfirmed;
 use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
+use App\Services\Booking\Fields\BookingFieldResolverService;
+use App\Services\Booking\Fields\BookingFieldValidationService;
+use App\Services\Voucher\VoucherLedgerService;
+use App\Services\Voucher\VoucherValidationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -25,6 +29,10 @@ final class BookingPublicCreateAction
         private readonly ServiceRepository $serviceRepository,
         private readonly AppointmentDurationService $durationService,
         private readonly WorkingHoursBusiness $workingHoursBusiness,
+        private readonly BookingFieldResolverService $bookingFieldResolver,
+        private readonly BookingFieldValidationService $bookingFieldValidation,
+        private readonly VoucherValidationService $voucherValidationService,
+        private readonly VoucherLedgerService $voucherLedgerService,
     ) {}
 
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
@@ -34,9 +42,17 @@ final class BookingPublicCreateAction
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
         $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
         $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
+        $effectiveFields = $this->bookingFieldResolver->resolveForService($tenant, $service);
+        $this->bookingFieldValidation->validate($dto->customFields, $effectiveFields);
 
         $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
             $client = $this->findOrCreateClient($dto, $tenant);
+            $servicePrice = (float) $service->price;
+            $voucher = null;
+
+            if ($dto->voucherCode !== null) {
+                $voucher = $this->voucherValidationService->findRedeemableVoucher($tenant, $dto->voucherCode);
+            }
 
             $appointment = $this->appointmentRepository->create([
                 'tenant_id' => $tenant->id,
@@ -46,9 +62,27 @@ final class BookingPublicCreateAction
                 'starts_at' => $times['starts_at'],
                 'ends_at' => $times['ends_at'],
                 'notes' => $dto->notes,
+                'custom_fields' => $dto->customFields !== [] ? $dto->customFields : null,
+                'service_price_snapshot' => $servicePrice,
+                'voucher_discount_amount' => 0,
+                'final_amount_due' => $servicePrice,
                 'status' => 'pending',
                 'source' => 'online',
             ]);
+
+            if ($voucher !== null) {
+                $discountAmount = $this->voucherLedgerService->redeemForAppointment(
+                    $voucher,
+                    $appointment,
+                    $servicePrice,
+                );
+
+                $appointment = $this->appointmentRepository->update($appointment, [
+                    'voucher_id' => $voucher->id,
+                    'voucher_discount_amount' => $discountAmount,
+                    'final_amount_due' => round(max(0, $servicePrice - $discountAmount), 2),
+                ]);
+            }
 
             return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
         });

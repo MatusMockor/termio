@@ -7,11 +7,14 @@ namespace App\Actions\Appointment;
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Models\Appointment;
 use App\Notifications\AppointmentCancelled;
+use App\Services\Voucher\VoucherLedgerService;
+use Illuminate\Support\Facades\DB;
 
 final class AppointmentCancelAction
 {
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,
+        private readonly VoucherLedgerService $voucherLedgerService,
     ) {}
 
     public function handle(Appointment $appointment, ?string $reason = null): Appointment
@@ -19,10 +22,14 @@ final class AppointmentCancelAction
         $cancelReason = $reason ?? 'No reason provided';
         $notes = $appointment->notes."\n[Cancelled: ".$cancelReason.']';
 
-        $this->appointmentRepository->update($appointment, [
-            'status' => 'cancelled',
-            'notes' => $notes,
-        ]);
+        DB::transaction(function () use ($appointment, $notes): void {
+            $updatedAppointment = $this->appointmentRepository->update($appointment, [
+                'status' => 'cancelled',
+                'notes' => $notes,
+            ]);
+
+            $this->voucherLedgerService->restoreForCancelledAppointment($updatedAppointment);
+        });
 
         $appointment = $appointment->fresh(['client', 'service', 'staff', 'tenant']);
 

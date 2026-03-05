@@ -32,9 +32,14 @@ final class AppointmentFactory extends Factory
         $durationMinutes = fake()->randomElement([30, 45, 60, 90]);
 
         return [
+            'voucher_id' => null,
             'starts_at' => $startsAt,
             'ends_at' => $startsAt->copy()->addMinutes($durationMinutes),
             'notes' => fake()->optional()->sentence(),
+            'custom_fields' => null,
+            'service_price_snapshot' => null,
+            'voucher_discount_amount' => 0.00,
+            'final_amount_due' => null,
             'status' => 'pending',
             'source' => 'manual',
         ];

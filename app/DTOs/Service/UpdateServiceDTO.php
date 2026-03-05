@@ -12,6 +12,8 @@ final readonly class UpdateServiceDTO
         public ?int $durationMinutes,
         public ?float $price,
         public ?string $category,
+        public ?int $categoryId,
+        public ?int $priority,
         public ?bool $isActive,
         public ?bool $isBookableOnline,
     ) {}

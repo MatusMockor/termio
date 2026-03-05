@@ -24,6 +24,8 @@ final class ServiceCreateAction
             'duration_minutes' => $dto->durationMinutes,
             'price' => $dto->price,
             'category' => $dto->category,
+            'category_id' => $dto->categoryId,
+            'priority' => $dto->priority,
             'is_active' => $dto->isActive,
             'is_bookable_online' => $dto->isBookableOnline,
             'sort_order' => $maxOrder + 1,

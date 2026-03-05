@@ -24,8 +24,11 @@ enum Feature: string
     case StaffPermissions = 'staff_permissions';
     case ClientSegmentation = 'client_segmentation';
     case WaitlistManagement = 'waitlist_management';
+    case ReservationReplacements = 'reservation_replacements';
     case RecurringAppointments = 'recurring_appointments';
     case GiftVouchers = 'gift_vouchers';
+    case CustomBookingFields = 'custom_booking_fields';
+    case ServiceTaxonomyPriority = 'service_taxonomy_priority';
 
     // Notification features
     case EmailReminders = 'email_reminders';
@@ -53,7 +56,11 @@ enum Feature: string
             self::StaffPermissions,
             self::ClientSegmentation,
             self::WaitlistManagement,
+            self::ReservationReplacements,
             self::GiftVouchers => 'smart',
+
+            self::CustomBookingFields,
+            self::ServiceTaxonomyPriority => 'easy',
 
             // PREMIUM tier features
             self::WhiteLabel => 'premium',
@@ -79,8 +86,11 @@ enum Feature: string
             self::StaffPermissions => 'Staff Permissions',
             self::ClientSegmentation => 'Client Segmentation',
             self::WaitlistManagement => 'Waitlist Management',
+            self::ReservationReplacements => 'Reservation Replacements',
             self::RecurringAppointments => 'Recurring Appointments',
             self::GiftVouchers => 'Gift Vouchers',
+            self::CustomBookingFields => 'Custom Booking Fields',
+            self::ServiceTaxonomyPriority => 'Service Taxonomy & Priority',
             self::EmailReminders => 'Email Reminders',
         };
     }
@@ -106,8 +116,11 @@ enum Feature: string
             self::StaffPermissions,
             self::ClientSegmentation,
             self::WaitlistManagement,
+            self::ReservationReplacements,
             self::RecurringAppointments,
-            self::GiftVouchers => 'advanced_features',
+            self::GiftVouchers,
+            self::CustomBookingFields,
+            self::ServiceTaxonomyPriority => 'advanced_features',
 
             self::EmailReminders => 'notifications',
         };

@@ -58,12 +58,14 @@ final class PublicBookingReadService implements PublicBookingRead
     {
         $tenant = $this->getTenantBySlug($tenantSlug);
 
-        return Service::withoutTenantScope()
-            ->where('tenant_id', $tenant->id)
+        $query = Service::withoutTenantScope()
+            ->where('services.tenant_id', $tenant->id)
             ->active()
-            ->bookableOnline()
-            ->ordered()
-            ->get(['id', 'name', 'description', 'duration_minutes', 'price', 'category']);
+            ->bookableOnline();
+
+        $this->applyPublicServiceOrdering($query);
+
+        return $query->get(['services.id', 'services.name', 'services.description', 'services.duration_minutes', 'services.price', 'services.category']);
     }
 
     /**
@@ -96,11 +98,14 @@ final class PublicBookingReadService implements PublicBookingRead
             ->where('tenant_id', $tenant->id)
             ->findOrFail($staffId);
 
-        return $staffProfile->services()
+        $query = $staffProfile->services()
             ->active()
             ->bookableOnline()
-            ->ordered()
-            ->get(['services.id', 'name', 'description', 'duration_minutes', 'price', 'category']);
+            ->select('services.*');
+
+        $this->applyPublicServiceOrdering($query);
+
+        return $query->get(['services.id', 'services.name', 'services.description', 'services.duration_minutes', 'services.price', 'services.category']);
     }
 
     /**
@@ -186,6 +191,21 @@ final class PublicBookingReadService implements PublicBookingRead
             ->forService($serviceId)
             ->pluck('id')
             ->toArray();
+    }
+
+    /**
+     * @param  Builder<Service>|\Illuminate\Database\Eloquent\Relations\BelongsToMany<Service, StaffProfile>  $query
+     */
+    private function applyPublicServiceOrdering(Builder|\Illuminate\Database\Eloquent\Relations\BelongsToMany $query): void
+    {
+        $query
+            ->leftJoin('service_categories as service_category', 'services.category_id', '=', 'service_category.id')
+            ->orderByRaw('COALESCE(service_category.priority, 0) DESC')
+            ->orderByRaw('COALESCE(service_category.sort_order, 2147483647) ASC')
+            ->orderByDesc('services.priority')
+            ->orderBy('services.sort_order')
+            ->orderBy('services.name')
+            ->select('services.*');
     }
 
     /**

@@ -14,5 +14,8 @@ final readonly class CreatePublicBookingDTO
         public string $clientPhone,
         public string $clientEmail,
         public ?string $notes,
+        /** @var array<string, mixed> */
+        public array $customFields,
+        public ?string $voucherCode,
     ) {}
 }

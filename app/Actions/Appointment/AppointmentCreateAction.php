@@ -22,6 +22,7 @@ final class AppointmentCreateAction
     public function handle(CreateAppointmentDTO $dto): Appointment
     {
         $service = $this->serviceRepository->findOrFail($dto->serviceId);
+        $servicePrice = (float) $service->price;
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
 
         $appointment = $this->appointmentRepository->create([
@@ -31,6 +32,9 @@ final class AppointmentCreateAction
             'starts_at' => $times['starts_at'],
             'ends_at' => $times['ends_at'],
             'notes' => $dto->notes,
+            'service_price_snapshot' => $servicePrice,
+            'voucher_discount_amount' => 0,
+            'final_amount_due' => $servicePrice,
             'status' => $dto->status,
             'source' => $dto->source,
         ]);
