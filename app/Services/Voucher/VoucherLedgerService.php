@@ -16,7 +16,7 @@ final class VoucherLedgerService
     public function issue(Voucher $voucher, ?int $createdByUserId = null): void
     {
         $this->transaction(function () use ($voucher, $createdByUserId): void {
-            $lockedVoucher = $this->lockVoucher($voucher->id);
+            $lockedVoucher = $this->lockVoucher($voucher->id, (int) $voucher->tenant_id);
 
             if ($lockedVoucher === null) {
                 return;
@@ -47,7 +47,7 @@ final class VoucherLedgerService
         ?int $createdByUserId = null,
     ): float {
         return $this->transaction(function () use ($voucher, $appointment, $servicePrice, $createdByUserId): float {
-            $lockedVoucher = $this->lockVoucher($voucher->id);
+            $lockedVoucher = $this->lockVoucher($voucher->id, (int) $voucher->tenant_id);
 
             if ($lockedVoucher === null) {
                 throw ValidationException::withMessages([
@@ -98,7 +98,7 @@ final class VoucherLedgerService
         }
 
         $this->transaction(function () use ($appointment, $discountAmount, $createdByUserId): void {
-            $lockedVoucher = $this->lockVoucher((int) $appointment->voucher_id);
+            $lockedVoucher = $this->lockVoucher((int) $appointment->voucher_id, (int) $appointment->tenant_id);
 
             if ($lockedVoucher === null) {
                 return;
@@ -152,7 +152,7 @@ final class VoucherLedgerService
         }
 
         return $this->transaction(function () use ($voucher, $amountInCents, $createdByUserId, $reason): Voucher {
-            $lockedVoucher = $this->lockVoucher($voucher->id);
+            $lockedVoucher = $this->lockVoucher($voucher->id, (int) $voucher->tenant_id);
 
             if ($lockedVoucher === null) {
                 throw ValidationException::withMessages([
@@ -200,10 +200,11 @@ final class VoucherLedgerService
         return $connection->transaction($callback);
     }
 
-    private function lockVoucher(int $voucherId): ?Voucher
+    private function lockVoucher(int $voucherId, int $tenantId): ?Voucher
     {
         return Voucher::withoutTenantScope()
             ->whereKey($voucherId)
+            ->where('tenant_id', $tenantId)
             ->lockForUpdate()
             ->first();
     }
@@ -277,8 +278,8 @@ final class VoucherLedgerService
         $isNegative = str_starts_with($normalized, '-');
         $normalized = ltrim($normalized, '-');
         [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '');
-        $wholeDigits = preg_replace('/\D/', '', $whole);
-        $fractionDigits = preg_replace('/\D/', '', $fraction);
+        $wholeDigits = preg_replace('/\D/', '', $whole) ?? '';
+        $fractionDigits = preg_replace('/\D/', '', $fraction) ?? '';
 
         $wholeValue = (int) ($wholeDigits !== '' ? $wholeDigits : '0');
         $fractionValue = (int) str_pad(substr($fractionDigits, 0, 2), 2, '0');

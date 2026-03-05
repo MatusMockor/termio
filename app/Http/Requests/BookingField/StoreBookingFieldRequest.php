@@ -97,7 +97,10 @@ final class StoreBookingFieldRequest extends FormRequest
             $type = $data['type'] ?? null;
             $options = $data['options'] ?? null;
 
-            if ($type === BookingFieldType::Select->value && ! is_array($options)) {
+            if (
+                $type === BookingFieldType::Select->value
+                && (! is_array($options) || $options === [])
+            ) {
                 $validator->errors()->add('options', 'Options are required for select fields.');
 
                 return;
