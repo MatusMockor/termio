@@ -13,6 +13,7 @@ use App\Models\Voucher;
 use App\Services\Voucher\VoucherLedgerService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class VoucherController extends ApiController
@@ -29,21 +30,26 @@ final class VoucherController extends ApiController
         $tenant = $this->resolveTenantOrFail($request);
         $payload = $request->getVoucherData();
         $initialAmount = (float) $payload['initial_amount'];
+        $issuerId = $request->user()?->id;
 
-        $voucher = Voucher::create([
-            'tenant_id' => $tenant->id,
-            'code' => $this->resolveCode($tenant->id, $payload['code']),
-            'initial_amount' => $initialAmount,
-            'balance_amount' => $initialAmount,
-            'currency' => $payload['currency'],
-            'expires_at' => $payload['expires_at'],
-            'status' => $payload['status'],
-            'issued_to_name' => $payload['issued_to_name'],
-            'issued_to_email' => $payload['issued_to_email'],
-            'note' => $payload['note'],
-        ]);
+        $voucher = DB::transaction(function () use ($tenant, $payload, $initialAmount, $issuerId, $ledgerService): Voucher {
+            $voucher = Voucher::create([
+                'tenant_id' => $tenant->id,
+                'code' => $this->resolveCode($tenant->id, $payload['code']),
+                'initial_amount' => $initialAmount,
+                'balance_amount' => $initialAmount,
+                'currency' => $payload['currency'],
+                'expires_at' => $payload['expires_at'],
+                'status' => $payload['status'],
+                'issued_to_name' => $payload['issued_to_name'],
+                'issued_to_email' => $payload['issued_to_email'],
+                'note' => $payload['note'],
+            ]);
 
-        $ledgerService->issue($voucher, $request->user()?->id);
+            $ledgerService->issue($voucher, $issuerId);
+
+            return $voucher;
+        });
 
         return new VoucherResource($voucher);
     }
@@ -73,7 +79,7 @@ final class VoucherController extends ApiController
 
         $updated = $ledgerService->adjustBalance(
             $voucher,
-            $request->getAmount(),
+            $request->getAmountInCents(),
             $request->user()?->id,
             $request->getReason(),
         );

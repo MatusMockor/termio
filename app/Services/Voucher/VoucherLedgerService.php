@@ -8,28 +8,36 @@ use App\Enums\VoucherTransactionType;
 use App\Models\Appointment;
 use App\Models\Voucher;
 use App\Models\VoucherTransaction;
-use Illuminate\Support\Facades\DB;
+use Closure;
 use Illuminate\Validation\ValidationException;
 
 final class VoucherLedgerService
 {
     public function issue(Voucher $voucher, ?int $createdByUserId = null): void
     {
-        $alreadyIssued = VoucherTransaction::where('voucher_id', $voucher->id)
-            ->where('type', VoucherTransactionType::Issue->value)
-            ->exists();
+        $this->transaction(function () use ($voucher, $createdByUserId): void {
+            $lockedVoucher = $this->lockVoucher($voucher->id);
 
-        if ($alreadyIssued) {
-            return;
-        }
+            if ($lockedVoucher === null) {
+                return;
+            }
 
-        VoucherTransaction::create([
-            'voucher_id' => $voucher->id,
-            'type' => VoucherTransactionType::Issue->value,
-            'amount' => $voucher->initial_amount,
-            'metadata' => null,
-            'created_by_user_id' => $createdByUserId,
-        ]);
+            $alreadyIssued = VoucherTransaction::where('voucher_id', $lockedVoucher->id)
+                ->where('type', VoucherTransactionType::Issue->value)
+                ->exists();
+
+            if ($alreadyIssued) {
+                return;
+            }
+
+            VoucherTransaction::create([
+                'voucher_id' => $lockedVoucher->id,
+                'type' => VoucherTransactionType::Issue->value,
+                'amount' => $lockedVoucher->initial_amount,
+                'metadata' => null,
+                'created_by_user_id' => $createdByUserId,
+            ]);
+        });
     }
 
     public function redeemForAppointment(
@@ -38,8 +46,16 @@ final class VoucherLedgerService
         float $servicePrice,
         ?int $createdByUserId = null,
     ): float {
-        return DB::transaction(function () use ($voucher, $appointment, $servicePrice, $createdByUserId): float {
-            $existing = VoucherTransaction::where('voucher_id', $voucher->id)
+        return $this->transaction(function () use ($voucher, $appointment, $servicePrice, $createdByUserId): float {
+            $lockedVoucher = $this->lockVoucher($voucher->id);
+
+            if ($lockedVoucher === null) {
+                throw ValidationException::withMessages([
+                    'voucher_code' => ['Voucher is unavailable.'],
+                ]);
+            }
+
+            $existing = VoucherTransaction::where('voucher_id', $lockedVoucher->id)
                 ->where('appointment_id', $appointment->id)
                 ->where('type', VoucherTransactionType::Redeem->value)
                 ->first();
@@ -48,35 +64,41 @@ final class VoucherLedgerService
                 return (float) $existing->amount;
             }
 
-            if (! $voucher->isRedeemable()) {
+            if (! $lockedVoucher->isRedeemable()) {
                 throw ValidationException::withMessages([
                     'voucher_code' => ['Voucher is inactive, expired or has no remaining balance.'],
                 ]);
             }
 
-            $discount = round(min((float) $voucher->balance_amount, $servicePrice), 2);
+            $availableBalanceInCents = $this->toCents($lockedVoucher->balance_amount);
+            $servicePriceInCents = $this->toCents($servicePrice);
+            $discountInCents = min($availableBalanceInCents, $servicePriceInCents);
 
-            if ($discount <= 0) {
+            if ($discountInCents <= 0) {
                 throw ValidationException::withMessages([
                     'voucher_code' => ['Voucher has no remaining balance.'],
                 ]);
             }
 
-            $newBalance = round(max(0, (float) $voucher->balance_amount - $discount), 2);
-            $voucher->update(['balance_amount' => $newBalance]);
+            $newBalanceInCents = max(0, $availableBalanceInCents - $discountInCents);
+            $discountAmount = $this->fromCents($discountInCents);
+
+            $lockedVoucher->update([
+                'balance_amount' => $this->fromCents($newBalanceInCents),
+            ]);
 
             VoucherTransaction::create([
-                'voucher_id' => $voucher->id,
+                'voucher_id' => $lockedVoucher->id,
                 'appointment_id' => $appointment->id,
                 'type' => VoucherTransactionType::Redeem->value,
-                'amount' => $discount,
+                'amount' => $discountAmount,
                 'metadata' => [
-                    'service_price' => $servicePrice,
+                    'service_price' => $this->fromCents($servicePriceInCents),
                 ],
                 'created_by_user_id' => $createdByUserId,
             ]);
 
-            return $discount;
+            return (float) $discountAmount;
         });
     }
 
@@ -92,14 +114,14 @@ final class VoucherLedgerService
             return;
         }
 
-        DB::transaction(function () use ($appointment, $discountAmount, $createdByUserId): void {
-            $voucher = Voucher::find($appointment->voucher_id);
+        $this->transaction(function () use ($appointment, $discountAmount, $createdByUserId): void {
+            $lockedVoucher = $this->lockVoucher((int) $appointment->voucher_id);
 
-            if ($voucher === null) {
+            if ($lockedVoucher === null) {
                 return;
             }
 
-            $hasRedeemTransaction = VoucherTransaction::where('voucher_id', $voucher->id)
+            $hasRedeemTransaction = VoucherTransaction::where('voucher_id', $lockedVoucher->id)
                 ->where('appointment_id', $appointment->id)
                 ->where('type', VoucherTransactionType::Redeem->value)
                 ->exists();
@@ -108,7 +130,7 @@ final class VoucherLedgerService
                 return;
             }
 
-            $hasRestoreTransaction = VoucherTransaction::where('voucher_id', $voucher->id)
+            $hasRestoreTransaction = VoucherTransaction::where('voucher_id', $lockedVoucher->id)
                 ->where('appointment_id', $appointment->id)
                 ->where('type', VoucherTransactionType::Restore->value)
                 ->exists();
@@ -117,15 +139,17 @@ final class VoucherLedgerService
                 return;
             }
 
-            $voucher->update([
-                'balance_amount' => round((float) $voucher->balance_amount + $discountAmount, 2),
+            $newBalanceInCents = $this->toCents($lockedVoucher->balance_amount) + $this->toCents($discountAmount);
+
+            $lockedVoucher->update([
+                'balance_amount' => $this->fromCents($newBalanceInCents),
             ]);
 
             VoucherTransaction::create([
-                'voucher_id' => $voucher->id,
+                'voucher_id' => $lockedVoucher->id,
                 'appointment_id' => $appointment->id,
                 'type' => VoucherTransactionType::Restore->value,
-                'amount' => $discountAmount,
+                'amount' => $this->fromCents($this->toCents($discountAmount)),
                 'metadata' => null,
                 'created_by_user_id' => $createdByUserId,
             ]);
@@ -134,38 +158,108 @@ final class VoucherLedgerService
 
     public function adjustBalance(
         Voucher $voucher,
-        float $amount,
+        int $amountInCents,
         ?int $createdByUserId = null,
         ?string $reason = null,
     ): Voucher {
-        if ($amount === 0.0) {
+        if ($amountInCents === 0) {
             throw ValidationException::withMessages([
                 'amount' => ['Adjustment amount must not be zero.'],
             ]);
         }
 
-        return DB::transaction(function () use ($voucher, $amount, $createdByUserId, $reason): Voucher {
-            $newBalance = round((float) $voucher->balance_amount + $amount, 2);
+        return $this->transaction(function () use ($voucher, $amountInCents, $createdByUserId, $reason): Voucher {
+            $lockedVoucher = $this->lockVoucher($voucher->id);
 
-            if ($newBalance < 0) {
+            if ($lockedVoucher === null) {
+                throw ValidationException::withMessages([
+                    'voucher' => ['Voucher not found.'],
+                ]);
+            }
+
+            $currentBalanceInCents = $this->toCents($lockedVoucher->balance_amount);
+            $newBalanceInCents = $currentBalanceInCents + $amountInCents;
+
+            if ($newBalanceInCents < 0) {
                 throw ValidationException::withMessages([
                     'amount' => ['Adjustment would make voucher balance negative.'],
                 ]);
             }
 
-            $voucher->update(['balance_amount' => $newBalance]);
+            $lockedVoucher->update([
+                'balance_amount' => $this->fromCents($newBalanceInCents),
+            ]);
 
             VoucherTransaction::create([
-                'voucher_id' => $voucher->id,
+                'voucher_id' => $lockedVoucher->id,
                 'type' => VoucherTransactionType::Adjust->value,
-                'amount' => $amount,
+                'amount' => $this->fromCents($amountInCents),
                 'metadata' => [
                     'reason' => $reason,
                 ],
                 'created_by_user_id' => $createdByUserId,
             ]);
 
-            return $voucher->refresh();
+            return $lockedVoucher->refresh();
         });
+    }
+
+    /**
+     * @template TReturn
+     *
+     * @param  Closure(): TReturn  $callback
+     * @return TReturn
+     */
+    private function transaction(Closure $callback): mixed
+    {
+        $connection = Voucher::resolveConnection((new Voucher)->getConnectionName());
+
+        return $connection->transaction($callback);
+    }
+
+    private function lockVoucher(int $voucherId): ?Voucher
+    {
+        return Voucher::withoutTenantScope()
+            ->whereKey($voucherId)
+            ->lockForUpdate()
+            ->first();
+    }
+
+    private function toCents(mixed $amount): int
+    {
+        if (is_int($amount)) {
+            return $amount * 100;
+        }
+
+        if (is_float($amount)) {
+            $amount = number_format($amount, 2, '.', '');
+        }
+
+        if (! is_string($amount)) {
+            return 0;
+        }
+
+        $normalized = str_replace(',', '.', trim($amount));
+        $isNegative = str_starts_with($normalized, '-');
+        $normalized = ltrim($normalized, '-');
+        [$whole, $fraction] = array_pad(explode('.', $normalized, 2), 2, '');
+        $wholeDigits = preg_replace('/\D/', '', $whole);
+        $fractionDigits = preg_replace('/\D/', '', $fraction);
+
+        $wholeValue = (int) ($wholeDigits !== '' ? $wholeDigits : '0');
+        $fractionValue = (int) str_pad(substr($fractionDigits, 0, 2), 2, '0');
+        $value = ($wholeValue * 100) + $fractionValue;
+
+        return $isNegative ? -$value : $value;
+    }
+
+    private function fromCents(int $amountInCents): string
+    {
+        $isNegative = $amountInCents < 0;
+        $absolute = abs($amountInCents);
+        $whole = intdiv($absolute, 100);
+        $fraction = str_pad((string) ($absolute % 100), 2, '0', STR_PAD_LEFT);
+
+        return ($isNegative ? '-' : '').$whole.'.'.$fraction;
     }
 }

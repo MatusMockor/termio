@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Appointment;
 
 use App\Contracts\Repositories\AppointmentRepository;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Notifications\AppointmentCancelled;
 use App\Services\Voucher\VoucherLedgerService;
@@ -24,7 +25,7 @@ final class AppointmentCancelAction
 
         DB::transaction(function () use ($appointment, $notes): void {
             $updatedAppointment = $this->appointmentRepository->update($appointment, [
-                'status' => 'cancelled',
+                'status' => AppointmentStatus::Cancelled->value,
                 'notes' => $notes,
             ]);
 

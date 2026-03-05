@@ -48,4 +48,16 @@ final class PublicStoreWaitlistEntryRequest extends FormRequest
 
         return $data;
     }
+
+    public function getServiceId(): int
+    {
+        return (int) $this->validated('service_id');
+    }
+
+    public function getPreferredStaffId(): ?int
+    {
+        $value = $this->validated('preferred_staff_id');
+
+        return $value !== null ? (int) $value : null;
+    }
 }

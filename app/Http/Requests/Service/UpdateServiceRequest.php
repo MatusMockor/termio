@@ -68,7 +68,7 @@ final class UpdateServiceRequest extends FormRequest
 
     public function hasCategoryId(): bool
     {
-        return $this->has('category_id');
+        return $this->exists('category_id');
     }
 
     public function getCategoryId(): ?int
@@ -80,7 +80,7 @@ final class UpdateServiceRequest extends FormRequest
 
     public function hasPriority(): bool
     {
-        return $this->has('priority');
+        return $this->exists('priority');
     }
 
     public function getPriority(): ?int
@@ -123,6 +123,10 @@ final class UpdateServiceRequest extends FormRequest
     {
         $tenantId = $this->user()?->tenant_id;
 
-        return is_int($tenantId) ? $tenantId : 0;
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
+
+        return $tenantId;
     }
 }

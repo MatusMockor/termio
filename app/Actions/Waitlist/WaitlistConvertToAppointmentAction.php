@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions\Waitlist;
 
 use App\Contracts\Repositories\AppointmentRepository;
+use App\Enums\AppointmentSource;
+use App\Enums\AppointmentStatus;
 use App\Enums\WaitlistEntryStatus;
 use App\Models\Appointment;
 use App\Models\Client;
@@ -55,8 +57,8 @@ final class WaitlistConvertToAppointmentAction
                 'starts_at' => $times['starts_at'],
                 'ends_at' => $times['ends_at'],
                 'notes' => $combinedNotes !== '' ? $combinedNotes : null,
-                'status' => 'confirmed',
-                'source' => 'manual',
+                'status' => AppointmentStatus::Confirmed->value,
+                'source' => AppointmentSource::Manual->value,
                 'service_price_snapshot' => $entry->service->price,
                 'voucher_discount_amount' => 0,
                 'final_amount_due' => $entry->service->price,
@@ -77,13 +79,13 @@ final class WaitlistConvertToAppointmentAction
     {
         if ($entry->status === WaitlistEntryStatus::Converted) {
             throw ValidationException::withMessages([
-                'waitlist_entry_id' => 'Waitlist entry was already converted.',
+                'waitlist_entry_id' => ['Waitlist entry was already converted.'],
             ]);
         }
 
         if ($entry->status === WaitlistEntryStatus::Cancelled) {
             throw ValidationException::withMessages([
-                'waitlist_entry_id' => 'Cancelled waitlist entry cannot be converted.',
+                'waitlist_entry_id' => ['Cancelled waitlist entry cannot be converted.'],
             ]);
         }
     }

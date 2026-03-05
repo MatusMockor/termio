@@ -15,6 +15,19 @@ final class BookingFieldValidationService
     public function validate(array $customFields, array $effectiveFields): void
     {
         $errors = [];
+        $allowedKeys = [];
+
+        foreach ($effectiveFields as $field) {
+            $allowedKeys[] = $field['key'];
+        }
+
+        foreach (array_keys($customFields) as $inputKey) {
+            if (in_array($inputKey, $allowedKeys, true)) {
+                continue;
+            }
+
+            $errors['custom_fields.'.$inputKey] = ['This field is not supported for the selected service.'];
+        }
 
         foreach ($effectiveFields as $field) {
             $key = $field['key'];

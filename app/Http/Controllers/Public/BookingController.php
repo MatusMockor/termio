@@ -19,6 +19,7 @@ use App\Models\StaffProfile;
 use App\Models\WaitlistEntry;
 use App\Services\Booking\Fields\BookingFieldResolverService;
 use App\Services\Voucher\VoucherValidationService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -154,10 +155,12 @@ final class BookingController extends Controller
     {
         $tenant = $this->bookingReadService->getTenantBySlug($tenantSlug);
         $payload = $request->getWaitlistData();
+        $serviceId = $request->getServiceId();
+        $preferredStaffId = $request->getPreferredStaffId();
 
         $serviceExists = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)
-            ->where('id', (int) $payload['service_id'])
+            ->where('id', $serviceId)
             ->exists();
 
         if (! $serviceExists) {
@@ -169,10 +172,13 @@ final class BookingController extends Controller
             ], 422);
         }
 
-        if (isset($payload['preferred_staff_id'])) {
+        if ($preferredStaffId !== null) {
             $staffExists = StaffProfile::withoutTenantScope()
                 ->where('tenant_id', $tenant->id)
-                ->where('id', (int) $payload['preferred_staff_id'])
+                ->where('id', $preferredStaffId)
+                ->whereHas('services', static function (Builder $query) use ($serviceId): void {
+                    $query->where('services.id', $serviceId);
+                })
                 ->exists();
 
             if (! $staffExists) {

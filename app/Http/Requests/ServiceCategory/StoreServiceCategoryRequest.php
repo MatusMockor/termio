@@ -63,6 +63,10 @@ final class StoreServiceCategoryRequest extends FormRequest
     {
         $tenantId = $this->user()?->tenant_id;
 
-        return is_int($tenantId) ? $tenantId : 0;
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
+
+        return $tenantId;
     }
 }

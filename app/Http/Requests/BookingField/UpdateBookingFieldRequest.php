@@ -8,6 +8,7 @@ use App\Enums\BookingFieldType;
 use App\Models\BookingField;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 final class UpdateBookingFieldRequest extends FormRequest
 {
@@ -66,12 +67,14 @@ final class UpdateBookingFieldRequest extends FormRequest
         ];
     }
 
-    public function withValidator($validator): void
+    public function withValidator(Validator $validator): void
     {
-        $validator->after(function ($validator): void {
-            $type = $this->input('type', $this->route('field')?->type?->value);
-            $optionsProvided = $this->exists('options');
-            $options = $this->input('options');
+        $validator->after(function (Validator $validator): void {
+            /** @var array<string, mixed> $data */
+            $data = $validator->safe()->all();
+            $type = $data['type'] ?? $this->route('field')?->type?->value;
+            $optionsProvided = array_key_exists('options', $data);
+            $options = $data['options'] ?? null;
 
             if ($type === BookingFieldType::Select->value && (! $optionsProvided || ! is_array($options))) {
                 $validator->errors()->add('options', 'Options are required for select fields.');
@@ -96,6 +99,10 @@ final class UpdateBookingFieldRequest extends FormRequest
     {
         $tenantId = $this->user()?->tenant_id;
 
-        return is_int($tenantId) ? $tenantId : 0;
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
+
+        return $tenantId;
     }
 }

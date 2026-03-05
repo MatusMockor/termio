@@ -24,6 +24,7 @@ final class ServiceCategoryFactory extends Factory
         $name = fake()->words(2, true);
 
         return [
+            'tenant_id' => Tenant::factory(),
             'name' => $name,
             'slug' => Str::slug($name).'-'.fake()->unique()->numberBetween(10, 9999),
             'parent_id' => null,
