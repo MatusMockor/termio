@@ -22,13 +22,13 @@ final class AppointmentReplaceFromWaitlistAction
     ): Appointment {
         if ($appointment->status !== AppointmentStatus::Cancelled->value) {
             throw ValidationException::withMessages([
-                'appointment' => 'Only cancelled appointments can be replaced from waitlist.',
+                'appointment' => ['Only cancelled appointments can be replaced from waitlist.'],
             ]);
         }
 
         if ($entry->service_id !== $appointment->service_id) {
             throw ValidationException::withMessages([
-                'waitlist_entry_id' => 'Waitlist entry service does not match cancelled appointment service.',
+                'waitlist_entry_id' => ['Waitlist entry service does not match cancelled appointment service.'],
             ]);
         }
 

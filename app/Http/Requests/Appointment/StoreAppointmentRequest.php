@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests\Appointment;
 
 use App\DTOs\Appointment\CreateAppointmentDTO;
+use App\Enums\AppointmentSource;
+use App\Enums\AppointmentStatus;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class StoreAppointmentRequest extends FormRequest
@@ -25,8 +27,8 @@ final class StoreAppointmentRequest extends FormRequest
             'staff_id' => ['nullable', 'exists:staff_profiles,id'],
             'starts_at' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
-            'status' => ['sometimes', 'in:pending,confirmed'],
-            'source' => ['sometimes', 'in:online,manual,phone'],
+            'status' => ['sometimes', 'in:'.implode(',', AppointmentStatus::values())],
+            'source' => ['sometimes', 'in:'.implode(',', AppointmentSource::values())],
         ];
     }
 
@@ -59,12 +61,12 @@ final class StoreAppointmentRequest extends FormRequest
 
     public function getStatus(): string
     {
-        return $this->validated('status') ?? 'confirmed';
+        return $this->validated('status') ?? AppointmentStatus::Confirmed->value;
     }
 
     public function getSource(): string
     {
-        return $this->validated('source') ?? 'manual';
+        return $this->validated('source') ?? AppointmentSource::Manual->value;
     }
 
     public function toDTO(): CreateAppointmentDTO

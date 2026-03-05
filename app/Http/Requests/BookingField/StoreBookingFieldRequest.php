@@ -7,6 +7,7 @@ namespace App\Http\Requests\BookingField;
 use App\Enums\BookingFieldType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 final class StoreBookingFieldRequest extends FormRequest
 {
@@ -88,11 +89,13 @@ final class StoreBookingFieldRequest extends FormRequest
         ];
     }
 
-    public function withValidator($validator): void
+    public function withValidator(Validator $validator): void
     {
-        $validator->after(function ($validator): void {
-            $type = $this->input('type');
-            $options = $this->input('options');
+        $validator->after(function (Validator $validator): void {
+            /** @var array<string, mixed> $data */
+            $data = $validator->safe()->all();
+            $type = $data['type'] ?? null;
+            $options = $data['options'] ?? null;
 
             if ($type === BookingFieldType::Select->value && ! is_array($options)) {
                 $validator->errors()->add('options', 'Options are required for select fields.');
@@ -110,6 +113,10 @@ final class StoreBookingFieldRequest extends FormRequest
     {
         $tenantId = $this->user()?->tenant_id;
 
-        return is_int($tenantId) ? $tenantId : 0;
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
+
+        return $tenantId;
     }
 }

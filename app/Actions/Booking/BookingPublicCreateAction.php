@@ -8,6 +8,8 @@ use App\Contracts\Repositories\AppointmentRepository;
 use App\Contracts\Repositories\ServiceRepository;
 use App\Contracts\Services\WorkingHoursBusiness;
 use App\DTOs\Booking\CreatePublicBookingDTO;
+use App\Enums\AppointmentSource;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Tenant;
@@ -66,8 +68,8 @@ final class BookingPublicCreateAction
                 'service_price_snapshot' => $servicePrice,
                 'voucher_discount_amount' => 0,
                 'final_amount_due' => $servicePrice,
-                'status' => 'pending',
-                'source' => 'online',
+                'status' => AppointmentStatus::Pending->value,
+                'source' => AppointmentSource::Online->value,
             ]);
 
             if ($voucher !== null) {

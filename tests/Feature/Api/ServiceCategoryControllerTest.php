@@ -25,26 +25,29 @@ final class ServiceCategoryControllerTest extends TestCase
 
     public function test_owner_can_crud_and_reorder_categories(): void
     {
+        $categoryName = fake()->words(2, true);
+        $updatedCategoryName = fake()->words(3, true);
+
         $response = $this->postJson(route('service-categories.store'), [
-            'name' => 'Hair',
+            'name' => $categoryName,
             'priority' => 50,
             'sort_order' => 10,
             'is_active' => true,
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('data.name', 'Hair')
+            ->assertJsonPath('data.name', $categoryName)
             ->assertJsonPath('data.priority', 50);
 
         $categoryId = (int) $response->json('data.id');
 
         $updateResponse = $this->putJson(route('service-categories.update', $categoryId), [
-            'name' => 'Hair Updated',
+            'name' => $updatedCategoryName,
             'sort_order' => 2,
         ]);
 
         $updateResponse->assertOk()
-            ->assertJsonPath('data.name', 'Hair Updated')
+            ->assertJsonPath('data.name', $updatedCategoryName)
             ->assertJsonPath('data.sort_order', 2);
 
         $secondCategory = ServiceCategory::factory()->forTenant($this->tenant)->create([
@@ -69,9 +72,10 @@ final class ServiceCategoryControllerTest extends TestCase
     public function test_staff_is_forbidden(): void
     {
         $this->actingAsStaff();
+        $categoryName = fake()->words(2, true);
 
         $response = $this->postJson(route('service-categories.store'), [
-            'name' => 'Hair',
+            'name' => $categoryName,
         ]);
 
         $response->assertForbidden();

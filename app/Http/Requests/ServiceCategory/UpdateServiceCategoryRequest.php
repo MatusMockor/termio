@@ -34,7 +34,7 @@ final class UpdateServiceCategoryRequest extends FormRequest
 
     public function hasName(): bool
     {
-        return $this->has('name');
+        return $this->exists('name');
     }
 
     public function getName(): ?string
@@ -46,7 +46,7 @@ final class UpdateServiceCategoryRequest extends FormRequest
 
     public function hasParentId(): bool
     {
-        return $this->has('parent_id');
+        return $this->exists('parent_id');
     }
 
     public function getParentId(): ?int
@@ -58,7 +58,7 @@ final class UpdateServiceCategoryRequest extends FormRequest
 
     public function hasPriority(): bool
     {
-        return $this->has('priority');
+        return $this->exists('priority');
     }
 
     public function getPriority(): ?int
@@ -70,7 +70,7 @@ final class UpdateServiceCategoryRequest extends FormRequest
 
     public function hasSortOrder(): bool
     {
-        return $this->has('sort_order');
+        return $this->exists('sort_order');
     }
 
     public function getSortOrder(): ?int
@@ -82,7 +82,7 @@ final class UpdateServiceCategoryRequest extends FormRequest
 
     public function hasActiveFlag(): bool
     {
-        return $this->has('is_active');
+        return $this->exists('is_active');
     }
 
     public function isActive(): ?bool
@@ -96,6 +96,10 @@ final class UpdateServiceCategoryRequest extends FormRequest
     {
         $tenantId = $this->user()?->tenant_id;
 
-        return is_int($tenantId) ? $tenantId : 0;
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
+
+        return $tenantId;
     }
 }

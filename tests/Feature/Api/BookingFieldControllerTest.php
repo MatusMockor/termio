@@ -27,10 +27,13 @@ final class BookingFieldControllerTest extends TestCase
     public function test_owner_can_crud_fields_and_set_service_overrides(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create();
+        $fieldKey = fake()->unique()->regexify('[a-z]{6}_[a-z]{4}');
+        $fieldLabel = fake()->words(2, true);
+        $updatedFieldLabel = fake()->words(3, true);
 
         $storeResponse = $this->postJson(route('booking-fields.store'), [
-            'key' => 'allergy',
-            'label' => 'Allergies',
+            'key' => $fieldKey,
+            'label' => $fieldLabel,
             'type' => 'text',
             'is_required' => false,
             'is_active' => true,
@@ -38,17 +41,17 @@ final class BookingFieldControllerTest extends TestCase
         ]);
 
         $storeResponse->assertCreated()
-            ->assertJsonPath('data.key', 'allergy');
+            ->assertJsonPath('data.key', $fieldKey);
 
         $fieldId = (int) $storeResponse->json('data.id');
 
         $updateResponse = $this->putJson(route('booking-fields.update', $fieldId), [
-            'label' => 'Known Allergies',
+            'label' => $updatedFieldLabel,
             'is_required' => true,
         ]);
 
         $updateResponse->assertOk()
-            ->assertJsonPath('data.label', 'Known Allergies')
+            ->assertJsonPath('data.label', $updatedFieldLabel)
             ->assertJsonPath('data.is_required', true);
 
         $overrideResponse = $this->putJson(route('services.booking-fields.update', $service->id), [
@@ -62,7 +65,7 @@ final class BookingFieldControllerTest extends TestCase
         ]);
 
         $overrideResponse->assertOk()
-            ->assertJsonPath('data.0.key', 'allergy')
+            ->assertJsonPath('data.0.key', $fieldKey)
             ->assertJsonPath('data.0.is_required', true);
 
         $this->assertDatabaseHas('service_booking_field_overrides', [
@@ -80,11 +83,14 @@ final class BookingFieldControllerTest extends TestCase
 
     public function test_type_options_validation_is_enforced(): void
     {
+        $fieldKey = fake()->unique()->regexify('[a-z]{6}_[a-z]{4}');
+        $fieldLabel = fake()->words(2, true);
+
         $response = $this->postJson(route('booking-fields.store'), [
-            'key' => 'allergy',
-            'label' => 'Allergies',
+            'key' => $fieldKey,
+            'label' => $fieldLabel,
             'type' => 'text',
-            'options' => ['A', 'B'],
+            'options' => [fake()->word(), fake()->word()],
         ]);
 
         $response->assertUnprocessable()
