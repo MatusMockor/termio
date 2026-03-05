@@ -49,9 +49,9 @@ final class StoreBookingFieldRequest extends FormRequest
         return (string) $this->validated('label');
     }
 
-    public function getType(): string
+    public function getType(): BookingFieldType
     {
-        return (string) $this->validated('type');
+        return BookingFieldType::from((string) $this->validated('type'));
     }
 
     /**

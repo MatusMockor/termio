@@ -30,7 +30,7 @@ final class BookingFieldController extends ApiController
             'tenant_id' => $tenant->id,
             'key' => $request->getKey(),
             'label' => $request->getLabel(),
-            'type' => $request->getType(),
+            'type' => $request->getType()->value,
             'options' => $request->getOptions(),
             'is_required' => $request->isRequired(),
             'is_active' => $request->isActive(),
