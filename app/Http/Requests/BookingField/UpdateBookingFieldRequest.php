@@ -72,17 +72,25 @@ final class UpdateBookingFieldRequest extends FormRequest
         $validator->after(function (Validator $validator): void {
             /** @var array<string, mixed> $data */
             $data = $validator->safe()->all();
-            $type = $data['type'] ?? $this->route('field')?->type?->value;
+            $currentType = $this->route('field')?->type?->value;
+            $type = $data['type'] ?? $currentType;
             $optionsProvided = array_key_exists('options', $data);
             $options = $data['options'] ?? null;
 
-            if ($type === BookingFieldType::Select->value && (! $optionsProvided || ! is_array($options))) {
-                $validator->errors()->add('options', 'Options are required for select fields.');
+            if ($type === BookingFieldType::Select->value) {
+                $switchingToSelect = $currentType !== BookingFieldType::Select->value;
+
+                if (
+                    ($switchingToSelect && ! $optionsProvided)
+                    || ($optionsProvided && (! is_array($options) || $options === []))
+                ) {
+                    $validator->errors()->add('options', 'Options are required for select fields.');
+                }
 
                 return;
             }
 
-            if ($type !== BookingFieldType::Select->value && $optionsProvided && $options !== null) {
+            if ($optionsProvided && $options !== null) {
                 $validator->errors()->add('options', 'Options are allowed only for select fields.');
             }
         });
