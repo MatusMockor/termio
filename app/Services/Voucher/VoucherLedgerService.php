@@ -55,31 +55,17 @@ final class VoucherLedgerService
                 ]);
             }
 
-            $existing = VoucherTransaction::where('voucher_id', $lockedVoucher->id)
-                ->where('appointment_id', $appointment->id)
-                ->where('type', VoucherTransactionType::Redeem->value)
-                ->first();
+            $existing = $this->findRedeemTransaction($lockedVoucher->id, $appointment->id);
 
             if ($existing !== null) {
                 return (float) $existing->amount;
             }
 
-            if (! $lockedVoucher->isRedeemable()) {
-                throw ValidationException::withMessages([
-                    'voucher_code' => ['Voucher is inactive, expired or has no remaining balance.'],
-                ]);
-            }
+            $this->ensureVoucherIsRedeemable($lockedVoucher);
 
             $availableBalanceInCents = $this->toCents($lockedVoucher->balance_amount);
             $servicePriceInCents = $this->toCents($servicePrice);
-            $discountInCents = min($availableBalanceInCents, $servicePriceInCents);
-
-            if ($discountInCents <= 0) {
-                throw ValidationException::withMessages([
-                    'voucher_code' => ['Voucher has no remaining balance.'],
-                ]);
-            }
-
+            $discountInCents = $this->resolveDiscountInCents($availableBalanceInCents, $servicePriceInCents);
             $newBalanceInCents = max(0, $availableBalanceInCents - $discountInCents);
             $discountAmount = $this->fromCents($discountInCents);
 
@@ -87,16 +73,13 @@ final class VoucherLedgerService
                 'balance_amount' => $this->fromCents($newBalanceInCents),
             ]);
 
-            VoucherTransaction::create([
-                'voucher_id' => $lockedVoucher->id,
-                'appointment_id' => $appointment->id,
-                'type' => VoucherTransactionType::Redeem->value,
-                'amount' => $discountAmount,
-                'metadata' => [
-                    'service_price' => $this->fromCents($servicePriceInCents),
-                ],
-                'created_by_user_id' => $createdByUserId,
-            ]);
+            $this->createRedeemTransaction(
+                voucherId: $lockedVoucher->id,
+                appointmentId: $appointment->id,
+                discountAmount: $discountAmount,
+                servicePriceInCents: $servicePriceInCents,
+                createdByUserId: $createdByUserId,
+            );
 
             return (float) $discountAmount;
         });
@@ -223,6 +206,57 @@ final class VoucherLedgerService
             ->whereKey($voucherId)
             ->lockForUpdate()
             ->first();
+    }
+
+    private function findRedeemTransaction(int $voucherId, int $appointmentId): ?VoucherTransaction
+    {
+        return VoucherTransaction::where('voucher_id', $voucherId)
+            ->where('appointment_id', $appointmentId)
+            ->where('type', VoucherTransactionType::Redeem->value)
+            ->first();
+    }
+
+    private function ensureVoucherIsRedeemable(Voucher $voucher): void
+    {
+        if ($voucher->isRedeemable()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'voucher_code' => ['Voucher is inactive, expired or has no remaining balance.'],
+        ]);
+    }
+
+    private function resolveDiscountInCents(int $availableBalanceInCents, int $servicePriceInCents): int
+    {
+        $discountInCents = min($availableBalanceInCents, $servicePriceInCents);
+
+        if ($discountInCents > 0) {
+            return $discountInCents;
+        }
+
+        throw ValidationException::withMessages([
+            'voucher_code' => ['Voucher has no remaining balance.'],
+        ]);
+    }
+
+    private function createRedeemTransaction(
+        int $voucherId,
+        int $appointmentId,
+        string $discountAmount,
+        int $servicePriceInCents,
+        ?int $createdByUserId,
+    ): void {
+        VoucherTransaction::create([
+            'voucher_id' => $voucherId,
+            'appointment_id' => $appointmentId,
+            'type' => VoucherTransactionType::Redeem->value,
+            'amount' => $discountAmount,
+            'metadata' => [
+                'service_price' => $this->fromCents($servicePriceInCents),
+            ],
+            'created_by_user_id' => $createdByUserId,
+        ]);
     }
 
     private function toCents(mixed $amount): int
