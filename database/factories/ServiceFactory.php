@@ -21,6 +21,7 @@ final class ServiceFactory extends Factory
     public function definition(): array
     {
         return [
+            'category_id' => null,
             'name' => fake()->randomElement([
                 'Strihanie pánske',
                 'Strihanie dámske',
@@ -33,6 +34,7 @@ final class ServiceFactory extends Factory
             'duration_minutes' => fake()->randomElement([15, 30, 45, 60, 90]),
             'price' => fake()->randomFloat(2, 10, 100),
             'category' => fake()->randomElement(['Strihanie', 'Úprava', 'Ošetrenie']),
+            'priority' => fake()->numberBetween(0, 100),
             'is_active' => true,
             'is_bookable_online' => true,
             'sort_order' => fake()->numberBetween(0, 10),

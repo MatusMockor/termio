@@ -19,9 +19,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property int $client_id
  * @property int $service_id
  * @property int|null $staff_id
+ * @property int|null $voucher_id
  * @property Carbon $starts_at
  * @property Carbon $ends_at
  * @property string|null $notes
+ * @property array<string, mixed>|null $custom_fields
+ * @property string|null $service_price_snapshot
+ * @property string $voucher_discount_amount
+ * @property string|null $final_amount_due
  * @property string|null $google_event_id
  * @property string $status
  * @property string $source
@@ -33,6 +38,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Client $client
  * @property-read Service $service
  * @property-read StaffProfile|null $staff
+ * @property-read Voucher|null $voucher
  */
 final class Appointment extends Model
 {
@@ -45,9 +51,14 @@ final class Appointment extends Model
         'client_id',
         'service_id',
         'staff_id',
+        'voucher_id',
         'starts_at',
         'ends_at',
         'notes',
+        'custom_fields',
+        'service_price_snapshot',
+        'voucher_discount_amount',
+        'final_amount_due',
         'google_event_id',
         'status',
         'source',
@@ -59,6 +70,10 @@ final class Appointment extends Model
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
+        'custom_fields' => 'array',
+        'service_price_snapshot' => 'decimal:2',
+        'voucher_discount_amount' => 'decimal:2',
+        'final_amount_due' => 'decimal:2',
     ];
 
     /**
@@ -83,6 +98,14 @@ final class Appointment extends Model
     public function staff(): BelongsTo
     {
         return $this->belongsTo(StaffProfile::class, 'staff_id');
+    }
+
+    /**
+     * @return BelongsTo<Voucher, $this>
+     */
+    public function voucher(): BelongsTo
+    {
+        return $this->belongsTo(Voucher::class);
     }
 
     /**

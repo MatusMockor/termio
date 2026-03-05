@@ -113,8 +113,11 @@ final class PlanFactory extends Factory
             'staff_permissions' => false,
             'client_segmentation' => false,
             'waitlist_management' => false,
+            'reservation_replacements' => false,
             'recurring_appointments' => false,
             'gift_vouchers' => false,
+            'custom_booking_fields' => false,
+            'service_taxonomy_priority' => false,
             'reports_statistics' => 'basic',
         ];
     }

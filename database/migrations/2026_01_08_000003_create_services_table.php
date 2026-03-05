@@ -13,11 +13,13 @@ return new class extends Migration
         Schema::create('services', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('tenant_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('category_id')->nullable()->constrained('service_categories')->nullOnDelete();
             $table->string('name');
             $table->text('description')->nullable();
             $table->integer('duration_minutes');
             $table->decimal('price', 10, 2);
             $table->string('category')->nullable();
+            $table->unsignedSmallInteger('priority')->default(0);
             $table->integer('sort_order')->default(0);
             $table->boolean('is_active')->default(true);
             $table->boolean('is_bookable_online')->default(true);
@@ -25,6 +27,8 @@ return new class extends Migration
             $table->softDeletes();
 
             $table->index(['tenant_id', 'is_active']);
+            $table->index(['tenant_id', 'category_id']);
+            $table->index(['tenant_id', 'priority', 'sort_order']);
         });
     }
 

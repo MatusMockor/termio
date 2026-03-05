@@ -53,7 +53,7 @@ final class EloquentServiceRepository implements ServiceRepository
      */
     public function getAllOrdered(): Collection
     {
-        return Service::ordered()->get();
+        return Service::with('categoryRelation')->ordered()->get();
     }
 
     /**
@@ -61,13 +61,14 @@ final class EloquentServiceRepository implements ServiceRepository
      */
     public function paginateOrdered(int $perPage): LengthAwarePaginator
     {
-        return Service::ordered()->paginate($perPage);
+        return Service::with('categoryRelation')->ordered()->paginate($perPage);
     }
 
     public function findByIdWithoutTenantScope(int $id, int $tenantId): Service
     {
         return Service::withoutTenantScope()
             ->where('tenant_id', $tenantId)
+            ->with('categoryRelation')
             ->findOrFail($id);
     }
 }

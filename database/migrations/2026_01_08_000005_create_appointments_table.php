@@ -16,9 +16,14 @@ return new class extends Migration
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
             $table->foreignId('service_id')->constrained()->cascadeOnDelete();
             $table->foreignId('staff_id')->nullable()->constrained('staff_profiles')->nullOnDelete();
+            $table->foreignId('voucher_id')->nullable()->constrained('vouchers')->nullOnDelete();
             $table->timestamp('starts_at');
             $table->timestamp('ends_at');
             $table->text('notes')->nullable();
+            $table->jsonb('custom_fields')->nullable();
+            $table->decimal('service_price_snapshot', 10, 2)->nullable();
+            $table->decimal('voucher_discount_amount', 10, 2)->default(0);
+            $table->decimal('final_amount_due', 10, 2)->nullable();
             $table->string('google_event_id')->nullable();
             $table->enum('status', ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'])->default('pending');
             $table->enum('source', ['online', 'manual', 'phone'])->default('online');
@@ -28,6 +33,7 @@ return new class extends Migration
             $table->index(['tenant_id', 'starts_at']);
             $table->index(['tenant_id', 'staff_id', 'starts_at']);
             $table->index(['tenant_id', 'status']);
+            $table->index(['tenant_id', 'voucher_id']);
             $table->index('google_event_id');
         });
     }

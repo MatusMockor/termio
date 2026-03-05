@@ -35,23 +35,26 @@ final class ServiceController extends Controller
     public function store(StoreServiceRequest $request, ServiceCreateAction $action): JsonResponse
     {
         $service = $action->handle($request->toDTO());
+        $service->load('categoryRelation');
 
-        return response()->json(['data' => $service], 201);
+        return ServiceResource::make($service)
+            ->response()
+            ->setStatusCode(201);
     }
 
-    public function show(Service $service): JsonResponse
+    public function show(Service $service): ServiceResource
     {
-        return response()->json(['data' => $service]);
+        return new ServiceResource($service->load('categoryRelation'));
     }
 
     public function update(
         UpdateServiceRequest $request,
         Service $service,
         ServiceUpdateAction $action
-    ): JsonResponse {
+    ): ServiceResource {
         $service = $action->handle($service, $request->toDTO());
 
-        return response()->json(['data' => $service]);
+        return new ServiceResource($service->load('categoryRelation'));
     }
 
     public function destroy(Service $service): JsonResponse

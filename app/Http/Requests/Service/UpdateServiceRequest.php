@@ -6,6 +6,7 @@ namespace App\Http\Requests\Service;
 
 use App\DTOs\Service\UpdateServiceDTO;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 final class UpdateServiceRequest extends FormRequest
 {
@@ -15,7 +16,7 @@ final class UpdateServiceRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, mixed>>
      */
     public function rules(): array
     {
@@ -25,6 +26,12 @@ final class UpdateServiceRequest extends FormRequest
             'duration_minutes' => ['sometimes', 'required', 'integer', 'min:5', 'max:480'],
             'price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'category' => ['nullable', 'string', 'max:100'],
+            'category_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('service_categories', 'id')->where('tenant_id', $this->tenantId()),
+            ],
+            'priority' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'is_active' => ['boolean'],
             'is_bookable_online' => ['boolean'],
         ];
@@ -59,6 +66,30 @@ final class UpdateServiceRequest extends FormRequest
         return $this->validated('category');
     }
 
+    public function hasCategoryId(): bool
+    {
+        return $this->has('category_id');
+    }
+
+    public function getCategoryId(): ?int
+    {
+        $value = $this->validated('category_id');
+
+        return $value !== null ? (int) $value : null;
+    }
+
+    public function hasPriority(): bool
+    {
+        return $this->has('priority');
+    }
+
+    public function getPriority(): ?int
+    {
+        $value = $this->validated('priority');
+
+        return $value !== null ? (int) $value : null;
+    }
+
     public function isActive(): ?bool
     {
         $value = $this->validated('is_active');
@@ -81,8 +112,17 @@ final class UpdateServiceRequest extends FormRequest
             durationMinutes: $this->getDurationMinutes(),
             price: $this->getPrice(),
             category: $this->getCategory(),
+            categoryId: $this->getCategoryId(),
+            priority: $this->getPriority(),
             isActive: $this->isActive(),
             isBookableOnline: $this->isBookableOnline(),
         );
+    }
+
+    private function tenantId(): int
+    {
+        $tenantId = $this->user()?->tenant_id;
+
+        return is_int($tenantId) ? $tenantId : 0;
     }
 }

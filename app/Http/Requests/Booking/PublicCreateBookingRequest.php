@@ -27,6 +27,8 @@ final class PublicCreateBookingRequest extends FormRequest
             'client_phone' => ['required', 'string', 'max:20'],
             'client_email' => ['required', 'string', 'email', 'max:255'],
             'notes' => ['nullable', 'string', 'max:1000'],
+            'custom_fields' => ['nullable', 'array'],
+            'voucher_code' => ['nullable', 'string', 'max:100'],
         ];
     }
 
@@ -67,6 +69,23 @@ final class PublicCreateBookingRequest extends FormRequest
         return $this->validated('notes');
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public function getCustomFields(): array
+    {
+        $customFields = $this->validated('custom_fields');
+
+        return is_array($customFields) ? $customFields : [];
+    }
+
+    public function getVoucherCode(): ?string
+    {
+        $voucherCode = $this->validated('voucher_code');
+
+        return is_string($voucherCode) && $voucherCode !== '' ? $voucherCode : null;
+    }
+
     public function toDTO(): CreatePublicBookingDTO
     {
         return new CreatePublicBookingDTO(
@@ -77,6 +96,8 @@ final class PublicCreateBookingRequest extends FormRequest
             clientPhone: $this->getClientPhone(),
             clientEmail: $this->getClientEmail(),
             notes: $this->getNotes(),
+            customFields: $this->getCustomFields(),
+            voucherCode: $this->getVoucherCode(),
         );
     }
 }

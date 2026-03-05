@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Api\AppointmentController;
+use App\Http\Controllers\Api\AppointmentReplacementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
+use App\Http\Controllers\Api\BookingFieldController;
 use App\Http\Controllers\Api\ClientController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DashboardSubscriptionController;
@@ -14,12 +16,16 @@ use App\Http\Controllers\Api\OnboardingController;
 use App\Http\Controllers\Api\PlanController;
 use App\Http\Controllers\Api\PortfolioImageController;
 use App\Http\Controllers\Api\PortfolioTagController;
+use App\Http\Controllers\Api\ServiceBookingFieldOverrideController;
+use App\Http\Controllers\Api\ServiceCategoryController;
 use App\Http\Controllers\Api\ServiceController;
 use App\Http\Controllers\Api\SettingsController;
 use App\Http\Controllers\Api\StaffController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\SubscriptionFeatureController;
 use App\Http\Controllers\Api\TimeOffController;
+use App\Http\Controllers\Api\VoucherController;
+use App\Http\Controllers\Api\WaitlistController;
 use App\Http\Controllers\Public\BookingController;
 use App\Http\Controllers\Public\PortfolioController;
 use App\Http\Controllers\Webhooks\StripeWebhookController;
@@ -84,6 +90,12 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         ->name('appointments.store');
     Route::post('/appointments/{appointment}/complete', [AppointmentController::class, 'complete'])->name('appointments.complete');
     Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])->name('appointments.cancel');
+    Route::middleware(['owner', 'feature:reservation_replacements'])
+        ->get('/appointments/{appointment}/replacement-candidates', [AppointmentReplacementController::class, 'replacementCandidates'])
+        ->name('appointments.replacement-candidates');
+    Route::middleware(['owner', 'feature:reservation_replacements'])
+        ->post('/appointments/{appointment}/replace-from-waitlist', [AppointmentReplacementController::class, 'replaceFromWaitlist'])
+        ->name('appointments.replace-from-waitlist');
 
     // Services - check service limit on creation
     Route::apiResource('services', ServiceController::class)->except(['store']);
@@ -91,6 +103,40 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         ->middleware('check.service.limit')
         ->name('services.store');
     Route::post('/services/reorder', [ServiceController::class, 'reorder'])->name('services.reorder');
+
+    // Service categories & taxonomy (owner only)
+    Route::middleware('owner')->group(function (): void {
+        Route::apiResource('service-categories', ServiceCategoryController::class)
+            ->parameters(['service-categories' => 'category'])
+            ->except(['show']);
+        Route::post('/service-categories/reorder', [ServiceCategoryController::class, 'reorder'])
+            ->name('service-categories.reorder');
+    });
+
+    // Custom booking fields (owner only + feature gate)
+    Route::middleware(['owner', 'feature:custom_booking_fields'])->group(function (): void {
+        Route::apiResource('booking-fields', BookingFieldController::class)
+            ->parameters(['booking-fields' => 'field'])
+            ->except(['show']);
+        Route::put('/services/{service}/booking-fields', [ServiceBookingFieldOverrideController::class, 'update'])
+            ->name('services.booking-fields.update');
+    });
+
+    // Waitlist (owner only + feature gate)
+    Route::middleware(['owner', 'feature:waitlist_management'])->group(function (): void {
+        Route::get('/waitlist', [WaitlistController::class, 'index'])->name('waitlist.index');
+        Route::post('/waitlist', [WaitlistController::class, 'store'])->name('waitlist.store');
+        Route::post('/waitlist/{entry}/convert', [WaitlistController::class, 'convert'])->name('waitlist.convert');
+    });
+
+    // Gift vouchers (owner only + feature gate)
+    Route::middleware(['owner', 'feature:gift_vouchers'])->group(function (): void {
+        Route::get('/vouchers', [VoucherController::class, 'index'])->name('vouchers.index');
+        Route::post('/vouchers', [VoucherController::class, 'store'])->name('vouchers.store');
+        Route::get('/vouchers/{voucher}', [VoucherController::class, 'show'])->name('vouchers.show');
+        Route::post('/vouchers/{voucher}/deactivate', [VoucherController::class, 'deactivate'])->name('vouchers.deactivate');
+        Route::post('/vouchers/{voucher}/adjust-balance', [VoucherController::class, 'adjustBalance'])->name('vouchers.adjust-balance');
+    });
 
     // Clients
     Route::apiResource('clients', ClientController::class);
@@ -198,8 +244,11 @@ Route::prefix('book/{tenantSlug}')->name('booking.')->group(function (): void {
     Route::get('/services', [BookingController::class, 'services'])->name('services');
     Route::get('/staff', [BookingController::class, 'staff'])->name('staff');
     Route::get('/staff/{staffId}/services', [BookingController::class, 'staffServices'])->name('staff.services');
+    Route::get('/services/{serviceId}/booking-fields', [BookingController::class, 'serviceBookingFields'])->name('services.booking-fields');
     Route::get('/availability', [BookingController::class, 'availability'])->name('availability');
     Route::get('/available-dates', [BookingController::class, 'availableDates'])->name('available-dates');
+    Route::post('/vouchers/validate', [BookingController::class, 'validateVoucher'])->name('vouchers.validate');
+    Route::post('/waitlist', [BookingController::class, 'waitlist'])->name('waitlist');
     Route::post('/create', [BookingController::class, 'create'])->name('create');
 
     // Public Portfolio Gallery

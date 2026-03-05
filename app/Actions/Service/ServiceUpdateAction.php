@@ -26,6 +26,14 @@ final class ServiceUpdateAction
             'is_bookable_online' => $dto->isBookableOnline,
         ], static fn (mixed $value): bool => $value !== null);
 
+        if ($dto->categoryId !== null) {
+            $data['category_id'] = $dto->categoryId;
+        }
+
+        if ($dto->priority !== null) {
+            $data['priority'] = $dto->priority;
+        }
+
         return $this->serviceRepository->update($service, $data);
     }
 }
