@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 concurrency:
   group: deploy-backend
   cancel-in-progress: false
@@ -16,13 +19,13 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
 
       - name: Create release archive
         run: tar czf /tmp/release.tar.gz --exclude='.git' .
 
       - name: Copy archive to server
-        uses: appleboy/scp-action@v0.1.7
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
@@ -32,7 +35,7 @@ jobs:
           strip_components: 1
 
       - name: Deploy release
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         env:
           TAG: ${{ github.ref_name }}
         with:
@@ -74,10 +77,20 @@ jobs:
             php artisan event:cache
 
             # Atomic symlink switch (zero-downtime)
+            PREVIOUS_RELEASE="$(readlink "${BASE_DIR}/current" || true)"
+            rollback() {
+              if [ -n "${PREVIOUS_RELEASE}" ]; then
+                ln -sfn "${PREVIOUS_RELEASE}" "${BASE_DIR}/current"
+                sudo systemctl reload php8.4-fpm || true
+              fi
+            }
             ln -sfn "${RELEASE_DIR}" "${BASE_DIR}/current"
 
             # Reload PHP-FPM
-            sudo systemctl reload php8.4-fpm
+            if ! sudo systemctl reload php8.4-fpm; then
+              rollback
+              exit 1
+            fi
 
             echo "Backend ${TAG} deployed successfully"
 
