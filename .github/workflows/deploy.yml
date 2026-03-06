@@ -1,0 +1,88 @@
+name: Deploy Backend
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: tar czf /tmp/release.tar.gz --exclude='.git' .
+
+      - name: Copy archive to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          source: /tmp/release.tar.gz
+          target: /tmp
+          strip_components: 1
+
+      - name: Deploy release
+        uses: appleboy/ssh-action@v1
+        env:
+          TAG: ${{ github.ref_name }}
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          envs: TAG
+          script_stop: true
+          script: |
+            set -e
+
+            BASE_DIR=/var/www/termio-api
+            RELEASE_DIR=${BASE_DIR}/releases/$(date +%Y%m%d_%H%M%S)
+            SHARED_DIR=${BASE_DIR}/shared
+
+            echo "Deploying backend ${TAG} to ${RELEASE_DIR}"
+
+            # Extract release
+            mkdir -p "${RELEASE_DIR}"
+            tar xzf /tmp/release.tar.gz -C "${RELEASE_DIR}"
+            rm -f /tmp/release.tar.gz
+
+            # Link shared resources
+            ln -sfn "${SHARED_DIR}/.env" "${RELEASE_DIR}/.env"
+            rm -rf "${RELEASE_DIR}/storage"
+            ln -sfn "${SHARED_DIR}/storage" "${RELEASE_DIR}/storage"
+
+            # Install dependencies
+            cd "${RELEASE_DIR}"
+            composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+            # Run migrations
+            php artisan migrate --force
+
+            # Cache configuration
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan event:cache
+
+            # Atomic symlink switch (zero-downtime)
+            ln -sfn "${RELEASE_DIR}" "${BASE_DIR}/current"
+
+            # Reload PHP-FPM
+            sudo systemctl reload php8.4-fpm
+
+            echo "Backend ${TAG} deployed successfully"
+
+            # Cleanup: keep only the 2 most recent releases
+            cd "${BASE_DIR}/releases"
+            ls -dt */ | tail -n +3 | xargs -r rm -rf
+
+            echo "Cleanup complete"

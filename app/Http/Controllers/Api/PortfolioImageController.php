@@ -17,6 +17,7 @@ use App\Http\Resources\PortfolioImageResource;
 use App\Models\PortfolioImage;
 use App\Models\StaffProfile;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class PortfolioImageController extends Controller
 {
@@ -24,11 +25,11 @@ final class PortfolioImageController extends Controller
         private readonly PortfolioImageRepository $repository,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
         $images = $this->repository->getAllOrdered();
 
-        return response()->json(['data' => PortfolioImageResource::collection($images)]);
+        return PortfolioImageResource::collection($images);
     }
 
     public function store(StorePortfolioImageRequest $request, PortfolioImageCreateAction $action): JsonResponse
@@ -36,24 +37,26 @@ final class PortfolioImageController extends Controller
         $tenantId = $request->user()->tenant_id;
         $image = $action->handle($request->toDTO(), $tenantId);
 
-        return response()->json(['data' => new PortfolioImageResource($image)], 201);
+        return PortfolioImageResource::make($image)
+            ->response()
+            ->setStatusCode(201);
     }
 
-    public function show(PortfolioImage $portfolioImage): JsonResponse
+    public function show(PortfolioImage $portfolioImage): PortfolioImageResource
     {
         $portfolioImage->load(['tags', 'staff']);
 
-        return response()->json(['data' => new PortfolioImageResource($portfolioImage)]);
+        return new PortfolioImageResource($portfolioImage);
     }
 
     public function update(
         UpdatePortfolioImageRequest $request,
         PortfolioImage $portfolioImage,
         PortfolioImageUpdateAction $action
-    ): JsonResponse {
+    ): PortfolioImageResource {
         $image = $action->handle($portfolioImage, $request->toDTO());
 
-        return response()->json(['data' => new PortfolioImageResource($image)]);
+        return new PortfolioImageResource($image);
     }
 
     public function destroy(PortfolioImage $portfolioImage, PortfolioImageDeleteAction $action): JsonResponse
@@ -70,10 +73,10 @@ final class PortfolioImageController extends Controller
         return response()->json(['message' => 'Images reordered successfully.']);
     }
 
-    public function byStaff(StaffProfile $staff): JsonResponse
+    public function byStaff(StaffProfile $staff): AnonymousResourceCollection
     {
         $images = $this->repository->getByStaffOrdered($staff->id);
 
-        return response()->json(['data' => PortfolioImageResource::collection($images)]);
+        return PortfolioImageResource::collection($images);
     }
 }

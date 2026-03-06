@@ -10,8 +10,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\PortfolioImageResource;
 use App\Http\Resources\PortfolioTagResource;
 use App\Models\Tenant;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class PortfolioController extends Controller
 {
@@ -20,7 +20,7 @@ final class PortfolioController extends Controller
         private readonly PortfolioTagRepository $tagRepository,
     ) {}
 
-    public function gallery(Request $request, string $tenantSlug): JsonResponse
+    public function gallery(Request $request, string $tenantSlug): AnonymousResourceCollection
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
 
@@ -32,22 +32,22 @@ final class PortfolioController extends Controller
             ? $this->imageRepository->getPublicByTags($tenant->id, $tagIds)
             : $this->imageRepository->getPublicByTenant($tenant->id);
 
-        return response()->json(['data' => PortfolioImageResource::collection($images)]);
+        return PortfolioImageResource::collection($images);
     }
 
-    public function staffGallery(string $tenantSlug, int $staffId): JsonResponse
+    public function staffGallery(string $tenantSlug, int $staffId): AnonymousResourceCollection
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
         $images = $this->imageRepository->getPublicByStaff($tenant->id, $staffId);
 
-        return response()->json(['data' => PortfolioImageResource::collection($images)]);
+        return PortfolioImageResource::collection($images);
     }
 
-    public function tags(string $tenantSlug): JsonResponse
+    public function tags(string $tenantSlug): AnonymousResourceCollection
     {
         $tenant = Tenant::where('slug', $tenantSlug)->firstOrFail();
         $tags = $this->tagRepository->getByTenantWithoutScope($tenant->id);
 
-        return response()->json(['data' => PortfolioTagResource::collection($tags)]);
+        return PortfolioTagResource::collection($tags);
     }
 }
