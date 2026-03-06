@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
 use App\Enums\BillingCycle;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -14,22 +15,16 @@ interface SubscriptionUpgradeBillingServiceContract
 
     public function isFreeSubscription(Subscription $subscription): bool;
 
-    /**
-     * @return object{id: string, status: string}
-     */
     public function createPaidSubscriptionFromFree(
         Subscription $subscription,
         string $priceId,
-    ): object;
+    ): StripeSubscriptionResultDTO;
 
-    /**
-     * @return object{id: string, status: string, trial_end: int|null}
-     */
     public function createTrialSubscriptionFromFree(
         Subscription $subscription,
         string $priceId,
         int $trialDays,
-    ): object;
+    ): StripeSubscriptionResultDTO;
 
     public function swapPaidSubscription(Subscription $subscription, string $priceId): void;
 

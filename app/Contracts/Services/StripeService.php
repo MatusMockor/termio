@@ -92,6 +92,14 @@ interface StripeService
     public function createCheckoutSession(array $params): Session;
 
     /**
+     * Create a Stripe subscription.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array{idempotency_key?: string}  $options
+     */
+    public function createSubscription(array $payload, array $options = []): Subscription;
+
+    /**
      * Retrieve a Stripe subscription by ID.
      */
     public function getSubscription(string $subscriptionId): Subscription;

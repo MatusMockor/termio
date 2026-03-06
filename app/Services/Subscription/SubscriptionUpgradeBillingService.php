@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Services\Subscription;
 
 use App\Contracts\Services\DefaultPaymentMethodGuardContract;
+use App\Contracts\Services\StripeBillingGatewayContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\DTOs\Billing\CreateStripeSubscriptionDTO;
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
 use App\Enums\BillingCycle;
 use App\Enums\SubscriptionType;
+use App\Exceptions\BillingProviderException;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
@@ -17,6 +21,7 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
 {
     public function __construct(
         private readonly DefaultPaymentMethodGuardContract $paymentMethodGuard,
+        private readonly StripeBillingGatewayContract $billingGateway,
     ) {}
 
     public function resolvePriceId(Plan $plan, BillingCycle $billingCycle): string
@@ -37,60 +42,50 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
         return str_starts_with($subscription->stripe_id, 'free_');
     }
 
-    /**
-     * @return object{id: string, status: string}
-     */
     public function createPaidSubscriptionFromFree(
         Subscription $subscription,
         string $priceId,
-    ): object {
+    ): StripeSubscriptionResultDTO {
         $tenant = $subscription->tenant;
 
         try {
             $defaultPaymentMethodId = $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
+            $customerId = $this->resolveCustomerId($tenant);
 
-            return $tenant->stripe()->subscriptions->create([
-                'customer' => (string) $tenant->stripe_id,
-                'items' => [
-                    ['price' => $priceId],
-                ],
-                'default_payment_method' => $defaultPaymentMethodId,
-            ], [
-                'idempotency_key' => $this->buildIdempotencyKey('create_from_free', $subscription, $priceId),
-            ]);
+            return $this->billingGateway->createSubscription(new CreateStripeSubscriptionDTO(
+                customerId: $customerId,
+                priceId: $priceId,
+                defaultPaymentMethodId: $defaultPaymentMethodId,
+                idempotencyKey: $this->buildIdempotencyKey('create_from_free', $subscription, $priceId),
+            ));
         } catch (SubscriptionException $exception) {
             throw $exception;
-        } catch (Throwable $exception) {
+        } catch (BillingProviderException $exception) {
             throw SubscriptionException::stripeError($exception->getMessage());
         }
     }
 
-    /**
-     * @return object{id: string, status: string, trial_end: int|null}
-     */
     public function createTrialSubscriptionFromFree(
         Subscription $subscription,
         string $priceId,
         int $trialDays,
-    ): object {
+    ): StripeSubscriptionResultDTO {
         $tenant = $subscription->tenant;
 
         try {
             $defaultPaymentMethodId = $this->paymentMethodGuard->ensureLiveDefaultPaymentMethod($tenant);
+            $customerId = $this->resolveCustomerId($tenant);
 
-            return $tenant->stripe()->subscriptions->create([
-                'customer' => (string) $tenant->stripe_id,
-                'items' => [
-                    ['price' => $priceId],
-                ],
-                'default_payment_method' => $defaultPaymentMethodId,
-                'trial_period_days' => $trialDays,
-            ], [
-                'idempotency_key' => $this->buildIdempotencyKey('create_trial_from_free', $subscription, $priceId),
-            ]);
+            return $this->billingGateway->createSubscription(new CreateStripeSubscriptionDTO(
+                customerId: $customerId,
+                priceId: $priceId,
+                defaultPaymentMethodId: $defaultPaymentMethodId,
+                trialPeriodDays: $trialDays,
+                idempotencyKey: $this->buildIdempotencyKey('create_trial_from_free', $subscription, $priceId),
+            ));
         } catch (SubscriptionException $exception) {
             throw $exception;
-        } catch (Throwable $exception) {
+        } catch (BillingProviderException $exception) {
             throw SubscriptionException::stripeError($exception->getMessage());
         }
     }
@@ -179,5 +174,14 @@ final class SubscriptionUpgradeBillingService implements SubscriptionUpgradeBill
             (string) $subscription->tenant_id,
             $priceId,
         ]));
+    }
+
+    private function resolveCustomerId(\App\Models\Tenant $tenant): string
+    {
+        if (! $tenant->hasStripeId()) {
+            throw SubscriptionException::paymentMethodRequired();
+        }
+
+        return (string) $tenant->stripe_id;
     }
 }

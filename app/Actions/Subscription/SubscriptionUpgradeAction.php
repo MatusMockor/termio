@@ -8,6 +8,7 @@ use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\DefaultPaymentMethodGuardContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
 use App\DTOs\Subscription\UpgradeSubscriptionDTO;
 use App\DTOs\Subscription\ValidationContext;
 use App\Enums\BillingCycle;
@@ -119,14 +120,10 @@ final class SubscriptionUpgradeAction
         ]);
     }
 
-    private function resolveTrialEndsAt(object $stripeSubscription, int $trialDays): Carbon
+    private function resolveTrialEndsAt(StripeSubscriptionResultDTO $stripeSubscription, int $trialDays): Carbon
     {
-        $trialEndTimestamp = is_int($stripeSubscription->trial_end ?? null)
-            ? $stripeSubscription->trial_end
-            : null;
-
-        if ($trialEndTimestamp) {
-            return Carbon::createFromTimestamp($trialEndTimestamp);
+        if ($stripeSubscription->trialEnd !== null) {
+            return Carbon::createFromTimestamp($stripeSubscription->trialEnd);
         }
 
         return now()->addDays($trialDays);

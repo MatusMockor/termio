@@ -8,7 +8,9 @@ use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Contracts\Repositories\PlanRepository;
 use App\Contracts\Repositories\SubscriptionRepository;
 use App\Contracts\Services\DefaultPaymentMethodGuardContract;
+use App\Contracts\Services\StripeBillingGatewayContract;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
 use App\Enums\BillingCycle;
 use App\Enums\SubscriptionStatus;
 use App\Models\Plan;
@@ -18,7 +20,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Notification;
-use Stripe\StripeClient;
 use Tests\Concerns\BuildsUpgradeValidationChain;
 use Tests\TestCase;
 
@@ -243,7 +244,7 @@ final class SubscriptionControllerTest extends TestCase
         ]);
 
         $this->mockPaymentMethodGuard('pm_default_create_123');
-        $this->bindStripeClientForSubscriptionCreate();
+        $this->mockBillingGatewayForSubscriptionCreate();
 
         $response = $this->actingAs($this->user)->postJson(route('subscriptions.store'), [
             'plan_id' => $this->easyPlan->id,
@@ -548,11 +549,11 @@ final class SubscriptionControllerTest extends TestCase
                 'price_easy_monthly',
                 (int) config('subscription.trial_days'),
             )
-            ->willReturn((object) [
-                'id' => 'sub_trial_from_free_123',
-                'status' => SubscriptionStatus::Trialing->value,
-                'trial_end' => $trialEndTimestamp,
-            ]);
+            ->willReturn(new StripeSubscriptionResultDTO(
+                id: 'sub_trial_from_free_123',
+                status: SubscriptionStatus::Trialing->value,
+                trialEnd: $trialEndTimestamp,
+            ));
 
         $this->app->instance(SubscriptionUpgradeBillingServiceContract::class, $billingService);
 
@@ -1208,35 +1209,21 @@ final class SubscriptionControllerTest extends TestCase
         $this->app->instance(DefaultPaymentMethodGuardContract::class, $guard);
     }
 
-    private function bindStripeClientForSubscriptionCreate(): void
+    private function mockBillingGatewayForSubscriptionCreate(): void
     {
-        $this->app->bind(StripeClient::class, static fn (): object => new class
-        {
-            public object $subscriptions;
+        $gateway = $this->createMock(StripeBillingGatewayContract::class);
+        $gateway->method('createSubscription')
+            ->willReturnCallback(static function (\App\DTOs\Billing\CreateStripeSubscriptionDTO $dto): StripeSubscriptionResultDTO {
+                if ($dto->defaultPaymentMethodId === '' || $dto->trialPeriodDays === null) {
+                    throw new \RuntimeException('Missing required Stripe subscription payload keys.');
+                }
 
-            public function __construct()
-            {
-                $this->subscriptions = new class
-                {
-                    /**
-                     * @param  array<string, mixed>  $payload
-                     */
-                    public function create(array $payload): object
-                    {
-                        if (
-                            ! array_key_exists('default_payment_method', $payload)
-                            || ! array_key_exists('trial_period_days', $payload)
-                        ) {
-                            throw new \RuntimeException('Missing required Stripe subscription payload keys.');
-                        }
+                return new StripeSubscriptionResultDTO(
+                    id: 'sub_created_from_test',
+                    status: SubscriptionStatus::Trialing->value,
+                );
+            });
 
-                        return (object) [
-                            'id' => 'sub_created_from_test',
-                            'status' => SubscriptionStatus::Trialing->value,
-                        ];
-                    }
-                };
-            }
-        });
+        $this->app->instance(StripeBillingGatewayContract::class, $gateway);
     }
 }
