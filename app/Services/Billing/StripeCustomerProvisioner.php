@@ -8,7 +8,6 @@ use App\Contracts\Services\StripeCustomerProvisionerContract;
 use App\Contracts\Services\StripeService as StripeServiceContract;
 use App\Exceptions\BillingProviderException;
 use App\Models\Tenant;
-use Illuminate\Support\Facades\DB;
 use Throwable;
 
 final class StripeCustomerProvisioner implements StripeCustomerProvisionerContract
@@ -24,8 +23,12 @@ final class StripeCustomerProvisioner implements StripeCustomerProvisionerContra
         }
 
         try {
-            return DB::transaction(function () use ($tenant): string {
-                $lockedTenant = Tenant::whereKey($tenant->id)
+            $connectionName = $tenant->getConnectionName();
+            $connection = Tenant::resolveConnection($connectionName);
+
+            return $connection->transaction(function () use ($tenant, $connectionName): string {
+                $lockedTenant = Tenant::on($connectionName)
+                    ->whereKey($tenant->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
