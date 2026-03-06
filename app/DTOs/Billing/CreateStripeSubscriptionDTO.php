@@ -27,7 +27,7 @@ final readonly class CreateStripeSubscriptionDTO
             'default_payment_method' => $this->defaultPaymentMethodId,
         ];
 
-        if ($this->trialPeriodDays !== null) {
+        if ($this->trialPeriodDays) {
             $payload['trial_period_days'] = $this->trialPeriodDays;
         }
 
@@ -39,7 +39,7 @@ final readonly class CreateStripeSubscriptionDTO
      */
     public function toOptions(): array
     {
-        if ($this->idempotencyKey === null) {
+        if (! $this->idempotencyKey) {
             return [];
         }
 
