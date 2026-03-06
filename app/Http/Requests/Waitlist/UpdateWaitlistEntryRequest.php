@@ -72,22 +72,130 @@ final class UpdateWaitlistEntryRequest extends FormRequest
         });
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    public function getUpdateData(): array
+    public function hasPreferredStaffId(): bool
     {
-        $validated = $this->validated();
+        return $this->hasValidatedValue('preferred_staff_id');
+    }
 
-        if (array_key_exists('time_from', $validated) && is_string($validated['time_from'])) {
-            $validated['time_from'] = $validated['time_from'].':00';
+    public function getPreferredStaffId(): ?int
+    {
+        return $this->getIntegerOrNull('preferred_staff_id');
+    }
+
+    public function hasPreferredDate(): bool
+    {
+        return $this->hasValidatedValue('preferred_date');
+    }
+
+    public function getPreferredDate(): ?string
+    {
+        return $this->getStringOrNull('preferred_date');
+    }
+
+    public function hasTimeFrom(): bool
+    {
+        return $this->hasValidatedValue('time_from');
+    }
+
+    public function getTimeFrom(): ?string
+    {
+        return $this->getNormalizedTimeOrNull('time_from');
+    }
+
+    public function hasTimeTo(): bool
+    {
+        return $this->hasValidatedValue('time_to');
+    }
+
+    public function getTimeTo(): ?string
+    {
+        return $this->getNormalizedTimeOrNull('time_to');
+    }
+
+    public function hasClientName(): bool
+    {
+        return $this->hasValidatedValue('client_name');
+    }
+
+    public function getClientName(): ?string
+    {
+        return $this->getStringOrNull('client_name');
+    }
+
+    public function hasClientPhone(): bool
+    {
+        return $this->hasValidatedValue('client_phone');
+    }
+
+    public function getClientPhone(): ?string
+    {
+        return $this->getStringOrNull('client_phone');
+    }
+
+    public function hasClientEmail(): bool
+    {
+        return $this->hasValidatedValue('client_email');
+    }
+
+    public function getClientEmail(): ?string
+    {
+        return $this->getStringOrNull('client_email');
+    }
+
+    public function hasNotes(): bool
+    {
+        return $this->hasValidatedValue('notes');
+    }
+
+    public function getNotes(): ?string
+    {
+        return $this->getStringOrNull('notes');
+    }
+
+    public function hasStatus(): bool
+    {
+        return $this->hasValidatedValue('status');
+    }
+
+    public function getStatus(): ?WaitlistEntryStatus
+    {
+        $value = $this->getStringOrNull('status');
+
+        return $value !== null ? WaitlistEntryStatus::from($value) : null;
+    }
+
+    private function hasValidatedValue(string $key): bool
+    {
+        return array_key_exists($key, $this->validated());
+    }
+
+    private function getIntegerOrNull(string $key): ?int
+    {
+        if (! $this->hasValidatedValue($key)) {
+            return null;
         }
 
-        if (array_key_exists('time_to', $validated) && is_string($validated['time_to'])) {
-            $validated['time_to'] = $validated['time_to'].':00';
+        $value = $this->validated($key);
+
+        return is_numeric($value) ? (int) $value : null;
+    }
+
+    private function getStringOrNull(string $key): ?string
+    {
+        if (! $this->hasValidatedValue($key)) {
+            return null;
         }
 
-        return $validated;
+        $value = $this->validated($key);
+
+        return is_string($value) ? $value : null;
+    }
+
+    private function getNormalizedTimeOrNull(string $key): ?string
+    {
+        $value = $this->getStringOrNull($key);
+
+        return $value !== null ? $value.':00' : null;
     }
 
     private function isTransitionAllowed(WaitlistEntryStatus $currentStatus, WaitlistEntryStatus $nextStatus): bool

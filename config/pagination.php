@@ -19,4 +19,8 @@ return [
         'default' => 50,
         'max' => 200,
     ],
+    'waitlist' => [
+        'default' => 15,
+        'max' => 100,
+    ],
 ];

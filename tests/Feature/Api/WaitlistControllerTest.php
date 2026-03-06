@@ -71,10 +71,12 @@ final class WaitlistControllerTest extends TestCase
             'preferred_staff_id' => $staff->id,
             'preferred_date' => $preferredDate->toDateString(),
             'search' => 'John',
+            'per_page' => '1',
         ]));
 
         $listResponse->assertOk()
             ->assertJsonCount(1, 'data')
+            ->assertJsonPath('meta.per_page', 1)
             ->assertJsonPath('data.0.service.name', $service->name)
             ->assertJsonPath('data.0.preferred_staff.name', $staff->display_name);
 

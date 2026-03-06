@@ -21,6 +21,8 @@ final class ListWaitlistEntriesRequest extends FormRequest
      */
     public function rules(): array
     {
+        $maximum = (int) config('pagination.waitlist.max');
+
         return [
             'status' => ['nullable', Rule::in(WaitlistEntryStatus::values())],
             'source' => ['nullable', Rule::in(WaitlistEntrySource::values())],
@@ -28,7 +30,7 @@ final class ListWaitlistEntriesRequest extends FormRequest
             'preferred_staff_id' => ['nullable', 'integer'],
             'preferred_date' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', "max:{$maximum}"],
         ];
     }
 
@@ -50,14 +52,14 @@ final class ListWaitlistEntriesRequest extends FormRequest
     {
         $value = $this->validated('service_id');
 
-        return is_int($value) ? $value : null;
+        return $value !== null ? (int) $value : null;
     }
 
     public function getPreferredStaffId(): ?int
     {
         $value = $this->validated('preferred_staff_id');
 
-        return is_int($value) ? $value : null;
+        return $value !== null ? (int) $value : null;
     }
 
     public function getPreferredDate(): ?string
@@ -78,6 +80,6 @@ final class ListWaitlistEntriesRequest extends FormRequest
     {
         $value = $this->validated('per_page');
 
-        return is_int($value) ? $value : 15;
+        return $value !== null ? (int) $value : (int) config('pagination.waitlist.default');
     }
 }
