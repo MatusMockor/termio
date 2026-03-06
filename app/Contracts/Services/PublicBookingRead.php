@@ -20,7 +20,11 @@ interface PublicBookingRead
      *     address: string|null,
      *     phone: string|null,
      *     logo_url: string|null,
-     *     branding: array{primary_color: string}
+     *     branding: array{primary_color: string},
+     *     features: array{
+     *         waitlist_management: bool,
+     *         custom_booking_fields: bool
+     *     }
      * }
      */
     public function getTenantInfo(string $tenantSlug): array;

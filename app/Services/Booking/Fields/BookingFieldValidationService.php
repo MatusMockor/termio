@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\Booking\Fields;
 
+use DateTimeImmutable;
 use Illuminate\Validation\ValidationException;
 
 final class BookingFieldValidationService
@@ -108,9 +109,9 @@ final class BookingFieldValidationService
             return 'Expected date value.';
         }
 
-        $timestamp = strtotime($value);
+        $date = DateTimeImmutable::createFromFormat('Y-m-d', $value);
 
-        return $timestamp !== false
+        return $date !== false && $date->format('Y-m-d') === $value
             ? null
             : 'Date format is invalid.';
     }

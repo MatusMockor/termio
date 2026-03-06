@@ -6,10 +6,12 @@ namespace App\Actions\Booking;
 
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Contracts\Repositories\ServiceRepository;
+use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\WorkingHoursBusiness;
 use App\DTOs\Booking\CreatePublicBookingDTO;
 use App\Enums\AppointmentSource;
 use App\Enums\AppointmentStatus;
+use App\Enums\Feature;
 use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\Tenant;
@@ -35,6 +37,7 @@ final class BookingPublicCreateAction
         private readonly BookingFieldValidationService $bookingFieldValidation,
         private readonly VoucherValidationService $voucherValidationService,
         private readonly VoucherLedgerService $voucherLedgerService,
+        private readonly FeatureGateServiceContract $featureGate,
     ) {}
 
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
@@ -44,6 +47,7 @@ final class BookingPublicCreateAction
         $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
         $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
         $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
+        $this->ensureCustomFieldsFeatureEnabled($tenant, $dto->customFields);
         $effectiveFields = $this->bookingFieldResolver->resolveForService($tenant, $service);
         $this->bookingFieldValidation->validate($dto->customFields, $effectiveFields);
 
@@ -92,6 +96,24 @@ final class BookingPublicCreateAction
         $this->sendNotifications($appointment);
 
         return $appointment;
+    }
+
+    /**
+     * @param  array<string, mixed>  $customFields
+     */
+    private function ensureCustomFieldsFeatureEnabled(Tenant $tenant, array $customFields): void
+    {
+        if ($customFields === []) {
+            return;
+        }
+
+        if ($this->featureGate->canAccessFeature($tenant, Feature::CustomBookingFields)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'custom_fields' => ['Custom booking fields are not available for this booking page.'],
+        ]);
     }
 
     private function sendNotifications(Appointment $appointment): void
@@ -158,7 +180,7 @@ final class BookingPublicCreateAction
         }
 
         throw ValidationException::withMessages([
-            'starts_at' => 'Selected time is outside business opening hours.',
+            'starts_at' => ['Selected time is outside business opening hours.'],
         ]);
     }
 
@@ -169,7 +191,7 @@ final class BookingPublicCreateAction
 
         if ($startsAt->lt($minimumAllowedStartAt)) {
             throw ValidationException::withMessages([
-                'starts_at' => 'Selected time is too soon. Please choose a later time.',
+                'starts_at' => ['Selected time is too soon. Please choose a later time.'],
             ]);
         }
 
@@ -182,7 +204,7 @@ final class BookingPublicCreateAction
         }
 
         throw ValidationException::withMessages([
-            'starts_at' => 'Selected time is too far in the future.',
+            'starts_at' => ['Selected time is too far in the future.'],
         ]);
     }
 }

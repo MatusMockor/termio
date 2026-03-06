@@ -118,6 +118,8 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
         Route::apiResource('booking-fields', BookingFieldController::class)
             ->parameters(['booking-fields' => 'field'])
             ->except(['show']);
+        Route::get('/services/{service}/booking-fields', [ServiceBookingFieldOverrideController::class, 'index'])
+            ->name('services.booking-fields.index');
         Route::put('/services/{service}/booking-fields', [ServiceBookingFieldOverrideController::class, 'update'])
             ->name('services.booking-fields.update');
     });
@@ -126,6 +128,7 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     Route::middleware(['owner', 'feature:waitlist_management'])->group(function (): void {
         Route::get('/waitlist', [WaitlistController::class, 'index'])->name('waitlist.index');
         Route::post('/waitlist', [WaitlistController::class, 'store'])->name('waitlist.store');
+        Route::patch('/waitlist/{entry}', [WaitlistController::class, 'update'])->name('waitlist.update');
         Route::post('/waitlist/{entry}/convert', [WaitlistController::class, 'convert'])->name('waitlist.convert');
     });
 

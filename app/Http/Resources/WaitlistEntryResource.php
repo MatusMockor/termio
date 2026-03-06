@@ -20,10 +20,24 @@ final class WaitlistEntryResource extends JsonResource
      */
     public function toArray(Request $_request): array
     {
+        $match = $this->resource->getAttribute('match');
+
         return [
             'id' => $this->id,
             'service_id' => $this->service_id,
+            'service' => $this->whenLoaded('service', fn (): array => [
+                'id' => $this->service->id,
+                'name' => $this->service->name,
+                'duration_minutes' => $this->service->duration_minutes,
+                'price' => (float) $this->service->price,
+            ]),
             'preferred_staff_id' => $this->preferred_staff_id,
+            'preferred_staff' => $this->whenLoaded('preferredStaff', fn (): ?array => $this->preferredStaff !== null
+                ? [
+                    'id' => $this->preferredStaff->id,
+                    'name' => $this->preferredStaff->display_name,
+                ]
+                : null),
             'preferred_date' => $this->preferred_date?->toDateString(),
             'time_from' => $this->time_from,
             'time_to' => $this->time_to,
@@ -34,6 +48,14 @@ final class WaitlistEntryResource extends JsonResource
             'status' => $this->resolveEnumValue($this->status),
             'source' => $this->resolveEnumValue($this->source),
             'converted_appointment_id' => $this->converted_appointment_id,
+            'converted_appointment' => $this->whenLoaded('convertedAppointment', fn (): ?array => $this->convertedAppointment !== null
+                ? [
+                    'id' => $this->convertedAppointment->id,
+                    'starts_at' => $this->convertedAppointment->starts_at->toIso8601String(),
+                    'status' => $this->convertedAppointment->status,
+                ]
+                : null),
+            'match' => is_array($match) ? $match : null,
             'created_at' => $this->created_at->toIso8601String(),
             'updated_at' => $this->updated_at->toIso8601String(),
         ];

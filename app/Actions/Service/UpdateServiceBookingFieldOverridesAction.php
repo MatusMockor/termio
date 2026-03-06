@@ -13,16 +13,7 @@ final class UpdateServiceBookingFieldOverridesAction
 {
     /**
      * @param  array<int, array{booking_field_id: int, is_enabled: bool, is_required: bool}>  $fields
-     * @return array<int, array{
-     *     id: int,
-     *     key: string,
-     *     label: string,
-     *     type: string,
-     *     options: array<int, mixed>|null,
-     *     is_required: bool,
-     *     is_active: bool,
-     *     sort_order: int
-     * }>
+     * @return array<int, array<string, mixed>>
      */
     public function execute(
         Service $service,
@@ -37,11 +28,11 @@ final class UpdateServiceBookingFieldOverridesAction
                     'service_id' => $service->id,
                     'booking_field_id' => $field['booking_field_id'],
                     'is_enabled' => $field['is_enabled'],
-                    'is_required' => $field['is_required'],
+                    'is_required' => $field['is_enabled'] ? $field['is_required'] : false,
                 ]);
             }
         });
 
-        return $resolver->resolveForService($service->tenant, $service);
+        return $resolver->getServiceConfiguration($service->tenant, $service);
     }
 }

@@ -6,7 +6,9 @@ namespace App\Http\Controllers\Public;
 
 use App\Actions\Booking\BookingPublicCreateAction;
 use App\Contracts\Services\BookingAvailability;
+use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\PublicBookingRead;
+use App\Enums\Feature;
 use App\Enums\WaitlistEntrySource;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\PublicAvailabilityRequest;
@@ -14,14 +16,15 @@ use App\Http\Requests\Booking\PublicAvailableDatesRequest;
 use App\Http\Requests\Booking\PublicCreateBookingRequest;
 use App\Http\Requests\Voucher\PublicValidateVoucherRequest;
 use App\Http\Requests\Waitlist\PublicStoreWaitlistEntryRequest;
+use App\Http\Resources\PublicBookingFieldResource;
 use App\Models\Service;
-use App\Models\StaffProfile;
 use App\Models\WaitlistEntry;
 use App\Services\Booking\Fields\BookingFieldResolverService;
 use App\Services\Voucher\VoucherValidationService;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\Waitlist\WaitlistEntryValidationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\ValidationException;
 
 final class BookingController extends Controller
@@ -32,6 +35,8 @@ final class BookingController extends Controller
         private readonly BookingPublicCreateAction $bookingCreateAction,
         private readonly BookingFieldResolverService $bookingFieldResolver,
         private readonly VoucherValidationService $voucherValidationService,
+        private readonly FeatureGateServiceContract $featureGate,
+        private readonly WaitlistEntryValidationService $waitlistValidationService,
     ) {}
 
     public function tenantInfo(string $tenantSlug): JsonResponse
@@ -61,19 +66,22 @@ final class BookingController extends Controller
         return response()->json(['data' => $services]);
     }
 
-    public function serviceBookingFields(string $tenantSlug, int $serviceId): JsonResponse
+    public function serviceBookingFields(string $tenantSlug, int $serviceId): JsonResponse|AnonymousResourceCollection
     {
         $tenant = $this->bookingReadService->getTenantBySlug($tenantSlug);
+
+        if (! $this->featureGate->canAccessFeature($tenant, Feature::CustomBookingFields)) {
+            return response()->json(['data' => []]);
+        }
+
         $service = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)
             ->where('id', $serviceId)
             ->firstOrFail();
 
-        $fields = $this->bookingFieldResolver->resolveForService($tenant, $service);
-
-        return response()->json([
-            'data' => $fields,
-        ]);
+        return PublicBookingFieldResource::collection(
+            $this->bookingFieldResolver->resolveForService($tenant, $service),
+        );
     }
 
     public function availability(PublicAvailabilityRequest $request, string $tenantSlug): JsonResponse
@@ -154,6 +162,8 @@ final class BookingController extends Controller
     public function waitlist(PublicStoreWaitlistEntryRequest $request, string $tenantSlug): JsonResponse
     {
         $tenant = $this->bookingReadService->getTenantBySlug($tenantSlug);
+        $this->featureGate->authorize($tenant, Feature::WaitlistManagement->value);
+
         $payload = $request->getWaitlistData();
         $serviceId = $request->getServiceId();
         $preferredStaffId = $request->getPreferredStaffId();
@@ -172,24 +182,7 @@ final class BookingController extends Controller
             ], 422);
         }
 
-        if ($preferredStaffId !== null) {
-            $staffExists = StaffProfile::withoutTenantScope()
-                ->where('tenant_id', $tenant->id)
-                ->where('id', $preferredStaffId)
-                ->whereHas('services', static function (Builder $query) use ($serviceId): void {
-                    $query->where('services.id', $serviceId);
-                })
-                ->exists();
-
-            if (! $staffExists) {
-                return response()->json([
-                    'message' => 'The selected staff is invalid.',
-                    'errors' => [
-                        'preferred_staff_id' => ['The selected staff is invalid.'],
-                    ],
-                ], 422);
-            }
-        }
+        $this->waitlistValidationService->ensureStaffSupportsService($tenant, $serviceId, $preferredStaffId);
 
         $entry = WaitlistEntry::create([
             ...$payload,

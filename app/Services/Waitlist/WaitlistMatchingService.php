@@ -9,6 +9,7 @@ use App\Models\Appointment;
 use App\Models\WaitlistEntry;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 final class WaitlistMatchingService
 {
@@ -19,34 +20,36 @@ final class WaitlistMatchingService
     {
         $appointmentDate = Carbon::parse($appointment->starts_at)->toDateString();
 
-        $baseQuery = WaitlistEntry::with('service')
+        $candidates = WaitlistEntry::with(['service', 'preferredStaff', 'convertedAppointment'])
+            ->forTenant($appointment->tenant_id)
             ->where('service_id', $appointment->service_id)
-            ->whereIn('status', [WaitlistEntryStatus::Pending->value, WaitlistEntryStatus::Contacted->value]);
-
-        $strictQuery = (clone $baseQuery)
-            ->where(static function ($query) use ($appointmentDate): void {
-                $query->whereNull('preferred_date')
-                    ->orWhere('preferred_date', $appointmentDate);
-            })
-            ->where(static function ($query) use ($appointment): void {
-                if ($appointment->staff_id === null) {
-                    $query->whereNull('preferred_staff_id');
-
-                    return;
-                }
-
-                $query->whereNull('preferred_staff_id')
-                    ->orWhere('preferred_staff_id', $appointment->staff_id);
-            })
-            ->ordered()
+            ->whereIn('status', [WaitlistEntryStatus::Pending->value, WaitlistEntryStatus::Contacted->value])
+            ->orderBy('created_at')
             ->get();
 
-        if ($strictQuery->isNotEmpty()) {
-            return $strictQuery;
-        }
+        /** @var SupportCollection<int, WaitlistEntry> $annotatedCandidates */
+        $annotatedCandidates = $candidates
+            ->map(function (WaitlistEntry $entry) use ($appointmentDate, $appointment): WaitlistEntry {
+                $matchesPreferredDate = $entry->preferred_date === null
+                    || $entry->preferred_date->toDateString() === $appointmentDate;
 
-        return $baseQuery
-            ->ordered()
-            ->get();
+                $matchesPreferredStaff = $entry->preferred_staff_id === null
+                    || $entry->preferred_staff_id === $appointment->staff_id;
+
+                $entry->setAttribute('match', [
+                    'matched_by' => $matchesPreferredDate && $matchesPreferredStaff ? 'strict' : 'fallback',
+                    'matches_preferred_date' => $matchesPreferredDate,
+                    'matches_preferred_staff' => $matchesPreferredStaff,
+                ]);
+
+                return $entry;
+            })
+            ->sortBy([
+                static fn (WaitlistEntry $entry): int => $entry->getAttribute('match')['matched_by'] === 'strict' ? 0 : 1,
+                static fn (WaitlistEntry $entry): int => $entry->created_at->getTimestamp(),
+            ])
+            ->values();
+
+        return new Collection($annotatedCandidates->all());
     }
 }

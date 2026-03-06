@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\Api;
 
 use App\Models\Appointment;
+use App\Models\BookingField;
 use App\Models\Client;
+use App\Models\Plan;
 use App\Models\Service;
 use App\Models\StaffProfile;
+use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkingHours;
@@ -26,6 +29,7 @@ final class BookingControllerTest extends TestCase
     {
         parent::setUp();
 
+        Plan::factory()->free()->create();
         $this->tenant = Tenant::factory()->create(['slug' => 'test-salon']);
     }
 
@@ -41,9 +45,12 @@ final class BookingControllerTest extends TestCase
                 'phone',
                 'logo_url',
                 'branding' => ['primary_color'],
+                'features' => ['waitlist_management', 'custom_booking_fields'],
             ])
             ->assertJsonPath('name', $this->tenant->name)
-            ->assertJsonPath('branding.primary_color', config('branding.default_primary_color'));
+            ->assertJsonPath('branding.primary_color', config('branding.default_primary_color'))
+            ->assertJsonPath('features.waitlist_management', false)
+            ->assertJsonPath('features.custom_booking_fields', false);
     }
 
     public function test_tenant_info_returns_custom_branding_color(): void
@@ -62,6 +69,20 @@ final class BookingControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('branding.primary_color', $primaryColor);
+    }
+
+    public function test_tenant_info_returns_enabled_feature_flags(): void
+    {
+        $this->enableFeatures([
+            'waitlist_management' => true,
+            'custom_booking_fields' => true,
+        ]);
+
+        $response = $this->getJson(route('booking.info', ['tenantSlug' => $this->tenant->slug]));
+
+        $response->assertOk()
+            ->assertJsonPath('features.waitlist_management', true)
+            ->assertJsonPath('features.custom_booking_fields', true);
     }
 
     public function test_tenant_info_returns_404_for_invalid_slug(): void
@@ -119,6 +140,38 @@ final class BookingControllerTest extends TestCase
 
         $response->assertOk()
             ->assertJsonCount(2, 'data');
+    }
+
+    public function test_public_service_booking_fields_returns_empty_data_when_feature_disabled(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        BookingField::factory()->forTenant($this->tenant)->create([
+            'key' => 'allergy',
+            'type' => 'text',
+            'options' => null,
+        ]);
+
+        $response = $this->getJson(route('booking.services.booking-fields', [
+            'tenantSlug' => $this->tenant->slug,
+            'serviceId' => $service->id,
+        ]));
+
+        $response->assertOk()
+            ->assertJson(['data' => []]);
+    }
+
+    public function test_public_waitlist_returns_403_when_feature_disabled(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create();
+
+        $response = $this->postJson(route('booking.waitlist', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'client_name' => 'John Doe',
+            'client_phone' => '+421900123456',
+            'client_email' => 'john@example.com',
+        ]);
+
+        $response->assertForbidden();
     }
 
     public function test_availability_returns_time_slots(): void
@@ -798,5 +851,23 @@ final class BookingControllerTest extends TestCase
         } finally {
             Carbon::setTestNow();
         }
+    }
+
+    /**
+     * @param  array<string, bool>  $features
+     */
+    private function enableFeatures(array $features): void
+    {
+        $plan = Plan::factory()->create([
+            'name' => 'PLAN_'.strtoupper(fake()->unique()->lexify('??????')),
+            'slug' => fake()->unique()->slug(),
+            'features' => array_merge(Plan::factory()->raw()['features'], $features),
+        ]);
+
+        Subscription::factory()->create([
+            'tenant_id' => $this->tenant->id,
+            'plan_id' => $plan->id,
+            'stripe_status' => 'active',
+        ]);
     }
 }

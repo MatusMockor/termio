@@ -12,6 +12,8 @@ use App\Models\Appointment;
 use App\Models\Client;
 use App\Models\WaitlistEntry;
 use App\Services\Appointment\AppointmentDurationService;
+use App\Services\Appointment\AppointmentSlotValidationService;
+use App\Services\Waitlist\WaitlistEntryValidationService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,6 +22,8 @@ final class WaitlistConvertToAppointmentAction
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,
         private readonly AppointmentDurationService $durationService,
+        private readonly AppointmentSlotValidationService $slotValidationService,
+        private readonly WaitlistEntryValidationService $validationService,
     ) {}
 
     public function handle(
@@ -32,8 +36,24 @@ final class WaitlistConvertToAppointmentAction
 
         $service = $entry->service;
         $times = $this->durationService->calculateTimesFromService($startsAt, $service);
+        $tenant = $entry->tenant;
+        $resolvedStaffId = $staffId ?? $entry->preferred_staff_id;
 
-        $appointment = DB::transaction(function () use ($entry, $staffId, $times, $notes): Appointment {
+        $this->validationService->ensureStaffSupportsService(
+            $tenant,
+            $entry->service_id,
+            $resolvedStaffId,
+            'staff_id',
+        );
+        $this->slotValidationService->ensureBookable(
+            $tenant,
+            $service,
+            $times['starts_at'],
+            $times['ends_at'],
+            $resolvedStaffId,
+        );
+
+        $appointment = DB::transaction(function () use ($entry, $resolvedStaffId, $times, $notes): Appointment {
             $client = Client::withoutTenantScope()->firstOrCreate(
                 [
                     'tenant_id' => $entry->tenant_id,
@@ -53,7 +73,7 @@ final class WaitlistConvertToAppointmentAction
                 'tenant_id' => $entry->tenant_id,
                 'client_id' => $client->id,
                 'service_id' => $entry->service_id,
-                'staff_id' => $staffId ?? $entry->preferred_staff_id,
+                'staff_id' => $resolvedStaffId,
                 'starts_at' => $times['starts_at'],
                 'ends_at' => $times['ends_at'],
                 'notes' => $combinedNotes !== '' ? $combinedNotes : null,

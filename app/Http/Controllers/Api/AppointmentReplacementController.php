@@ -11,6 +11,7 @@ use App\Http\Resources\WaitlistEntryResource;
 use App\Models\Appointment;
 use App\Models\WaitlistEntry;
 use App\Services\Waitlist\WaitlistMatchingService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -32,16 +33,18 @@ final class AppointmentReplacementController extends ApiController
         ReplaceFromWaitlistRequest $request,
         Appointment $appointment,
         AppointmentReplaceFromWaitlistAction $action,
-    ): AppointmentResource {
+    ): JsonResponse {
         $this->ensureTenantOwnership($request, $appointment->tenant_id);
 
-        $entry = WaitlistEntry::findOrFail($request->getWaitlistEntryId());
+        $entry = WaitlistEntry::forTenant($appointment->tenant_id)->findOrFail($request->getWaitlistEntryId());
 
         $this->ensureTenantOwnership($request, $entry->tenant_id);
 
         $replacementAppointment = $action->handle($appointment, $entry, $request->getNotes());
 
-        return new AppointmentResource($replacementAppointment);
+        return AppointmentResource::make($replacementAppointment)
+            ->response()
+            ->setStatusCode(201);
     }
 
     private function ensureTenantOwnership(Request $request, int $resourceTenantId): void

@@ -54,6 +54,15 @@ final class BookingFieldControllerTest extends TestCase
             ->assertJsonPath('data.label', $updatedFieldLabel)
             ->assertJsonPath('data.is_required', true);
 
+        $showResponse = $this->getJson(route('services.booking-fields.index', $service->id));
+
+        $showResponse->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.key', $fieldKey)
+            ->assertJsonPath('data.0.base.is_required', true)
+            ->assertJsonPath('data.0.override', null)
+            ->assertJsonPath('data.0.effective.is_enabled', true);
+
         $overrideResponse = $this->putJson(route('services.booking-fields.update', $service->id), [
             'fields' => [
                 [
@@ -66,7 +75,9 @@ final class BookingFieldControllerTest extends TestCase
 
         $overrideResponse->assertOk()
             ->assertJsonPath('data.0.key', $fieldKey)
-            ->assertJsonPath('data.0.is_required', true);
+            ->assertJsonPath('data.0.override.is_enabled', true)
+            ->assertJsonPath('data.0.override.is_required', true)
+            ->assertJsonPath('data.0.effective.is_required', true);
 
         $this->assertDatabaseHas('service_booking_field_overrides', [
             'service_id' => $service->id,
@@ -110,6 +121,39 @@ final class BookingFieldControllerTest extends TestCase
         ]);
 
         $response->assertNotFound();
+    }
+
+    public function test_disabled_override_forces_effective_field_to_hidden_and_not_required(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        $field = BookingField::factory()->forTenant($this->tenant)->create([
+            'type' => 'text',
+            'options' => null,
+            'is_required' => true,
+        ]);
+
+        $response = $this->putJson(route('services.booking-fields.update', $service->id), [
+            'fields' => [
+                [
+                    'booking_field_id' => $field->id,
+                    'is_enabled' => false,
+                    'is_required' => true,
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.0.override.is_enabled', false)
+            ->assertJsonPath('data.0.override.is_required', false)
+            ->assertJsonPath('data.0.effective.is_enabled', false)
+            ->assertJsonPath('data.0.effective.is_required', false);
+
+        $this->assertDatabaseHas('service_booking_field_overrides', [
+            'service_id' => $service->id,
+            'booking_field_id' => $field->id,
+            'is_enabled' => false,
+            'is_required' => false,
+        ]);
     }
 
     /**
