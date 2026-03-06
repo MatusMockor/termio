@@ -6,27 +6,37 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\Service\UpdateServiceBookingFieldOverridesAction;
 use App\Http\Requests\Service\UpdateServiceBookingFieldsRequest;
+use App\Http\Resources\ServiceBookingFieldConfigResource;
 use App\Models\Service;
 use App\Services\Booking\Fields\BookingFieldResolverService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class ServiceBookingFieldOverrideController extends ApiController
 {
+    public function index(
+        Request $request,
+        Service $service,
+        BookingFieldResolverService $resolver,
+    ): AnonymousResourceCollection {
+        $this->ensureTenantOwnership($request, $service->tenant_id);
+
+        return ServiceBookingFieldConfigResource::collection(
+            $resolver->getServiceConfiguration($service->tenant, $service),
+        );
+    }
+
     public function update(
         UpdateServiceBookingFieldsRequest $request,
         Service $service,
         BookingFieldResolverService $resolver,
         UpdateServiceBookingFieldOverridesAction $action,
-    ): JsonResponse {
+    ): AnonymousResourceCollection {
         $this->ensureTenantOwnership($request, $service->tenant_id);
 
-        $effectiveFields = $action->execute($service, $request->getFields(), $resolver);
-
-        return response()->json([
-            'data' => $effectiveFields,
-            'message' => 'Service booking fields updated successfully.',
-        ]);
+        return ServiceBookingFieldConfigResource::collection(
+            $action->execute($service, $request->getFields(), $resolver),
+        );
     }
 
     private function ensureTenantOwnership(Request $request, int $resourceTenantId): void

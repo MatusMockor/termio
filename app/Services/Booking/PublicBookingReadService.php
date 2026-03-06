@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Services\Booking;
 
+use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\PublicBookingRead;
 use App\Contracts\Services\WorkingHoursBusiness;
+use App\Enums\Feature;
 use App\Models\Service;
 use App\Models\StaffProfile;
 use App\Models\Tenant;
@@ -20,6 +22,7 @@ final class PublicBookingReadService implements PublicBookingRead
 {
     public function __construct(
         private readonly WorkingHoursBusiness $workingHoursBusiness,
+        private readonly FeatureGateServiceContract $featureGate,
     ) {}
 
     public function getTenantBySlug(string $tenantSlug): Tenant
@@ -34,7 +37,11 @@ final class PublicBookingReadService implements PublicBookingRead
      *     address: string|null,
      *     phone: string|null,
      *     logo_url: string|null,
-     *     branding: array{primary_color: string}
+     *     branding: array{primary_color: string},
+     *     features: array{
+     *         waitlist_management: bool,
+     *         custom_booking_fields: bool
+     *     }
      * }
      */
     public function getTenantInfo(string $tenantSlug): array
@@ -48,6 +55,12 @@ final class PublicBookingReadService implements PublicBookingRead
             'phone' => $tenant->phone,
             'logo_url' => $tenant->getLogoUrl(),
             'branding' => $tenant->getBranding(),
+            'features' => [
+                Feature::WaitlistManagement->value => $this->featureGate
+                    ->canAccessFeature($tenant, Feature::WaitlistManagement),
+                Feature::CustomBookingFields->value => $this->featureGate
+                    ->canAccessFeature($tenant, Feature::CustomBookingFields),
+            ],
         ];
     }
 

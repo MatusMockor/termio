@@ -7,38 +7,71 @@ namespace App\Http\Controllers\Api;
 use App\Actions\Waitlist\WaitlistConvertToAppointmentAction;
 use App\Enums\WaitlistEntrySource;
 use App\Http\Requests\Waitlist\ConvertWaitlistEntryRequest;
+use App\Http\Requests\Waitlist\ListWaitlistEntriesRequest;
 use App\Http\Requests\Waitlist\StoreWaitlistEntryRequest;
+use App\Http\Requests\Waitlist\UpdateWaitlistEntryRequest;
 use App\Http\Resources\AppointmentResource;
 use App\Http\Resources\WaitlistEntryResource;
 use App\Models\Tenant;
 use App\Models\WaitlistEntry;
+use App\Services\Waitlist\WaitlistEntryValidationService;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class WaitlistController extends ApiController
 {
-    public function index(): AnonymousResourceCollection
+    public function index(ListWaitlistEntriesRequest $request): AnonymousResourceCollection
     {
-        $entries = WaitlistEntry::with(['service', 'preferredStaff'])
-            ->when(request()->filled('status'), static function ($query): void {
-                $query->where('status', request()->string('status')->toString());
+        $tenant = $this->resolveTenantOrFail($request);
+
+        $entries = WaitlistEntry::forTenant($tenant->id)
+            ->with(['service', 'preferredStaff', 'convertedAppointment'])
+            ->when($request->getStatus() !== null, static function (Builder $query) use ($request): void {
+                $query->where('status', $request->getStatus());
             })
-            ->when(request()->filled('service_id'), static function ($query): void {
-                $query->where('service_id', (int) request()->integer('service_id'));
+            ->when($request->getSource() !== null, static function (Builder $query) use ($request): void {
+                $query->where('source', $request->getSource());
             })
-            ->when(request()->filled('preferred_date'), static function ($query): void {
-                $query->where('preferred_date', request()->string('preferred_date')->toString());
+            ->when($request->getServiceId() !== null, static function (Builder $query) use ($request): void {
+                $query->where('service_id', $request->getServiceId());
+            })
+            ->when($request->getPreferredStaffId() !== null, static function (Builder $query) use ($request): void {
+                $query->where('preferred_staff_id', $request->getPreferredStaffId());
+            })
+            ->when($request->getPreferredDate() !== null, static function (Builder $query) use ($request): void {
+                $query->whereDate('preferred_date', $request->getPreferredDate());
+            })
+            ->when($request->getSearch() !== null, static function (Builder $query) use ($request): void {
+                $search = '%'.$request->getSearch().'%';
+
+                $query->where(static function (Builder $searchQuery) use ($search): void {
+                    $searchQuery
+                        ->where('client_name', 'like', $search)
+                        ->orWhere('client_phone', 'like', $search)
+                        ->orWhere('client_email', 'like', $search);
+                });
             })
             ->ordered()
-            ->paginate((int) request()->integer('per_page', 15));
+            ->paginate($request->getPerPage());
 
         return WaitlistEntryResource::collection($entries);
     }
 
-    public function store(StoreWaitlistEntryRequest $request): WaitlistEntryResource
-    {
+    public function store(
+        StoreWaitlistEntryRequest $request,
+        WaitlistEntryValidationService $validationService,
+    ): JsonResponse {
         $tenant = $this->resolveTenantOrFail($request);
         $payload = $request->getWaitlistData();
+        $preferredStaffId = $payload['preferred_staff_id'] ?? null;
+
+        $validationService->ensureStaffSupportsService(
+            $tenant,
+            (int) $payload['service_id'],
+            is_int($preferredStaffId) ? $preferredStaffId : null,
+        );
 
         $entry = WaitlistEntry::create([
             ...$payload,
@@ -46,14 +79,40 @@ final class WaitlistController extends ApiController
             'source' => WaitlistEntrySource::Owner->value,
         ]);
 
-        return new WaitlistEntryResource($entry->refresh());
+        return WaitlistEntryResource::make(
+            $entry->refresh()->load(['service', 'preferredStaff', 'convertedAppointment']),
+        )->response()->setStatusCode(201);
+    }
+
+    public function update(
+        UpdateWaitlistEntryRequest $request,
+        WaitlistEntry $entry,
+        WaitlistEntryValidationService $validationService,
+    ): WaitlistEntryResource {
+        $this->ensureTenantOwnership($request, $entry->tenant_id);
+
+        $tenant = $this->resolveTenantOrFail($request);
+        $payload = $request->getUpdateData();
+        $preferredStaffId = array_key_exists('preferred_staff_id', $payload)
+            ? $payload['preferred_staff_id']
+            : $entry->preferred_staff_id;
+
+        $validationService->ensureStaffSupportsService(
+            $tenant,
+            $entry->service_id,
+            is_int($preferredStaffId) ? $preferredStaffId : null,
+        );
+
+        $entry->update($payload);
+
+        return new WaitlistEntryResource($entry->refresh()->load(['service', 'preferredStaff', 'convertedAppointment']));
     }
 
     public function convert(
         ConvertWaitlistEntryRequest $request,
         WaitlistEntry $entry,
         WaitlistConvertToAppointmentAction $action,
-    ): AppointmentResource {
+    ): JsonResponse {
         $this->ensureTenantOwnership($request, $entry->tenant_id);
 
         $appointment = $action->handle(
@@ -63,12 +122,18 @@ final class WaitlistController extends ApiController
             $request->getNotes(),
         );
 
-        return new AppointmentResource($appointment);
+        return AppointmentResource::make($appointment)
+            ->response()
+            ->setStatusCode(201);
     }
 
-    private function resolveTenantOrFail(StoreWaitlistEntryRequest $request): Tenant
+    private function resolveTenantOrFail(Request $request): Tenant
     {
         $tenantId = $request->user()?->tenant_id;
+
+        if (! is_int($tenantId)) {
+            abort(401);
+        }
 
         return Tenant::where('id', $tenantId)->firstOrFail();
     }
