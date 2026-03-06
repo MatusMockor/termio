@@ -39,12 +39,30 @@ final class WaitlistConvertToAppointmentAction
         $tenant = $entry->tenant;
         $resolvedStaffId = $staffId ?? $entry->preferred_staff_id;
 
+        $this->ensureSlotCanBeConverted($entry, $service, $tenant, $times, $resolvedStaffId);
+
+        $appointment = $this->createAppointment($entry, $times, $resolvedStaffId, $notes);
+
+        return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff']);
+    }
+
+    /**
+     * @param  array{starts_at: \Carbon\Carbon, ends_at: \Carbon\Carbon}  $times
+     */
+    private function ensureSlotCanBeConverted(
+        WaitlistEntry $entry,
+        \App\Models\Service $service,
+        \App\Models\Tenant $tenant,
+        array $times,
+        ?int $resolvedStaffId,
+    ): void {
         $this->validationService->ensureStaffSupportsService(
             $tenant,
             $entry->service_id,
             $resolvedStaffId,
             'staff_id',
         );
+
         $this->slotValidationService->ensureBookable(
             $tenant,
             $service,
@@ -52,23 +70,19 @@ final class WaitlistConvertToAppointmentAction
             $times['ends_at'],
             $resolvedStaffId,
         );
+    }
 
-        $appointment = DB::transaction(function () use ($entry, $resolvedStaffId, $times, $notes): Appointment {
-            $client = Client::withoutTenantScope()->firstOrCreate(
-                [
-                    'tenant_id' => $entry->tenant_id,
-                    'phone' => $entry->client_phone,
-                ],
-                [
-                    'name' => $entry->client_name,
-                    'email' => $entry->client_email,
-                ],
-            );
-
-            $entryNotes = $entry->notes ?? '';
-            $conversionNotes = $notes ?? '';
-            $combinedNotes = trim($entryNotes."\n".$conversionNotes);
-
+    /**
+     * @param  array{starts_at: \Carbon\Carbon, ends_at: \Carbon\Carbon}  $times
+     */
+    private function createAppointment(
+        WaitlistEntry $entry,
+        array $times,
+        ?int $resolvedStaffId,
+        ?string $notes,
+    ): Appointment {
+        return DB::transaction(function () use ($entry, $resolvedStaffId, $times, $notes): Appointment {
+            $client = $this->findOrCreateClient($entry);
             $appointment = $this->appointmentRepository->create([
                 'tenant_id' => $entry->tenant_id,
                 'client_id' => $client->id,
@@ -76,7 +90,7 @@ final class WaitlistConvertToAppointmentAction
                 'staff_id' => $resolvedStaffId,
                 'starts_at' => $times['starts_at'],
                 'ends_at' => $times['ends_at'],
-                'notes' => $combinedNotes !== '' ? $combinedNotes : null,
+                'notes' => $this->buildAppointmentNotes($entry, $notes),
                 'status' => AppointmentStatus::Confirmed->value,
                 'source' => AppointmentSource::Manual->value,
                 'service_price_snapshot' => $entry->service->price,
@@ -91,8 +105,29 @@ final class WaitlistConvertToAppointmentAction
 
             return $appointment;
         });
+    }
 
-        return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff']);
+    private function findOrCreateClient(WaitlistEntry $entry): Client
+    {
+        return Client::withoutTenantScope()->firstOrCreate(
+            [
+                'tenant_id' => $entry->tenant_id,
+                'phone' => $entry->client_phone,
+            ],
+            [
+                'name' => $entry->client_name,
+                'email' => $entry->client_email,
+            ],
+        );
+    }
+
+    private function buildAppointmentNotes(WaitlistEntry $entry, ?string $notes): ?string
+    {
+        $entryNotes = $entry->notes ?? '';
+        $conversionNotes = $notes ?? '';
+        $combinedNotes = trim($entryNotes."\n".$conversionNotes);
+
+        return $combinedNotes !== '' ? $combinedNotes : null;
     }
 
     private function ensureEntryConvertible(WaitlistEntry $entry): void
