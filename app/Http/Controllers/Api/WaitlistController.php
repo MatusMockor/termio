@@ -92,15 +92,38 @@ final class WaitlistController extends ApiController
         $this->ensureTenantOwnership($request, $entry->tenant_id);
 
         $tenant = $this->resolveTenantOrFail($request);
-        $payload = $request->getUpdateData();
-        $preferredStaffId = array_key_exists('preferred_staff_id', $payload)
-            ? $payload['preferred_staff_id']
+        $payload = $request->safe()->only([
+            'preferred_staff_id',
+            'preferred_date',
+            'time_from',
+            'time_to',
+            'client_name',
+            'client_phone',
+            'client_email',
+            'notes',
+            'status',
+        ]);
+
+        if (array_key_exists('time_from', $payload)) {
+            $payload['time_from'] = $request->getTimeFrom();
+        }
+
+        if (array_key_exists('time_to', $payload)) {
+            $payload['time_to'] = $request->getTimeTo();
+        }
+
+        if (array_key_exists('status', $payload)) {
+            $payload['status'] = $request->getStatus()?->value;
+        }
+
+        $preferredStaffId = $request->hasPreferredStaffId()
+            ? $request->getPreferredStaffId()
             : $entry->preferred_staff_id;
 
         $validationService->ensureStaffSupportsService(
             $tenant,
             $entry->service_id,
-            is_int($preferredStaffId) ? $preferredStaffId : null,
+            $preferredStaffId,
         );
 
         $entry->update($payload);

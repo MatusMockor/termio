@@ -32,8 +32,14 @@ return new class extends Migration
             $table->index(['tenant_id', 'service_id']);
             $table->index(['tenant_id', 'preferred_date']);
             $table->index(['tenant_id', 'preferred_staff_id']);
-            $table->index(['tenant_id', 'status', 'service_id', 'preferred_date']);
-            $table->index(['tenant_id', 'status', 'service_id', 'preferred_staff_id']);
+            $table->index(
+                ['tenant_id', 'status', 'service_id', 'preferred_date'],
+                'wl_tenant_status_service_date_idx',
+            );
+            $table->index(
+                ['tenant_id', 'status', 'service_id', 'preferred_staff_id'],
+                'wl_tenant_status_service_staff_idx',
+            );
             $table->index(['tenant_id', 'created_at']);
         });
     }

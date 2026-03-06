@@ -35,18 +35,21 @@ final class WaitlistMatchingService
 
                 $matchesPreferredStaff = $entry->preferred_staff_id === null
                     || $entry->preferred_staff_id === $appointment->staff_id;
+                $matchPriority = $matchesPreferredDate && $matchesPreferredStaff ? 0 : 1;
 
                 $entry->setAttribute('match', [
-                    'matched_by' => $matchesPreferredDate && $matchesPreferredStaff ? 'strict' : 'fallback',
+                    'matched_by' => $matchPriority === 0 ? 'strict' : 'fallback',
                     'matches_preferred_date' => $matchesPreferredDate,
                     'matches_preferred_staff' => $matchesPreferredStaff,
                 ]);
+                $entry->setAttribute('match_priority', $matchPriority);
+                $entry->setAttribute('created_at_timestamp', $entry->created_at->getTimestamp());
 
                 return $entry;
             })
             ->sortBy([
-                static fn (WaitlistEntry $entry): int => $entry->getAttribute('match')['matched_by'] === 'strict' ? 0 : 1,
-                static fn (WaitlistEntry $entry): int => $entry->created_at->getTimestamp(),
+                ['match_priority', 'asc'],
+                ['created_at_timestamp', 'asc'],
             ])
             ->values();
 

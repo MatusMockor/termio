@@ -14,7 +14,6 @@ use App\Models\WaitlistEntry;
 use App\Services\Appointment\AppointmentDurationService;
 use App\Services\Appointment\AppointmentSlotValidationService;
 use App\Services\Waitlist\WaitlistEntryValidationService;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 final class WaitlistConvertToAppointmentAction
@@ -81,7 +80,7 @@ final class WaitlistConvertToAppointmentAction
         ?int $resolvedStaffId,
         ?string $notes,
     ): Appointment {
-        return DB::transaction(function () use ($entry, $resolvedStaffId, $times, $notes): Appointment {
+        return $entry->getConnection()->transaction(function () use ($entry, $resolvedStaffId, $times, $notes): Appointment {
             $client = $this->findOrCreateClient($entry);
             $appointment = $this->appointmentRepository->create([
                 'tenant_id' => $entry->tenant_id,
