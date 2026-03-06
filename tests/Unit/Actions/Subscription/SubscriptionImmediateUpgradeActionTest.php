@@ -6,6 +6,7 @@ namespace Tests\Unit\Actions\Subscription;
 
 use App\Actions\Subscription\SubscriptionImmediateUpgradeAction;
 use App\Contracts\Services\SubscriptionUpgradeBillingServiceContract;
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
 use App\DTOs\Subscription\ImmediateUpgradeSubscriptionDTO;
 use App\Enums\BillingCycle;
 use App\Enums\SubscriptionStatus;
@@ -192,10 +193,10 @@ final class SubscriptionImmediateUpgradeActionTest extends TestCase
                 'scheduled_change_at' => now()->addDay(),
             ]);
 
-        $stripeSubscription = (object) [
-            'id' => 'sub_new_paid_123',
-            'status' => SubscriptionStatus::Active->value,
-        ];
+        $stripeSubscription = new StripeSubscriptionResultDTO(
+            id: 'sub_new_paid_123',
+            status: SubscriptionStatus::Active->value,
+        );
 
         $action = $this->buildAction(
             $this->createUpgradeValidationChainBuilder(),

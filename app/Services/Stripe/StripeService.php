@@ -230,6 +230,19 @@ final class StripeService implements StripeServiceContract
     }
 
     /**
+     * Create a Stripe subscription.
+     *
+     * @param  array<string, mixed>  $payload
+     * @param  array{idempotency_key?: string}  $options
+     *
+     * @throws ApiErrorException
+     */
+    public function createSubscription(array $payload, array $options = []): Subscription
+    {
+        return $this->getClient()->subscriptions->create($payload, $options);
+    }
+
+    /**
      * Retrieve a Stripe subscription by ID.
      *
      * @throws ApiErrorException

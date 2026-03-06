@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Tests\Unit\Services;
 
 use App\Contracts\Services\DefaultPaymentMethodGuardContract;
+use App\Contracts\Services\StripeBillingGatewayContract;
+use App\DTOs\Billing\CreateStripeSubscriptionDTO;
+use App\DTOs\Billing\StripeSubscriptionResultDTO;
+use App\Exceptions\BillingProviderException;
 use App\Exceptions\SubscriptionException;
 use App\Models\Plan;
 use App\Models\Subscription;
 use App\Models\Tenant;
 use App\Services\Subscription\SubscriptionUpgradeBillingService;
-use Closure;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use RuntimeException;
-use Stripe\StripeClient;
 use Tests\TestCase;
 
 final class SubscriptionUpgradeBillingServiceTest extends TestCase
@@ -30,7 +31,11 @@ final class SubscriptionUpgradeBillingServiceTest extends TestCase
             ->with($this->callback(static fn (Tenant $tenant): bool => $tenant->id === $subscription->tenant_id))
             ->willThrowException(SubscriptionException::paymentMethodRequired());
 
-        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard);
+        $gateway = $this->createMock(StripeBillingGatewayContract::class);
+        $gateway->expects($this->never())
+            ->method('createSubscription');
+
+        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard, $gateway);
 
         $this->expectException(SubscriptionException::class);
         $this->expectExceptionMessage('Payment method is required for paid plans.');
@@ -48,37 +53,33 @@ final class SubscriptionUpgradeBillingServiceTest extends TestCase
             ->with($this->callback(static fn (Tenant $tenant): bool => $tenant->id === $subscription->tenant_id))
             ->willReturn('pm_default_123');
 
-        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard);
+        $gateway = $this->createMock(StripeBillingGatewayContract::class);
+        $gateway->expects($this->once())
+            ->method('createSubscription')
+            ->with($this->callback(function (CreateStripeSubscriptionDTO $dto) use ($subscription): bool {
+                $this->assertSame((string) $subscription->tenant->stripe_id, $dto->customerId);
+                $this->assertSame('price_easy_monthly', $dto->priceId);
+                $this->assertSame('pm_default_123', $dto->defaultPaymentMethodId);
+                $this->assertSame(14, $dto->trialPeriodDays);
+                $this->assertNotEmpty($dto->idempotencyKey);
 
-        $capturedPayload = [];
-        $capturedOptions = [];
+                return true;
+            }))
+            ->willReturn(new StripeSubscriptionResultDTO(
+                id: 'sub_trial_123',
+                status: 'trialing',
+                trialEnd: now()->addDays(14)->timestamp,
+            ));
 
-        $this->bindStripeClientFake(
-            static function (array $payload, array $options) use (&$capturedPayload, &$capturedOptions): object {
-                $capturedPayload = $payload;
-                $capturedOptions = $options;
-
-                return (object) [
-                    'id' => 'sub_trial_123',
-                    'status' => 'trialing',
-                    'trial_end' => now()->addDays(14)->timestamp,
-                ];
-            },
-        );
-
+        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard, $gateway);
         $result = $service->createTrialSubscriptionFromFree($subscription, 'price_easy_monthly', 14);
 
         $this->assertSame('sub_trial_123', $result->id);
         $this->assertSame('trialing', $result->status);
-        $this->assertSame((string) $subscription->tenant->stripe_id, $capturedPayload['customer']);
-        $this->assertSame('price_easy_monthly', $capturedPayload['items'][0]['price']);
-        $this->assertSame('pm_default_123', $capturedPayload['default_payment_method']);
-        $this->assertSame(14, $capturedPayload['trial_period_days']);
-        $this->assertArrayHasKey('idempotency_key', $capturedOptions);
-        $this->assertNotEmpty($capturedOptions['idempotency_key']);
+        $this->assertNotNull($result->trialEnd);
     }
 
-    public function test_create_trial_subscription_from_free_wraps_stripe_exception(): void
+    public function test_create_paid_subscription_from_free_creates_non_trial_subscription(): void
     {
         $subscription = $this->createFreeSubscription();
 
@@ -87,13 +88,46 @@ final class SubscriptionUpgradeBillingServiceTest extends TestCase
             ->method('ensureLiveDefaultPaymentMethod')
             ->willReturn('pm_default_123');
 
-        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard);
+        $gateway = $this->createMock(StripeBillingGatewayContract::class);
+        $gateway->expects($this->once())
+            ->method('createSubscription')
+            ->with($this->callback(function (CreateStripeSubscriptionDTO $dto) use ($subscription): bool {
+                $this->assertSame((string) $subscription->tenant->stripe_id, $dto->customerId);
+                $this->assertSame('price_easy_monthly', $dto->priceId);
+                $this->assertSame('pm_default_123', $dto->defaultPaymentMethodId);
+                $this->assertNull($dto->trialPeriodDays);
+                $this->assertNotEmpty($dto->idempotencyKey);
 
-        $this->bindStripeClientFake(
-            static function (): never {
-                throw new RuntimeException('stripe unavailable');
-            },
-        );
+                return true;
+            }))
+            ->willReturn(new StripeSubscriptionResultDTO(
+                id: 'sub_paid_123',
+                status: 'active',
+            ));
+
+        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard, $gateway);
+        $result = $service->createPaidSubscriptionFromFree($subscription, 'price_easy_monthly');
+
+        $this->assertSame('sub_paid_123', $result->id);
+        $this->assertSame('active', $result->status);
+        $this->assertNull($result->trialEnd);
+    }
+
+    public function test_create_trial_subscription_from_free_wraps_gateway_exception(): void
+    {
+        $subscription = $this->createFreeSubscription();
+
+        $paymentMethodGuard = $this->createMock(DefaultPaymentMethodGuardContract::class);
+        $paymentMethodGuard->expects($this->once())
+            ->method('ensureLiveDefaultPaymentMethod')
+            ->willReturn('pm_default_123');
+
+        $gateway = $this->createMock(StripeBillingGatewayContract::class);
+        $gateway->expects($this->once())
+            ->method('createSubscription')
+            ->willThrowException(new BillingProviderException('stripe unavailable'));
+
+        $service = new SubscriptionUpgradeBillingService($paymentMethodGuard, $gateway);
 
         $this->expectException(SubscriptionException::class);
         $this->expectExceptionMessage('Stripe error: stripe unavailable');
@@ -120,40 +154,5 @@ final class SubscriptionUpgradeBillingServiceTest extends TestCase
             'stripe_status' => 'active',
             'billing_cycle' => 'monthly',
         ]);
-    }
-
-    /**
-     * @param  callable(array<string, mixed>, array<string, string>): object  $createSubscription
-     */
-    private function bindStripeClientFake(callable $createSubscription): void
-    {
-        $this->app->bind(StripeClient::class, static function () use ($createSubscription): object {
-            $subscriptionsService = new class($createSubscription)
-            {
-                /**
-                 * @param  callable(array<string, mixed>, array<string, string>): object  $createSubscription
-                 */
-                public function __construct(
-                    callable $createSubscription,
-                ) {
-                    $this->createSubscription = Closure::fromCallable($createSubscription);
-                }
-
-                private readonly Closure $createSubscription;
-
-                /**
-                 * @param  array<string, mixed>  $payload
-                 * @param  array<string, string>  $options
-                 */
-                public function create(array $payload, array $options = []): object
-                {
-                    return ($this->createSubscription)($payload, $options);
-                }
-            };
-
-            return (object) [
-                'subscriptions' => $subscriptionsService,
-            ];
-        });
     }
 }
