@@ -17,6 +17,7 @@ use App\Http\Requests\Billing\CreatePortalSessionRequest;
 use App\Http\Resources\InvoiceResource;
 use App\Services\Tenant\TenantContextService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 final class BillingController extends Controller
@@ -30,7 +31,7 @@ final class BillingController extends Controller
     /**
      * Get billing history (invoices).
      */
-    public function invoices(): JsonResponse
+    public function invoices(): AnonymousResourceCollection|JsonResponse
     {
         $tenant = $this->tenantContext->getTenant();
 
@@ -40,15 +41,13 @@ final class BillingController extends Controller
 
         $invoices = $this->invoices->getByTenant($tenant);
 
-        return response()->json([
-            'data' => InvoiceResource::collection($invoices),
-        ]);
+        return InvoiceResource::collection($invoices);
     }
 
     /**
      * Get a single invoice.
      */
-    public function showInvoice(int $invoiceId): JsonResponse
+    public function showInvoice(int $invoiceId): InvoiceResource|JsonResponse
     {
         $tenant = $this->tenantContext->getTenant();
 
@@ -62,9 +61,7 @@ final class BillingController extends Controller
             return response()->json(['error' => 'Invoice not found.'], 404);
         }
 
-        return response()->json([
-            'data' => new InvoiceResource($invoice),
-        ]);
+        return new InvoiceResource($invoice);
     }
 
     /**

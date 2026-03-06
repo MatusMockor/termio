@@ -16,6 +16,7 @@ use App\Http\Resources\Admin\PlanResource;
 use App\Models\Plan;
 use App\Services\Admin\PlanStatisticsService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class PlanController extends Controller
 {
@@ -23,7 +24,7 @@ final class PlanController extends Controller
         private readonly PlanRepository $planRepository,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
         $plans = $this->planRepository->getAll();
 
@@ -33,9 +34,7 @@ final class PlanController extends Controller
             return $plan;
         });
 
-        return response()->json([
-            'data' => PlanResource::collection($plansWithCount),
-        ]);
+        return PlanResource::collection($plansWithCount);
     }
 
     public function store(StorePlanRequest $request, PlanCreateAction $action): JsonResponse
@@ -47,23 +46,19 @@ final class PlanController extends Controller
             ->setStatusCode(201);
     }
 
-    public function show(Plan $plan): JsonResponse
+    public function show(Plan $plan): PlanResource
     {
         $plan->subscriber_count = $this->planRepository->getSubscriberCount($plan);
 
-        return response()->json([
-            'data' => new PlanResource($plan),
-        ]);
+        return new PlanResource($plan);
     }
 
-    public function update(UpdatePlanRequest $request, Plan $plan, PlanUpdateAction $action): JsonResponse
+    public function update(UpdatePlanRequest $request, Plan $plan, PlanUpdateAction $action): PlanResource
     {
         $updatedPlan = $action->handle($plan, $request->toDTO());
         $updatedPlan->subscriber_count = $this->planRepository->getSubscriberCount($updatedPlan);
 
-        return response()->json([
-            'data' => new PlanResource($updatedPlan),
-        ]);
+        return new PlanResource($updatedPlan);
     }
 
     public function destroy(Plan $plan, PlanDeactivateAction $action): JsonResponse

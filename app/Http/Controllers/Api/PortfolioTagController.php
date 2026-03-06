@@ -14,6 +14,7 @@ use App\Http\Requests\Portfolio\UpdatePortfolioTagRequest;
 use App\Http\Resources\PortfolioTagResource;
 use App\Models\PortfolioTag;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class PortfolioTagController extends Controller
 {
@@ -21,11 +22,11 @@ final class PortfolioTagController extends Controller
         private readonly PortfolioTagRepository $repository,
     ) {}
 
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
         $tags = $this->repository->getAll();
 
-        return response()->json(['data' => PortfolioTagResource::collection($tags)]);
+        return PortfolioTagResource::collection($tags);
     }
 
     public function store(StorePortfolioTagRequest $request, PortfolioTagCreateAction $action): JsonResponse
@@ -33,17 +34,19 @@ final class PortfolioTagController extends Controller
         $tenantId = $request->user()->tenant_id;
         $tag = $action->handle($request->toDTO(), $tenantId);
 
-        return response()->json(['data' => new PortfolioTagResource($tag)], 201);
+        return PortfolioTagResource::make($tag)
+            ->response()
+            ->setStatusCode(201);
     }
 
     public function update(
         UpdatePortfolioTagRequest $request,
         PortfolioTag $portfolioTag,
         PortfolioTagUpdateAction $action
-    ): JsonResponse {
+    ): PortfolioTagResource {
         $tag = $action->handle($portfolioTag, $request->toDTO());
 
-        return response()->json(['data' => new PortfolioTagResource($tag)]);
+        return new PortfolioTagResource($tag);
     }
 
     public function destroy(PortfolioTag $portfolioTag, PortfolioTagDeleteAction $action): JsonResponse

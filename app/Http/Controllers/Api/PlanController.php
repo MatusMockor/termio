@@ -10,6 +10,7 @@ use App\Http\Resources\PlanResource;
 use App\Models\Plan;
 use App\Services\Subscription\PlanComparisonService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 final class PlanController extends Controller
 {
@@ -21,17 +22,15 @@ final class PlanController extends Controller
     /**
      * List all public active plans.
      */
-    public function index(): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
-        return response()->json([
-            'data' => PlanResource::collection($this->getPublicPlansAction->handle()),
-        ]);
+        return PlanResource::collection($this->getPublicPlansAction->handle());
     }
 
     /**
      * Get plan details by slug.
      */
-    public function show(Plan $plan): JsonResponse
+    public function show(Plan $plan): PlanResource|JsonResponse
     {
         if (! $plan->is_active || ! $plan->is_public) {
             return response()->json([
@@ -40,9 +39,7 @@ final class PlanController extends Controller
             ], 404);
         }
 
-        return response()->json([
-            'data' => new PlanResource($plan),
-        ]);
+        return new PlanResource($plan);
     }
 
     /**
