@@ -13,7 +13,6 @@ use App\Enums\AppointmentSource;
 use App\Enums\AppointmentStatus;
 use App\Enums\Feature;
 use App\Models\Appointment;
-use App\Models\Client;
 use App\Models\Tenant;
 use App\Notifications\BookingConfirmed;
 use App\Notifications\NewBookingReceived;
@@ -43,23 +42,34 @@ final class BookingPublicCreateAction
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
     {
         $service = $this->serviceRepository->findByIdWithoutTenantScope($dto->serviceId, $tenant->id);
+        $times = $this->validateBookingRequest($dto, $tenant, $service);
+        $appointment = $this->createAppointment($dto, $tenant, $service, $times);
 
-        $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
-        $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
-        $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
-        $this->ensureCustomFieldsFeatureEnabled($tenant, $dto->customFields);
-        $matchingClient = $this->bookingClientService->ensureClientCanBook($tenant, $dto->clientPhone, $dto->clientEmail);
-        $effectiveFields = $this->bookingFieldResolver->resolveForService($tenant, $service);
-        $this->bookingFieldValidation->validate($dto->customFields, $effectiveFields);
+        $this->sendNotifications($appointment);
 
-        $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times, $matchingClient): Appointment {
-            $client = $this->findOrCreateClient($dto, $tenant, $matchingClient);
+        return $appointment;
+    }
+
+    /**
+     * @param  array{starts_at: Carbon, ends_at: Carbon}  $times
+     */
+    private function createAppointment(
+        CreatePublicBookingDTO $dto,
+        Tenant $tenant,
+        \App\Models\Service $service,
+        array $times,
+    ): Appointment {
+        return DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
+            $client = $this->bookingClientService->createOrValidatePublicClient(
+                tenant: $tenant,
+                name: $dto->clientName,
+                phone: $dto->clientPhone,
+                email: $dto->clientEmail,
+            );
             $servicePrice = (float) $service->price;
-            $voucher = null;
-
-            if ($dto->voucherCode !== null) {
-                $voucher = $this->bookingVoucherService->findRedeemableVoucher($tenant, $dto->voucherCode);
-            }
+            $voucher = $dto->voucherCode !== null
+                ? $this->bookingVoucherService->findRedeemableVoucher($tenant, $dto->voucherCode)
+                : null;
 
             $appointment = $this->appointmentRepository->create([
                 'tenant_id' => $tenant->id,
@@ -77,26 +87,50 @@ final class BookingPublicCreateAction
                 'source' => AppointmentSource::Online->value,
             ]);
 
-            if ($voucher !== null) {
-                $discountAmount = $this->bookingVoucherService->redeemForAppointment(
-                    $voucher,
-                    $appointment,
-                    $servicePrice,
-                );
-
-                $appointment = $this->appointmentRepository->update($appointment, [
-                    'voucher_id' => $voucher->id,
-                    'voucher_discount_amount' => $discountAmount,
-                    'final_amount_due' => round(max(0, $servicePrice - $discountAmount), 2),
-                ]);
-            }
-
-            return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
+            return $this->applyVoucherAndLoadRelations($appointment, $voucher, $servicePrice);
         });
+    }
 
-        $this->sendNotifications($appointment);
+    /**
+     * @return array{starts_at: Carbon, ends_at: Carbon}
+     */
+    private function validateBookingRequest(
+        CreatePublicBookingDTO $dto,
+        Tenant $tenant,
+        \App\Models\Service $service,
+    ): array {
+        $times = $this->durationService->calculateTimesFromService($dto->startsAt, $service);
 
-        return $appointment;
+        $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
+        $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
+        $this->ensureCustomFieldsFeatureEnabled($tenant, $dto->customFields);
+
+        $effectiveFields = $this->bookingFieldResolver->resolveForService($tenant, $service);
+        $this->bookingFieldValidation->validate($dto->customFields, $effectiveFields);
+
+        return $times;
+    }
+
+    private function applyVoucherAndLoadRelations(
+        Appointment $appointment,
+        ?\App\Models\Voucher $voucher,
+        float $servicePrice,
+    ): Appointment {
+        if ($voucher !== null) {
+            $discountAmount = $this->bookingVoucherService->redeemForAppointment(
+                $voucher,
+                $appointment,
+                $servicePrice,
+            );
+
+            $appointment = $this->appointmentRepository->update($appointment, [
+                'voucher_id' => $voucher->id,
+                'voucher_discount_amount' => $discountAmount,
+                'final_amount_due' => round(max(0, $servicePrice - $discountAmount), 2),
+            ]);
+        }
+
+        return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff', 'tenant']);
     }
 
     /**
@@ -143,17 +177,6 @@ final class BookingPublicCreateAction
         }
 
         $owner->notify(new NewBookingReceived($appointment));
-    }
-
-    private function findOrCreateClient(CreatePublicBookingDTO $dto, Tenant $tenant, ?Client $matchingClient): Client
-    {
-        return $this->bookingClientService->findOrCreateClient(
-            tenant: $tenant,
-            name: $dto->clientName,
-            phone: $dto->clientPhone,
-            email: $dto->clientEmail,
-            matchingClient: $matchingClient,
-        );
     }
 
     private function ensureWithinBusinessWorkingHours(Tenant $tenant, Carbon $startsAt, Carbon $endsAt): void

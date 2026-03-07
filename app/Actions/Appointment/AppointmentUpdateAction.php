@@ -44,6 +44,10 @@ final class AppointmentUpdateAction
 
         $this->appointmentRepository->update($appointment, $data);
 
+        if ($dto->clientId !== null) {
+            $appointment->load('client');
+        }
+
         if ($dto->status !== null) {
             $client = $previousStatus === AppointmentStatus::NoShow->value
                 ? $previousClient
