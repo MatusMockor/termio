@@ -7,8 +7,10 @@ namespace App\Actions\Appointment;
 use App\Contracts\Repositories\AppointmentRepository;
 use App\Contracts\Repositories\ServiceRepository;
 use App\DTOs\Appointment\UpdateAppointmentDTO;
+use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Services\Appointment\AppointmentDurationService;
+use App\Services\Client\ClientAntiNoShowService;
 
 final class AppointmentUpdateAction
 {
@@ -16,10 +18,13 @@ final class AppointmentUpdateAction
         private readonly AppointmentRepository $appointmentRepository,
         private readonly ServiceRepository $serviceRepository,
         private readonly AppointmentDurationService $durationService,
+        private readonly ClientAntiNoShowService $antiNoShowService,
     ) {}
 
     public function handle(Appointment $appointment, UpdateAppointmentDTO $dto): Appointment
     {
+        $previousClient = $appointment->client;
+        $previousStatus = $appointment->status;
         $data = array_filter([
             'client_id' => $dto->clientId,
             'service_id' => $dto->serviceId,
@@ -38,6 +43,14 @@ final class AppointmentUpdateAction
         }
 
         $this->appointmentRepository->update($appointment, $data);
+
+        if ($dto->status !== null) {
+            $client = $previousStatus === AppointmentStatus::NoShow->value
+                ? $previousClient
+                : $appointment->client;
+
+            $this->antiNoShowService->syncNoShowTransition($client, $previousStatus, $appointment->status);
+        }
 
         return $this->appointmentRepository->loadRelations($appointment, ['client', 'service', 'staff']);
     }

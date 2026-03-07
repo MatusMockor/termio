@@ -23,4 +23,7 @@ return [
             'multiple_of' => 5,
         ],
     ],
+    'no_show' => [
+        'late_cancellation_hours' => 24,
+    ],
 ];

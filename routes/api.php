@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
 use App\Http\Controllers\Api\BookingFieldController;
 use App\Http\Controllers\Api\ClientController;
+use App\Http\Controllers\Api\ClientTagController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DashboardSubscriptionController;
 use App\Http\Controllers\Api\GoogleCalendarController;
@@ -144,6 +145,14 @@ Route::middleware(['auth:sanctum', 'tenant'])->group(function (): void {
     // Clients
     Route::apiResource('clients', ClientController::class);
     Route::get('/clients-search', [ClientController::class, 'search'])->name('clients.search');
+    Route::middleware(['owner', 'feature:client_segmentation'])->group(function (): void {
+        Route::apiResource('client-tags', ClientTagController::class)
+            ->parameters(['client-tags' => 'tag'])
+            ->except(['show']);
+        Route::put('/clients/{client}/tags', [ClientController::class, 'syncTags'])->name('clients.tags.sync');
+        Route::put('/clients/{client}/booking-controls', [ClientController::class, 'updateBookingControls'])
+            ->name('clients.booking-controls.update');
+    });
 
     // Staff - check user limit on creation
     Route::apiResource('staff', StaffController::class)->except(['store']);

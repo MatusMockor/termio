@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Contracts\Repositories;
 
+use App\Enums\ClientBookingState;
+use App\Enums\ClientRiskLevel;
 use App\Enums\ClientStatus;
 use App\Models\Client;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -30,7 +32,13 @@ interface ClientRepository
     /**
      * @return LengthAwarePaginator<int, Client>
      */
-    public function paginate(?ClientStatus $status, int $perPage): LengthAwarePaginator;
+    public function paginate(
+        ?ClientStatus $status,
+        ?ClientBookingState $bookingState,
+        ?ClientRiskLevel $riskLevel,
+        array $tagIds,
+        int $perPage,
+    ): LengthAwarePaginator;
 
     /**
      * @return Collection<int, Client>

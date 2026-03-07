@@ -7,4 +7,5 @@ namespace App\Enums;
 enum ApiErrorCode: string
 {
     case PaymentMethodRequired = 'payment_method_required';
+    case ClientBlacklisted = 'client_blacklisted';
 }

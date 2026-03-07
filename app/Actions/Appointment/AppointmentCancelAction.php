@@ -8,6 +8,7 @@ use App\Contracts\Repositories\AppointmentRepository;
 use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Notifications\AppointmentCancelled;
+use App\Services\Client\ClientAntiNoShowService;
 use App\Services\Voucher\VoucherLedgerService;
 use Illuminate\Support\Facades\DB;
 
@@ -16,12 +17,14 @@ final class AppointmentCancelAction
     public function __construct(
         private readonly AppointmentRepository $appointmentRepository,
         private readonly VoucherLedgerService $voucherLedgerService,
+        private readonly ClientAntiNoShowService $antiNoShowService,
     ) {}
 
     public function handle(Appointment $appointment, ?string $reason = null): Appointment
     {
         $cancelReason = $reason ?? 'No reason provided';
         $notes = $appointment->notes."\n[Cancelled: ".$cancelReason.']';
+        $wasCancelled = $appointment->status === AppointmentStatus::Cancelled->value;
 
         DB::transaction(function () use ($appointment, $notes): void {
             $updatedAppointment = $this->appointmentRepository->update($appointment, [
@@ -31,6 +34,10 @@ final class AppointmentCancelAction
 
             $this->voucherLedgerService->restoreForCancelledAppointment($updatedAppointment);
         });
+
+        if (! $wasCancelled) {
+            $this->antiNoShowService->trackLateCancellation($appointment);
+        }
 
         $appointment = $appointment->fresh(['client', 'service', 'staff', 'tenant']);
 

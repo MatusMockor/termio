@@ -22,6 +22,9 @@ final class IndexClientsAction
     {
         return $this->clientRepository->paginate(
             status: $dto->status,
+            bookingState: $dto->bookingState,
+            riskLevel: $dto->riskLevel,
+            tagIds: $dto->tagIds,
             perPage: $dto->perPage,
         );
     }

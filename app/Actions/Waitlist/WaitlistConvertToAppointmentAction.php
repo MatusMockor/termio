@@ -13,6 +13,7 @@ use App\Models\Client;
 use App\Models\WaitlistEntry;
 use App\Services\Appointment\AppointmentDurationService;
 use App\Services\Appointment\AppointmentSlotValidationService;
+use App\Services\Client\ClientIdentityResolver;
 use App\Services\Waitlist\WaitlistEntryValidationService;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +24,7 @@ final class WaitlistConvertToAppointmentAction
         private readonly AppointmentDurationService $durationService,
         private readonly AppointmentSlotValidationService $slotValidationService,
         private readonly WaitlistEntryValidationService $validationService,
+        private readonly ClientIdentityResolver $clientIdentityResolver,
     ) {}
 
     public function handle(
@@ -108,15 +110,11 @@ final class WaitlistConvertToAppointmentAction
 
     private function findOrCreateClient(WaitlistEntry $entry): Client
     {
-        return Client::withoutTenantScope()->firstOrCreate(
-            [
-                'tenant_id' => $entry->tenant_id,
-                'phone' => $entry->client_phone,
-            ],
-            [
-                'name' => $entry->client_name,
-                'email' => $entry->client_email,
-            ],
+        return $this->clientIdentityResolver->findOrCreate(
+            tenant: $entry->tenant,
+            name: $entry->client_name,
+            phone: $entry->client_phone,
+            email: $entry->client_email,
         );
     }
 
