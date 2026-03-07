@@ -16,18 +16,14 @@ final class PublicBookingClientService
         private readonly ClientIdentityResolver $identityResolver,
     ) {}
 
-    public function ensureClientCanBook(Tenant $tenant, ?string $phone, ?string $email): ?Client
-    {
-        return $this->bookingAccessGuard->ensureCanBook($tenant, $phone, $email);
-    }
-
-    public function findOrCreateClient(
+    public function createOrValidatePublicClient(
         Tenant $tenant,
         string $name,
         ?string $phone,
         ?string $email,
-        ?Client $matchingClient,
     ): Client {
+        $matchingClient = $this->bookingAccessGuard->ensureCanBook($tenant, $phone, $email);
+
         return $this->identityResolver->findOrCreate(
             tenant: $tenant,
             name: $name,

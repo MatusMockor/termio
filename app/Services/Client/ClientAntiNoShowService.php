@@ -7,7 +7,6 @@ namespace App\Services\Client;
 use App\Enums\AppointmentStatus;
 use App\Models\Appointment;
 use App\Models\Client;
-use Illuminate\Support\Facades\DB;
 
 final class ClientAntiNoShowService
 {
@@ -17,7 +16,7 @@ final class ClientAntiNoShowService
             return;
         }
 
-        DB::transaction(function () use ($client, $previousStatus, $newStatus): void {
+        $client->getConnection()->transaction(function () use ($client, $previousStatus, $newStatus): void {
             $lockedClient = Client::withoutTenantScope()
                 ->whereKey($client->id)
                 ->lockForUpdate()
@@ -49,7 +48,9 @@ final class ClientAntiNoShowService
             return;
         }
 
-        DB::transaction(function () use ($appointment): void {
+        $client = Client::withoutTenantScope()->findOrFail($appointment->client_id);
+
+        $client->getConnection()->transaction(function () use ($appointment): void {
             $client = Client::withoutTenantScope()
                 ->whereKey($appointment->client_id)
                 ->lockForUpdate()

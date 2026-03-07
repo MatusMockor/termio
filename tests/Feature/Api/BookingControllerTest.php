@@ -621,6 +621,27 @@ final class BookingControllerTest extends TestCase
             ->assertJsonPath('error_code', 'client_blacklisted');
     }
 
+    public function test_create_booking_blocks_blacklisted_client_when_phone_changes_but_email_matches(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        Client::factory()->forTenant($this->tenant)->create([
+            'phone' => '+421 900 123 456',
+            'email' => 'blacklisted@example.com',
+            'is_blacklisted' => true,
+        ]);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => Carbon::tomorrow()->setHour(10)->setMinute(0)->toIso8601String(),
+            'client_name' => 'Blocked Client',
+            'client_phone' => '+421-900-999-999',
+            'client_email' => 'blacklisted@example.com',
+        ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error_code', 'client_blacklisted');
+    }
+
     public function test_public_waitlist_blocks_blacklisted_client(): void
     {
         $this->enableFeatures(['waitlist_management' => true]);

@@ -15,10 +15,14 @@ final class ClientIdentityResolver
         $normalizedPhone = ClientIdentityNormalizer::normalizePhone($phone);
 
         if ($normalizedPhone !== null) {
-            return Client::withoutTenantScope()
+            $client = Client::withoutTenantScope()
                 ->where('tenant_id', $tenant->id)
                 ->where('phone_normalized', $normalizedPhone)
                 ->first();
+
+            if ($client !== null) {
+                return $client;
+            }
         }
 
         $normalizedEmail = ClientIdentityNormalizer::normalizeEmail($email);

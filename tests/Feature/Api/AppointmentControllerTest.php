@@ -400,6 +400,39 @@ final class AppointmentControllerTest extends TestCase
         $this->assertSame(0, $client->no_show_count);
     }
 
+    public function test_update_tracks_no_show_on_new_client_when_client_and_status_change_together(): void
+    {
+        $this->actingAsOwner();
+
+        $originalClient = Client::factory()->forTenant($this->tenant)->create([
+            'no_show_count' => 0,
+        ]);
+        $newClient = Client::factory()->forTenant($this->tenant)->create([
+            'no_show_count' => 0,
+        ]);
+        $service = Service::factory()->forTenant($this->tenant)->create();
+
+        $appointment = Appointment::factory()
+            ->forTenant($this->tenant)
+            ->forClient($originalClient)
+            ->forService($service)
+            ->confirmed()
+            ->create();
+
+        $this->putJson(route('appointments.update', $appointment), [
+            'client_id' => $newClient->id,
+            'status' => AppointmentStatus::NoShow->value,
+        ])->assertOk()
+            ->assertJsonPath('data.client.id', $newClient->id)
+            ->assertJsonPath('data.status', AppointmentStatus::NoShow->value);
+
+        $originalClient->refresh();
+        $newClient->refresh();
+
+        $this->assertSame(0, $originalClient->no_show_count);
+        $this->assertSame(1, $newClient->no_show_count);
+    }
+
     public function test_destroy_deletes_appointment(): void
     {
         $this->actingAsOwner();
