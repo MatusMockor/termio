@@ -514,6 +514,8 @@ final class BookingControllerTest extends TestCase
         $this->assertDatabaseHas(Client::class, [
             'tenant_id' => $this->tenant->id,
             'phone' => $clientPhone,
+            'phone_normalized' => preg_replace('/\D+/', '', $clientPhone),
+            'email_normalized' => mb_strtolower($clientEmail),
         ]);
 
         $this->assertDatabaseHas(Appointment::class, [
@@ -577,7 +579,9 @@ final class BookingControllerTest extends TestCase
     public function test_create_booking_uses_existing_client(): void
     {
         $service = Service::factory()->forTenant($this->tenant)->create();
-        $existingClient = Client::factory()->forTenant($this->tenant)->create();
+        $existingClient = Client::factory()->forTenant($this->tenant)->create([
+            'phone' => '+421 900 123 456',
+        ]);
 
         $startsAt = Carbon::tomorrow()->setHour(10)->setMinute(0);
 
@@ -585,13 +589,57 @@ final class BookingControllerTest extends TestCase
             'service_id' => $service->id,
             'starts_at' => $startsAt->toIso8601String(),
             'client_name' => fake()->name(),
-            'client_phone' => $existingClient->phone,
+            'client_phone' => '+421-900-123-456',
             'client_email' => fake()->safeEmail(),
         ]);
 
         $response->assertCreated();
 
-        $this->assertEquals(1, Client::where('phone', $existingClient->phone)->count());
+        $this->assertEquals(1, Client::where('tenant_id', $this->tenant->id)->count());
+        $this->assertSame($existingClient->id, Appointment::latest('id')->firstOrFail()->client_id);
+    }
+
+    public function test_create_booking_blocks_blacklisted_client(): void
+    {
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        Client::factory()->forTenant($this->tenant)->create([
+            'phone' => '+421 900 123 456',
+            'email' => 'blacklisted@example.com',
+            'is_blacklisted' => true,
+        ]);
+
+        $response = $this->postJson(route('booking.create', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'starts_at' => Carbon::tomorrow()->setHour(10)->setMinute(0)->toIso8601String(),
+            'client_name' => 'Blocked Client',
+            'client_phone' => '+421-900-123-456',
+            'client_email' => 'blacklisted@example.com',
+        ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error', 'Online booking is not available for this client.')
+            ->assertJsonPath('error_code', 'client_blacklisted');
+    }
+
+    public function test_public_waitlist_blocks_blacklisted_client(): void
+    {
+        $this->enableFeatures(['waitlist_management' => true]);
+
+        $service = Service::factory()->forTenant($this->tenant)->create();
+        Client::factory()->forTenant($this->tenant)->create([
+            'phone' => '+421 900 123 456',
+            'is_blacklisted' => true,
+        ]);
+
+        $response = $this->postJson(route('booking.waitlist', ['tenantSlug' => $this->tenant->slug]), [
+            'service_id' => $service->id,
+            'client_name' => 'Blocked Client',
+            'client_phone' => '+421-900-123-456',
+            'client_email' => 'blocked@example.com',
+        ]);
+
+        $response->assertForbidden()
+            ->assertJsonPath('error_code', 'client_blacklisted');
     }
 
     public function test_create_booking_validates_required_fields(): void

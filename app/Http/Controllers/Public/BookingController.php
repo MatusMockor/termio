@@ -10,6 +10,7 @@ use App\Contracts\Services\FeatureGateServiceContract;
 use App\Contracts\Services\PublicBookingRead;
 use App\Enums\Feature;
 use App\Enums\WaitlistEntrySource;
+use App\Exceptions\ClientBookingAccessException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\PublicAvailabilityRequest;
 use App\Http\Requests\Booking\PublicAvailableDatesRequest;
@@ -20,6 +21,7 @@ use App\Http\Resources\PublicBookingFieldResource;
 use App\Models\Service;
 use App\Models\WaitlistEntry;
 use App\Services\Booking\Fields\BookingFieldResolverService;
+use App\Services\Client\ClientBookingAccessGuard;
 use App\Services\Voucher\VoucherValidationService;
 use App\Services\Waitlist\WaitlistEntryValidationService;
 use Illuminate\Http\JsonResponse;
@@ -37,6 +39,7 @@ final class BookingController extends Controller
         private readonly VoucherValidationService $voucherValidationService,
         private readonly FeatureGateServiceContract $featureGate,
         private readonly WaitlistEntryValidationService $waitlistValidationService,
+        private readonly ClientBookingAccessGuard $clientBookingAccessGuard,
     ) {}
 
     public function tenantInfo(string $tenantSlug): JsonResponse
@@ -136,7 +139,12 @@ final class BookingController extends Controller
     {
         $tenant = $this->bookingReadService->getTenantBySlug($tenantSlug);
 
-        $appointment = $this->bookingCreateAction->handle($request->toDTO(), $tenant);
+        try {
+            $appointment = $this->bookingCreateAction->handle($request->toDTO(), $tenant);
+        } catch (ClientBookingAccessException $exception) {
+            return $this->clientBookingDeniedResponse($exception);
+        }
+
         $staff = $this->bookingReadService->getStaffSummary($appointment->staff_id);
 
         return response()->json([
@@ -168,6 +176,16 @@ final class BookingController extends Controller
         $serviceId = $request->getServiceId();
         $preferredStaffId = $request->getPreferredStaffId();
 
+        try {
+            $this->clientBookingAccessGuard->ensureCanBook(
+                $tenant,
+                $request->getClientPhone(),
+                $request->getClientEmail(),
+            );
+        } catch (ClientBookingAccessException $exception) {
+            return $this->clientBookingDeniedResponse($exception);
+        }
+
         $serviceExists = Service::withoutTenantScope()
             ->where('tenant_id', $tenant->id)
             ->where('id', $serviceId)
@@ -196,5 +214,13 @@ final class BookingController extends Controller
                 'status' => $entry->status->value,
             ],
         ], 201);
+    }
+
+    private function clientBookingDeniedResponse(ClientBookingAccessException $exception): JsonResponse
+    {
+        return response()->json([
+            'error' => $exception->getMessage(),
+            'error_code' => $exception->getErrorCode()->value,
+        ], $exception->getStatusCode());
     }
 }

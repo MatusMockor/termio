@@ -366,6 +366,40 @@ final class AppointmentControllerTest extends TestCase
             ->assertJsonPath('data.status', 'confirmed');
     }
 
+    public function test_update_tracks_no_show_status_transitions_on_client(): void
+    {
+        $this->actingAsOwner();
+
+        $client = Client::factory()->forTenant($this->tenant)->create([
+            'no_show_count' => 0,
+        ]);
+        $service = Service::factory()->forTenant($this->tenant)->create();
+
+        $appointment = Appointment::factory()
+            ->forTenant($this->tenant)
+            ->forClient($client)
+            ->forService($service)
+            ->confirmed()
+            ->create();
+
+        $this->putJson(route('appointments.update', $appointment), [
+            'status' => AppointmentStatus::NoShow->value,
+        ])->assertOk()
+            ->assertJsonPath('data.status', AppointmentStatus::NoShow->value);
+
+        $client->refresh();
+        $this->assertSame(1, $client->no_show_count);
+        $this->assertNotNull($client->last_no_show_at);
+
+        $this->putJson(route('appointments.update', $appointment), [
+            'status' => AppointmentStatus::Confirmed->value,
+        ])->assertOk()
+            ->assertJsonPath('data.status', AppointmentStatus::Confirmed->value);
+
+        $client->refresh();
+        $this->assertSame(0, $client->no_show_count);
+    }
+
     public function test_destroy_deletes_appointment(): void
     {
         $this->actingAsOwner();
@@ -437,6 +471,72 @@ final class AppointmentControllerTest extends TestCase
 
         $appointment->refresh();
         $this->assertStringContainsString($reason, $appointment->notes);
+    }
+
+    public function test_cancel_tracks_late_cancellation_when_within_threshold(): void
+    {
+        $this->actingAsOwner();
+        Carbon::setTestNow('2026-03-07 10:00:00');
+
+        try {
+            $client = Client::factory()->forTenant($this->tenant)->create([
+                'late_cancellation_count' => 0,
+            ]);
+            $service = Service::factory()->forTenant($this->tenant)->create();
+
+            $appointment = Appointment::factory()
+                ->forTenant($this->tenant)
+                ->forClient($client)
+                ->forService($service)
+                ->confirmed()
+                ->create([
+                    'starts_at' => Carbon::parse('2026-03-07 18:00:00'),
+                    'ends_at' => Carbon::parse('2026-03-07 19:00:00'),
+                ]);
+
+            $this->postJson(route('appointments.cancel', $appointment), [
+                'reason' => 'Too late',
+            ])->assertOk();
+
+            $client->refresh();
+            $this->assertSame(1, $client->late_cancellation_count);
+            $this->assertNotNull($client->last_late_cancellation_at);
+        } finally {
+            Carbon::setTestNow();
+        }
+    }
+
+    public function test_cancel_does_not_track_late_cancellation_outside_threshold(): void
+    {
+        $this->actingAsOwner();
+        Carbon::setTestNow('2026-03-07 10:00:00');
+
+        try {
+            $client = Client::factory()->forTenant($this->tenant)->create([
+                'late_cancellation_count' => 0,
+            ]);
+            $service = Service::factory()->forTenant($this->tenant)->create();
+
+            $appointment = Appointment::factory()
+                ->forTenant($this->tenant)
+                ->forClient($client)
+                ->forService($service)
+                ->confirmed()
+                ->create([
+                    'starts_at' => Carbon::parse('2026-03-09 18:00:00'),
+                    'ends_at' => Carbon::parse('2026-03-09 19:00:00'),
+                ]);
+
+            $this->postJson(route('appointments.cancel', $appointment), [
+                'reason' => 'Not late enough',
+            ])->assertOk();
+
+            $client->refresh();
+            $this->assertSame(0, $client->late_cancellation_count);
+            $this->assertNull($client->last_late_cancellation_at);
+        } finally {
+            Carbon::setTestNow();
+        }
     }
 
     public function test_cancel_validates_reason_length(): void

@@ -20,8 +20,8 @@ use App\Notifications\NewBookingReceived;
 use App\Services\Appointment\AppointmentDurationService;
 use App\Services\Booking\Fields\BookingFieldResolverService;
 use App\Services\Booking\Fields\BookingFieldValidationService;
-use App\Services\Voucher\VoucherLedgerService;
-use App\Services\Voucher\VoucherValidationService;
+use App\Services\Booking\PublicBookingClientService;
+use App\Services\Booking\PublicBookingVoucherService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -35,9 +35,9 @@ final class BookingPublicCreateAction
         private readonly WorkingHoursBusiness $workingHoursBusiness,
         private readonly BookingFieldResolverService $bookingFieldResolver,
         private readonly BookingFieldValidationService $bookingFieldValidation,
-        private readonly VoucherValidationService $voucherValidationService,
-        private readonly VoucherLedgerService $voucherLedgerService,
+        private readonly PublicBookingVoucherService $bookingVoucherService,
         private readonly FeatureGateServiceContract $featureGate,
+        private readonly PublicBookingClientService $bookingClientService,
     ) {}
 
     public function handle(CreatePublicBookingDTO $dto, Tenant $tenant): Appointment
@@ -48,16 +48,17 @@ final class BookingPublicCreateAction
         $this->ensureWithinReservationWindow($tenant, $times['starts_at']);
         $this->ensureWithinBusinessWorkingHours($tenant, $times['starts_at'], $times['ends_at']);
         $this->ensureCustomFieldsFeatureEnabled($tenant, $dto->customFields);
+        $matchingClient = $this->bookingClientService->ensureClientCanBook($tenant, $dto->clientPhone, $dto->clientEmail);
         $effectiveFields = $this->bookingFieldResolver->resolveForService($tenant, $service);
         $this->bookingFieldValidation->validate($dto->customFields, $effectiveFields);
 
-        $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times): Appointment {
-            $client = $this->findOrCreateClient($dto, $tenant);
+        $appointment = DB::transaction(function () use ($dto, $tenant, $service, $times, $matchingClient): Appointment {
+            $client = $this->findOrCreateClient($dto, $tenant, $matchingClient);
             $servicePrice = (float) $service->price;
             $voucher = null;
 
             if ($dto->voucherCode !== null) {
-                $voucher = $this->voucherValidationService->findRedeemableVoucher($tenant, $dto->voucherCode);
+                $voucher = $this->bookingVoucherService->findRedeemableVoucher($tenant, $dto->voucherCode);
             }
 
             $appointment = $this->appointmentRepository->create([
@@ -77,7 +78,7 @@ final class BookingPublicCreateAction
             ]);
 
             if ($voucher !== null) {
-                $discountAmount = $this->voucherLedgerService->redeemForAppointment(
+                $discountAmount = $this->bookingVoucherService->redeemForAppointment(
                     $voucher,
                     $appointment,
                     $servicePrice,
@@ -144,17 +145,14 @@ final class BookingPublicCreateAction
         $owner->notify(new NewBookingReceived($appointment));
     }
 
-    private function findOrCreateClient(CreatePublicBookingDTO $dto, Tenant $tenant): Client
+    private function findOrCreateClient(CreatePublicBookingDTO $dto, Tenant $tenant, ?Client $matchingClient): Client
     {
-        return Client::withoutTenantScope()->firstOrCreate(
-            [
-                'tenant_id' => $tenant->id,
-                'phone' => $dto->clientPhone,
-            ],
-            [
-                'name' => $dto->clientName,
-                'email' => $dto->clientEmail,
-            ],
+        return $this->bookingClientService->findOrCreateClient(
+            tenant: $tenant,
+            name: $dto->clientName,
+            phone: $dto->clientPhone,
+            email: $dto->clientEmail,
+            matchingClient: $matchingClient,
         );
     }
 

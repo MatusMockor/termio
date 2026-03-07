@@ -60,4 +60,14 @@ final class PublicStoreWaitlistEntryRequest extends FormRequest
 
         return $value !== null ? (int) $value : null;
     }
+
+    public function getClientPhone(): string
+    {
+        return $this->validated('client_phone');
+    }
+
+    public function getClientEmail(): ?string
+    {
+        return $this->validated('client_email');
+    }
 }
